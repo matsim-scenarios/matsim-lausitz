@@ -24,8 +24,8 @@ import org.matsim.core.config.groups.PlansCalcRouteConfigGroup;
 import org.matsim.core.config.groups.VspExperimentalConfigGroup;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
-import org.matsim.run.analysis.CommuterAnalysis;
-import org.matsim.run.analysis.DownloadCommuterStatistic;
+import org.matsim.analysis.CommuterAnalysis;
+import org.matsim.analysis.DownloadCommuterStatistic;
 import picocli.CommandLine;
 
 import javax.annotation.Nullable;

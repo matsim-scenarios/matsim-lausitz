@@ -1,4 +1,4 @@
-package org.matsim.run.analysis;
+package org.matsim.analysis;
 
 
 import com.fasterxml.jackson.databind.JsonNode;

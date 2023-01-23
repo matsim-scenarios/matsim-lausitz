@@ -1,4 +1,4 @@
-package org.matsim.run.analysis;
+package org.matsim.analysis;
 
 import org.apache.commons.csv.CSVPrinter;
 import org.matsim.api.core.v01.Coord;
