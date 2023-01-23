@@ -140,11 +140,18 @@ input/$V/$N-$V-counts-car-bast.xml.gz: input/2019_A_S.zip input/2019_B_S.zip inp
 		--primary-data input/2019_B_S.zip\
 		--station-data input/Jawe2019.csv\
 		--year 2019\
-		--shp input/network-area/network-area.shp --shp-crs $(CRS)\
+		 --shp ../shared-svn/projects/DiTriMo/data/shp/$N.shp --shp-crs $(CRS)\
 		--car-output $@\
 		--freight-output $(subst car,freight,$@)
 
 check: input/$V/$N-$V-100pct.plans.xml.gz
+	java -jar $(JAR) analysis commuter\
+	 --population $<\
+ 	 --input-crs $(CRS)\
+	 --shp ../shared-svn/projects/DiTriMo/data/vg5000/vg5000_ebenen_0101/VG5000_VWG.shp\
+	 --attr GEN\
+	 --output input/$N-$V-commuter.csv
+
 	java -jar $(JAR) analysis check-population $<\
  	 --input-crs $(CRS)\
 	 --shp ../shared-svn/projects/DiTriMo/data/shp/$N.shp --shp-crs $(CRS)
