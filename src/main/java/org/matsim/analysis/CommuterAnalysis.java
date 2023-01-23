@@ -23,9 +23,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-// TODO
-// https://www.regionalstatistik.de/genesis/online?operation=abruftabelleBearbeiten&levelindex=1&levelid=1674130185923&auswahloperation=abruftabelleAuspraegungAuswaehlen&auswahlverzeichnis=ordnungsstruktur&auswahlziel=werteabruf&code=19321-Z-21&auswahltext=&werteabruf=starten#abreadcrumb
-
 @CommandLine.Command(name = "commuter", description = "Generate matrix with number of commuters from home to work")
 public class CommuterAnalysis implements MATSimAppCommand, PersonAlgorithm {
 

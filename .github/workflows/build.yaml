@@ -1,9 +1,6 @@
 name: build
 
-on:
-  push:
-    tags-ignore:
-      - '*' # do not run on pushing tags (see publish)
+on: push
 
 jobs:
 
