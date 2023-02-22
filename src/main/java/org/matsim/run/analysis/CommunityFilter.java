@@ -3,8 +3,10 @@ package org.matsim.run.analysis;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Point;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CsvOptions;
+import org.matsim.core.utils.collections.Tuple;
 import org.matsim.core.utils.gis.ShapeFileReader;
 import org.opengis.feature.simple.SimpleFeature;
 import picocli.CommandLine;
@@ -12,9 +14,7 @@ import picocli.CommandLine;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @CommandLine.Command(name = "community-filter", description = "creates a csv with commuity keys within shape")
@@ -33,6 +33,7 @@ public class CommunityFilter implements MATSimAppCommand {
 	CsvOptions csvOptions = new CsvOptions();
 
 	private final List<String> keys = new ArrayList<>();
+	private final Map<String, Tuple<Double, Double>> filtered = new HashMap<>();
 
 	public static void main(String[] args) {
 		new CommunityFilter().execute(args);
@@ -51,16 +52,26 @@ public class CommunityFilter implements MATSimAppCommand {
 			String attribute = (String) community.getAttribute("ARS");
 
 			if(geometries.stream()
-					.anyMatch(geometry -> geometry.covers((Geometry) community.getDefaultGeometry())))
-				keys.add(attribute);
+					.anyMatch(geometry -> geometry.covers((Geometry) community.getDefaultGeometry()))){
+
+				Point centroid = ((Geometry) community.getDefaultGeometry()).getCentroid();
+				Tuple<Double, Double> coordinates = Tuple.of(centroid.getX(), centroid.getY());
+
+				filtered.put(attribute, coordinates);
+			}
+
 		}
 
 		CSVPrinter printer = csvOptions.createPrinter(output);
 		printer.print("ars");
+		printer.print("x");
+		printer.print("y");
 		printer.println();
 
-		for(String key: keys){
-			printer.print(key);
+		for(Map.Entry<String, Tuple<Double, Double>> entry: filtered.entrySet()){
+			printer.print(entry.getKey());
+			printer.print(entry.getValue().getFirst());
+			printer.print(entry.getValue().getSecond());
 			printer.println();
 		}
 		printer.close();
