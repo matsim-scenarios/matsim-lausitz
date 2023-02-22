@@ -26,6 +26,7 @@ import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
 import org.matsim.run.analysis.CommunityFilter;
 import org.matsim.run.analysis.CommuterAnalysis;
+import org.matsim.run.analysis.DistanceMatrix;
 import picocli.CommandLine;
 
 import javax.annotation.Nullable;
@@ -40,7 +41,7 @@ import java.util.Set;
 		CreateCountsFromBAStData.class
 })
 @MATSimApplication.Analysis({
-		TravelTimeAnalysis.class, LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class
+		TravelTimeAnalysis.class, LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class, DistanceMatrix.class
 })
 public class RunLausitzScenario extends MATSimApplication {
 
