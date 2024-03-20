@@ -25,7 +25,7 @@ public class RunIntegrationTest {
 
 		String output = utils.getOutputDirectory();
 
-		Config config = ConfigUtils.loadConfig("input/v1.0/lausitz-v1.0-25pct.config.xml");
+		Config config = ConfigUtils.loadConfig("input/v1.0/test_lausitz-v1.0-25pct.config.xml");
 
 		config.global().setNumberOfThreads(1);
 		config.qsim().setNumberOfThreads(1);
@@ -41,11 +41,11 @@ public class RunIntegrationTest {
 //////
 ////
 //		EventsUtils.createEventsFingerprint(utils.getOutputDirectory()+"lausitz-1pct.output_events.xml.gz",
-//				utils.getInputDirectory()+"lausitz.fp.zst");
+//				utils.getInputDirectory()+"astarlandmark_lausitz.fp.zst");
 
 		EventsUtils.assertEqualEventsFingerprint(
 				new File("test/output/org/matsim/run/RunIntegrationTest/runScenario/", "lausitz-1pct.output_events.xml.gz"),
-				new File(utils.getInputDirectory(), "lausitz.fp.zst").toString()
+				new File(utils.getInputDirectory(), "astarlandmark_lausitz.fp.zst").toString()
 		);
 
 
