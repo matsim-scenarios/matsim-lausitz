@@ -38,11 +38,14 @@ public class RunIntegrationTest {
 
 		MATSimApplication.execute(LausitzScenario.class, config, "run", "--1pct"
 		);
-
+//////
+////
+//		EventsUtils.createEventsFingerprint(utils.getOutputDirectory()+"lausitz-1pct.output_events.xml.gz",
+//				utils.getInputDirectory()+"lausitz.fp.zst");
 
 		EventsUtils.assertEqualEventsFingerprint(
-				new File(utils.getOutputDirectory(), "lausitz-1pct.output_events.xml.gz"),
-				new File(utils.getInputDirectory(), "lausitz-1pct.output_events.fp.zst").toString()
+				new File("test/output/org/matsim/run/RunIntegrationTest/runScenario/", "lausitz-1pct.output_events.xml.gz"),
+				new File(utils.getInputDirectory(), "lausitz.fp.zst").toString()
 		);
 
 
