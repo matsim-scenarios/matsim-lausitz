@@ -70,6 +70,7 @@ public class LausitzScenario extends MATSimApplication {
 		// Add all activity types with time bins
 		SnzActivities.addScoringParams(config);
 
+//		add simwrapper config module
 		SimWrapperConfigGroup simWrapper = ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class);
 
 		if (sample.isSet()) {
@@ -79,16 +80,18 @@ public class LausitzScenario extends MATSimApplication {
 
 			config.qsim().setFlowCapFactor(sample.getSample());
 			config.qsim().setStorageCapFactor(sample.getSample());
-			config.counts().setCountsScaleFactor(100d / sample.getSample());
+			config.counts().setCountsScaleFactor(sample.getSample());
 
 			simWrapper.sampleSize = sample.getSample();
 		}
-
+//
 		config.qsim().setUsingTravelTimeCheckInTeleportation(true);
 		config.qsim().setUsePersonIdForMissingVehicleId(false);
 		config.routing().setAccessEgressType(RoutingConfigGroup.AccessEgressType.accessEgressModeToLink);
 
 		// TODO: Config options
+
+		// TODO: recreate counts format with car and trucks
 
 		return config;
 	}
@@ -120,8 +123,8 @@ public class LausitzScenario extends MATSimApplication {
 
 				bind(ScoringParametersForPerson.class).to(IncomeDependentUtilityOfMoneyPersonScoringParameters.class).asEagerSingleton();
 
-				addControlerListenerBinding().to(ModeChoiceCoverageControlerListener.class);
-
+//				addControlerListenerBinding().to(ModeChoiceCoverageControlerListener.class);
+// 				for what do we need this?? -sme0524
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
 				addTravelDisutilityFactoryBinding(TransportMode.ride).to(carTravelDisutilityFactoryKey());
 

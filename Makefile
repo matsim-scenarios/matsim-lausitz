@@ -30,21 +30,25 @@ input/Jawe2019.csv:
 
 input/network.osm: $(NETWORK)
 
+#	retrieve detailed network (see param highway) from OSM
 	$(osmosis) --rb file=$<\
 	 --tf accept-ways bicycle=yes highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary_link,secondary,tertiary,motorway_junction,residential,unclassified,living_street\
 	 --bounding-polygon file="$(shared)/data/cottbus.poly"\
 	 --used-node --wb input/network-detailed.osm.pbf
 
 	# This includes residential as well, since multiple cities are covered by the study area
+	#	retrieve coarse network (see param highway) from OSM
 	$(osmosis) --rb file=$<\
 	 --tf accept-ways highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary_link,secondary,tertiary,motorway_junction,residential\
 	 --bounding-polygon file="$(shared)/data/lausitz.poly"\
 	 --used-node --wb input/network-coarse.osm.pbf
 
+	#	retrieve germany wide network (see param highway) from OSM
 	$(osmosis) --rb file=$<\
 	 --tf accept-ways highway=motorway,motorway_link,motorway_junction,trunk,trunk_link,primary,primary_link\
 	 --used-node --wb input/network-germany.osm.pbf
 
+#	put the 3 above networks together and remove raia
 	$(osmosis) --rb file=input/network-germany.osm.pbf --rb file=input/network-coarse.osm.pbf --rb file=input/network-detailed.osm.pbf\
   	 --merge --merge\
   	 --tag-transform file=input/remove-railway.xml\
@@ -140,7 +144,7 @@ input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz i
     	 --sample-size 1\
     	 --samples 0.25 0.1 0.01\
 
-input/$V/$N-$V-counts-car-bast.xml.gz: input/2019_A_S.zip input/2019_B_S.zip input/Jawe2019.csv input/$V/$N-$V-network-with-pt.xml.gz
+input/$V/$N-$V-counts-bast.xml.gz: input/2019_A_S.zip input/2019_B_S.zip input/Jawe2019.csv input/$V/$N-$V-network-with-pt.xml.gz
 
 	$(sc) prepare counts-from-bast\
 		--network input/$V/$N-$V-network-with-pt.xml.gz\
@@ -149,8 +153,7 @@ input/$V/$N-$V-counts-car-bast.xml.gz: input/2019_A_S.zip input/2019_B_S.zip inp
 		--station-data input/Jawe2019.csv\
 		--year 2019\
 		--shp input/shp/lausitz.shp --shp-crs $(CRS)\
-		--car-output $@\
-		--freight-output $(subst car,freight,$@)
+		--output $@
 
 check: input/$V/$N-$V-100pct.plans-initial.xml.gz
 	$(sc) analysis commuter\
