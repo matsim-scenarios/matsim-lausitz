@@ -74,8 +74,10 @@
 		<param name="useLanes" value="false"/>
 
 		<param name="vehiclesSource" value="modeVehicleTypesFromVehiclesData"/>
+		<!-- this setting is consistent with drt / dvrp necessities
+		if using drt + set to false it can happen that drt travel times estimates are not as precise as needed.
+		see comments in DvrpConfigGroup.checkConsistency-->
 		<param name="insertingWaitingVehiclesBeforeDrivingVehicles" value="true"/>
-<!--		TODO: ask TS check if this is consistent with drt, if so comment it here!-->
 	</module>
 
 	<module name="simwrapper" >
@@ -160,8 +162,10 @@
 	</module>
 
 	<module name="travelTimeCalculator">
+		<!-- This parameter decides which modes are analyzed, when separateModes = false && filterModes = true. The 2 latter parameters are only here for backwards compability.
+		standard is separateModes = true (see below), so analyzedModes is ignored.
+		In case of separateModes = false && filterModes = true: travel time measurement for all vehicle types together (seperatemodes = false), BUT filtered (filterModes = true) for the modes in analyzedModes-->
 		<param name="analyzedModes" value="car,freight"/>
-<!--		is this correct? Clarify!-->
 
 		<param name="separateModes" value="true"/>
 		<param name="calculateLinkToLinkTravelTimes" value="false"/>

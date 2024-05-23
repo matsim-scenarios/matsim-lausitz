@@ -123,8 +123,9 @@ public class LausitzScenario extends MATSimApplication {
 
 				bind(ScoringParametersForPerson.class).to(IncomeDependentUtilityOfMoneyPersonScoringParameters.class).asEagerSingleton();
 
-//				addControlerListenerBinding().to(ModeChoiceCoverageControlerListener.class);
-// 				for what do we need this?? -sme0524
+//				this is only a "nice to have" analysis to check whether agents had the chance to try out all the modes.
+//				the analysis is added to ModeStatsModule in matsim-libs PR3285
+				addControlerListenerBinding().to(ModeChoiceCoverageControlerListener.class);
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
 				addTravelDisutilityFactoryBinding(TransportMode.ride).to(carTravelDisutilityFactoryKey());
 
