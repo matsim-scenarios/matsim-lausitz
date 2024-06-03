@@ -123,4 +123,4 @@ For more information about MATSim, see here: https://www.matsim.org/
 
 ### Internal Documentation
 Internal documentation can be found here:
-https://docs.google.com/document/d/1igBcrRTFklb7THSU1bNNIyG-pwiYgXBg6WeI-Pf7zj8/edit
+https://docs.google.com/document/d/1igBcrRTFklb7THSU1bNNIyG-pwiYgXBg6WeI-Pf7zj8/edit?usp=sharing

@@ -192,11 +192,11 @@
 			</parameterset>
 			<parameterset type="modeParams">
 				<param name="constant" value="-0.5680132362367731"/>
-				<!-- #(2.0+1.0)*6+(2.0+1)*0.0 -->
-				<param name="marginalUtilityOfTraveling_util_hr" value="-18.0"/>
 				<param name="mode" value="ride"/>
-				<param name="monetaryDistanceRate" value="-0.0005"/>
-				<param name="dailyMonetaryConstant" value="-0.0"/>
+<!--				the following are set in code, see run class -->
+<!--				<param name="marginalUtilityOfTraveling_util_hr" value="-18.0"/>-->
+<!--				<param name="monetaryDistanceRate" value="-0.0005"/>-->
+<!--				<param name="dailyMonetaryConstant" value="-0.0"/>-->
 			</parameterset>
 			<parameterset type="modeParams">
 				<param name="constant" value="-2.156295829747925"/>

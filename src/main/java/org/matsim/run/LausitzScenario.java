@@ -1,7 +1,6 @@
 package org.matsim.run;
 
 import com.google.common.collect.Sets;
-import org.matsim.analysis.ModeChoiceCoverageControlerListener;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
@@ -20,6 +19,7 @@ import org.matsim.contrib.vsp.scenario.SnzActivities;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.RoutingConfigGroup;
+import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.scoring.functions.ScoringParametersForPerson;
@@ -55,6 +55,10 @@ public class LausitzScenario extends MATSimApplication {
 		super(config);
 	}
 
+	public LausitzScenario(String configPath) {
+		super(configPath);
+	}
+
 	public LausitzScenario() {
 		super(String.format("input/v%s/lausitz-v%s-25pct.config.xml", VERSION, VERSION));
 	}
@@ -84,7 +88,18 @@ public class LausitzScenario extends MATSimApplication {
 
 			simWrapper.sampleSize = sample.getSample();
 		}
-//
+
+//		set ride scoring params dependent from car params
+		ScoringConfigGroup.ModeParams rideParams = config.scoring().getOrCreateModeParams(TransportMode.ride);
+		ScoringConfigGroup.ModeParams carParams = config.scoring().getModes().get(TransportMode.car);
+//		2.0 + 1.0 = alpha + 1
+//		ride cost = alpha * car cost
+//		ride marg utility of traveling = (alpha + 1) * marg utility travelling car + alpha * beta perf
+		double alpha = 2;
+		rideParams.setMarginalUtilityOfTraveling((alpha + 1) * carParams.getMarginalUtilityOfTraveling() - alpha * config.scoring().getPerforming_utils_hr());
+		rideParams.setDailyMonetaryConstant(0.);
+		rideParams.setMonetaryDistanceRate(carParams.getMonetaryDistanceRate() * 2);
+
 		config.qsim().setUsingTravelTimeCheckInTeleportation(true);
 		config.qsim().setUsePersonIdForMissingVehicleId(false);
 		config.routing().setAccessEgressType(RoutingConfigGroup.AccessEgressType.accessEgressModeToLink);
@@ -123,12 +138,9 @@ public class LausitzScenario extends MATSimApplication {
 
 				bind(ScoringParametersForPerson.class).to(IncomeDependentUtilityOfMoneyPersonScoringParameters.class).asEagerSingleton();
 
-//				this is only a "nice to have" analysis to check whether agents had the chance to try out all the modes.
-//				the analysis is added to ModeStatsModule in matsim-libs PR3285
-				addControlerListenerBinding().to(ModeChoiceCoverageControlerListener.class);
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
 				addTravelDisutilityFactoryBinding(TransportMode.ride).to(carTravelDisutilityFactoryKey());
-
+//				we do not need to add SwissRailRaptor explicitely! this is done in core
 			}
 
 		});
