@@ -47,7 +47,7 @@
 	</module>
 
 	<module name="counts">
-		<param name="inputCountsFile" value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-counts-car-bast.xml.gz"/>
+		<param name="inputCountsFile" value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-counts-bast.xml.gz"/>
 	</module>
 
 	<module name="routing">

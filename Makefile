@@ -1,6 +1,6 @@
 
 N := lausitz
-V := v1.0
+V := v1.1
 CRS := EPSG:25832
 JAR := matsim-$(N)-*.jar
 
@@ -17,16 +17,6 @@ NETWORK := $(germany)/maps/germany-230101.osm.pbf
 sc := java -Xmx$(MEMORY) -XX:+UseParallelGC -jar $(JAR)
 
 .PHONY: prepare
-
-# Bast count data
-input/2019_A_S.zip:
-	curl https://www.bast.de/videos/2019_A_S.zip -o $@
-
-input/2019_B_S.zip:
-	curl https://www.bast.de/videos/2019_B_S.zip -o $@
-
-input/Jawe2019.csv:
-	curl "https://www.bast.de/DE/Verkehrstechnik/Fachthemen/v2-verkehrszaehlung/Daten/2019_1/Jawe2019.csv?view=renderTcDataExportCSV&cms_strTyp=A" -o $@
 
 input/network.osm: $(NETWORK)
 
@@ -165,13 +155,13 @@ input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz i
     	 --samples 0.25 0.1 0.01\
 
 # create matsim counts file
-input/$V/$N-$V-counts-bast.xml.gz: input/2019_A_S.zip input/2019_B_S.zip input/Jawe2019.csv input/$V/$N-$V-network-with-pt.xml.gz
+input/$V/$N-$V-counts-bast.xml.gz: input/$V/$N-$V-network-with-pt.xml.gz
 
 	$(sc) prepare counts-from-bast\
 		--network input/$V/$N-$V-network-with-pt.xml.gz\
-		--motorway-data input/2019_A_S.zip\
-		--primary-data input/2019_B_S.zip\
-		--station-data input/Jawe2019.csv\
+		--motorway-data $(germany)/bast-counts/2019/2019_A_S.zip\
+		--primary-data $(germany)/bast-counts/2019/2019_B_S.zip\
+		--station-data $(germany)/bast-counts/2019/Jawe2019.csv\
 		--year 2019\
 		--shp input/shp/lausitz.shp --shp-crs $(CRS)\
 		--output $@
