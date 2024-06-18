@@ -32,6 +32,9 @@ public class LausitzPtFareModule extends AbstractModule {
 //	max. price: 46€ for 108km (longest rail distance in study area Eisenhüttenstadt <-> Bautzen) compared to mean price 25.15€ for 30km
 //	=> slope for distance based cost: 0,2673076923€
 	static final double LONG_TRIP_SLOPE = 0.2673076923;
+//		upper bound factor: relation of single trip compared to daily cost of monthly VBB ticket
+//		5.12 / 4.125 = 1.24
+	static final double UPPER_BOUND_FACTOR = 1.24;
 
 	@Override
 	public void install() {
@@ -44,9 +47,7 @@ public class LausitzPtFareModule extends AbstractModule {
 
 		// Set parameters
 		ptFareConfigGroup.setApplyUpperBound(true);
-//		upper bound factor: relation of single trip compared to daily cost of monthly VBB ticket
-//		5.12 / 4.125 = 1.24
-		ptFareConfigGroup.setUpperBoundFactor(1.24);
+		ptFareConfigGroup.setUpperBoundFactor(UPPER_BOUND_FACTOR);
 
 		// Minimum fare (e.g. short trip or 1 zone ticket)
 		distanceBasedPtFareParams.setMinFare(MIN_FARE);
