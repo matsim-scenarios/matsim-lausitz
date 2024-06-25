@@ -9,6 +9,7 @@ import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.network.Node;
 import org.matsim.application.MATSimApplication;
 import org.matsim.core.config.Config;
+import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.routes.RouteUtils;
@@ -29,9 +30,7 @@ public class RunLausitzPtScenario extends MATSimApplication {
 	private final LausitzScenario baseScenario = new LausitzScenario();
 
 	public RunLausitzPtScenario() {
-//		TODO: change this back to "automagic" version loading of config
-//		super(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
-		super("input/v1.1/lausitz-v1.1-10pct.config.xml");
+		super(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
 	}
 
 	public static void main(String[] args) {
@@ -104,7 +103,7 @@ public class RunLausitzPtScenario extends MATSimApplication {
 
 		int i = 0;
 		for (List<Link> linkList : List.of(List.of(startLink1, link1, link2, link3, link4, link5), List.of(startLink2, link6, link7, link8, link9, link10))) {
-			transitInfoList.add(configureTransitStops(linkList, scenario.getNetwork(), fac, i, travelTimes));
+			transitInfoList.add(configureTransitStops(linkList, scenario.getNetwork(), schedule, fac, i, travelTimes));
 			i++;
 		}
 
@@ -138,7 +137,6 @@ public class RunLausitzPtScenario extends MATSimApplication {
 			j++;
 		}
 		schedule.addTransitLine(line);
-//		TODO test if this line exsits and works in mobsim
 	}
 
 	@Override
@@ -148,7 +146,7 @@ public class RunLausitzPtScenario extends MATSimApplication {
 //		TODO: add potential new Listeners here
 //		maybe a special controler for the new pt line would be handy?!
 	}
-	private TransitInfo configureTransitStops(List<Link> linkList, Network network, TransitScheduleFactory fac, int count, Map<Link, Double> travelTimes) {
+	private TransitInfo configureTransitStops(List<Link> linkList, Network network, TransitSchedule schedule, TransitScheduleFactory fac, int count, Map<Link, Double> travelTimes) {
 		List<Id<Link>> links = new ArrayList<>();
 		List<TransitRouteStop> stops = new ArrayList<>();
 
@@ -163,6 +161,8 @@ public class RunLausitzPtScenario extends MATSimApplication {
 //				create stop with to node id minus prefix pt_
 			TransitStopFacility stopFac = fac.createTransitStopFacility(Id.create(toNode.getId().toString().substring(toNode.getId().toString().indexOf("pt_")
 				+ "pt_".length()) + "_" + count, TransitStopFacility.class), toNode.getCoord(), false);
+			stopFac.setLinkId(l.getId());
+			schedule.addStopFacility(stopFac);
 
 			double arrivalDelay = 0.;
 			double departureDelay = 0.;
