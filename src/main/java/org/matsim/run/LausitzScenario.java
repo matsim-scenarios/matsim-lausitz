@@ -48,7 +48,7 @@ public class LausitzScenario extends MATSimApplication {
 	public static final String VERSION = "1.1";
 
 	@CommandLine.Mixin
-	private final SampleOptions sample = new SampleOptions( 25, 10, 1);
+	private final SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
 
 
 	public LausitzScenario(@Nullable Config config) {
