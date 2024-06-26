@@ -59,8 +59,12 @@ public class LausitzScenario extends MATSimApplication {
 		super(configPath);
 	}
 
+//	TODO: change version variable to 1.1 and rather use this constructor than the follwoing
+//	public LausitzScenario() {
+//		super(String.format("input/v%s/lausitz-v%s-10pct.config.xml", VERSION, VERSION));
+//	}
 	public LausitzScenario() {
-		super(String.format("input/v%s/lausitz-v%s-25pct.config.xml", VERSION, VERSION));
+		super("input/v1.1/lausitz-v1.1-10pct.config.xml");
 	}
 
 	public static void main(String[] args) {
@@ -106,8 +110,6 @@ public class LausitzScenario extends MATSimApplication {
 
 		// TODO: Config options
 
-		// TODO: recreate counts format with car and trucks
-
 		return config;
 	}
 
@@ -135,6 +137,7 @@ public class LausitzScenario extends MATSimApplication {
 		controler.addOverridingModule(new AbstractModule() {
 			@Override
 			public void install() {
+				install(new LausitzPtFareModule());
 
 				bind(ScoringParametersForPerson.class).to(IncomeDependentUtilityOfMoneyPersonScoringParameters.class).asEagerSingleton();
 
