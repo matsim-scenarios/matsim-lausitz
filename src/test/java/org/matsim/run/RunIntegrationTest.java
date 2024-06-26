@@ -39,7 +39,7 @@ class RunIntegrationTest {
 	@TempDir
 	public Path p;
 
-	private static Id<Person> ptPersonId = Id.createPersonId("Hoyerswerda-Cottbus_PT");
+	private final static Id<Person> ptPersonId = Id.createPersonId("Hoyerswerda-Cottbus_PT");
 
 	@Test
 	void runScenario() {
