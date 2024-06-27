@@ -102,8 +102,8 @@ input/$V/prepare-100pct.plans.xml.gz:
 	$(sc) prepare trajectory-to-plans\
 	 --name prepare --sample-size 1 --output input/$V\
 	 --max-typical-duration 0\
-	 --population $(shared)/matsim-input-files/senozon/20230111_teilmodell_lausitz/population.xml.gz\
-	 --attributes  $(shared)/matsim-input-files/senozon/20230111_teilmodell_lausitz/additionalPersonAttributes.xml.gz
+	 --population $(shared)/data/matsim-input-files/senozon/20230111_teilmodell_lausitz/population.xml.gz\
+	 --attributes  $(shared)/data/matsim-input-files/senozon/20230111_teilmodell_lausitz/additionalPersonAttributes.xml.gz
 
 	# resolve senozon aggregated grid coords (activities): distribute them based on landuse.shp
 	$(sc) prepare resolve-grid-coords\
