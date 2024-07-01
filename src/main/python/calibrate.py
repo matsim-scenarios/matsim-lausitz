@@ -47,7 +47,7 @@ region = gpd.read_file("../input/shp/lausitz.shp").to_crs("EPSG:25832")
 
 def filter_persons(persons):
     persons = gpd.GeoDataFrame(persons, geometry=gpd.points_from_xy(persons.home_x, persons.home_y))
-    df = gpd.sjoin(persons.set_crs("EPSG:25832"), region, how="inner", op="intersects")
+    df = gpd.sjoin(persons.set_crs("EPSG:25832"), region, how="inner", predicate="intersects")
 
     print("Filtered %s persons" % len(df))
 
