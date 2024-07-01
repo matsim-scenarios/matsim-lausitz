@@ -172,6 +172,7 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 		}
 
 //TODO: is the following if clause needed when using the DRT Estimator?!
+//		TODO: @CL where does the estimator draw its vehicles from? Are vehicle types even needed?
 		//		if there are no vehicles of above type: add some
 		if (scenario.getVehicles().getVehicles().values().stream().filter(v -> v.getType().getId().equals(drtTypeId)).toList().isEmpty()) {
 
