@@ -7,8 +7,8 @@ import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.application.MATSimApplication;
 import org.matsim.application.options.ShpOptions;
-import org.matsim.contrib.drt.optimizer.DrtOptimizationConstraintsParams;
-import org.matsim.contrib.drt.optimizer.DrtOptimizationConstraintsSet;
+import org.matsim.contrib.drt.optimizer.constraints.DefaultDrtOptimizationConstraintsSet;
+import org.matsim.contrib.drt.optimizer.constraints.DrtOptimizationConstraintsParams;
 import org.matsim.contrib.drt.optimizer.insertion.extensive.ExtensiveInsertionSearchParams;
 import org.matsim.contrib.drt.routing.DrtRoute;
 import org.matsim.contrib.drt.routing.DrtRouteFactory;
@@ -85,10 +85,11 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 
 //			optimization params now are in its own paramSet, hence the below lines
 			DrtOptimizationConstraintsParams optimizationConstraints = new DrtOptimizationConstraintsParams();
-			DrtOptimizationConstraintsSet optimizationConstraintsSet = optimizationConstraints.addOrGetDefaultDrtOptimizationConstraintsSet();
+			DefaultDrtOptimizationConstraintsSet optimizationConstraintsSet = new DefaultDrtOptimizationConstraintsSet();
 			optimizationConstraintsSet.maxWaitTime = 1200.;
 			optimizationConstraintsSet.maxTravelTimeBeta = 1200.;
 			optimizationConstraintsSet.maxTravelTimeAlpha = 1.5;
+			optimizationConstraints.addParameterSet(optimizationConstraintsSet);
 			drtConfigGroup.addParameterSet(optimizationConstraints);
 			drtConfigGroup.addParameterSet(new ExtensiveInsertionSearchParams());
 //			TODO: talk to KN whether to put in fare params here.. logic could be: we assume that everybody has a Deutschlandticket so no fare at all is charged?!
