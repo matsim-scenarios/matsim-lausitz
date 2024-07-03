@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 from matsim.scenariogen.data import run_create_ref_data
-from matsim.scenariogen.data.preparation import calc_needed_short_distance_trips
+from matsim.scenariogen.data.preparation import calc_needed_short_distance_trips, cut
 
 CRS = "EPSG:25832"
 
@@ -12,6 +13,8 @@ CRS = "EPSG:25832"
 def person_filter(df):
     df = gpd.GeoDataFrame(df, geometry=gpd.GeoSeries.from_wkt(df.geom, crs="EPSG:4326").to_crs(CRS))
     df = gpd.sjoin(df, region, how="inner", predicate="intersects")
+
+    df["age"] = cut(df.age, [0, 12, 18, 25, 35, 66, np.inf])
 
     return df[df.present_on_day & (df.reporting_day <= 5)]
 
@@ -24,14 +27,17 @@ def trip_filter(df):
 if __name__ == "__main__":
     region = gpd.read_file("../../../../shared-svn/projects/DiTriMo/data/shp/lausitz.shp").to_crs(CRS)
 
-    persons, trips, share = run_create_ref_data.create("/Volumes/Untitled/B3_Lokal-Datensatzpaket/CSV",
-                                                       person_filter, trip_filter,
-                                                       run_create_ref_data.InvalidHandling.REMOVE_TRIPS)
+    r = run_create_ref_data.create(
+        "/Volumes/Untitled/B3_Lokal-Datensatzpaket/CSV",
+        person_filter, trip_filter,
+        run_create_ref_data.InvalidHandling.REMOVE_TRIPS,
+        ref_groups=["age"]
+    )
 
-    print("Filtered %s persons" % len(persons))
-    print("Filtered %s trips" % len(trips))
+    print("Filtered %s persons" % len(r.persons))
+    print("Filtered %s trips" % len(r.trips))
 
-    print(share)
+    print(r.share)
 
     # Simulated trips
     sim_persons = pd.read_csv("../../../output/output-lausitz-100pct/lausitz-100pct.output_persons.csv.gz",
