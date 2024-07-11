@@ -10,7 +10,7 @@
 	<module name="controller">
 		<param name="lastIteration" value="500"/>
 		<param name="overwriteFiles" value="failIfDirectoryExists"/>
-		<param name="runId" value="lausitz-25pct"/>
+		<param name="runId" value="lausitz-10ct"/>
 		<param name="outputDirectory" value="./output/output-lausitz-25pct"/>
 		<param name="writeEventsInterval" value="100"/>
 		<param name="writePlansInterval" value="100"/>

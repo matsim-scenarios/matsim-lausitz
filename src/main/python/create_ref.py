@@ -28,6 +28,7 @@ if __name__ == "__main__":
     region = gpd.read_file("../../../../shared-svn/projects/DiTriMo/data/shp/lausitz.shp").to_crs(CRS)
 
     r = run_create_ref_data.create(
+        # this is the MID2017 dataset, it is not available in svn as it has to be encrypted
         "/Volumes/Untitled/B3_Lokal-Datensatzpaket/CSV",
         person_filter, trip_filter,
         run_create_ref_data.InvalidHandling.REMOVE_TRIPS,
