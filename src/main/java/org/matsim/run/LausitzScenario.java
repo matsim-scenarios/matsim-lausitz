@@ -89,9 +89,14 @@ public class LausitzScenario extends MATSimApplication {
 			simWrapper.sampleSize = sample.getSample();
 		}
 
+//		performing set to 6.0 after calibration task force july 24
+		double performing = 6.0;
+		ScoringConfigGroup scoringConfigGroup = config.scoring();
+		scoringConfigGroup.setPerforming_utils_hr(performing);
+
 //		set ride scoring params dependent from car params
-		ScoringConfigGroup.ModeParams rideParams = config.scoring().getOrCreateModeParams(TransportMode.ride);
-		ScoringConfigGroup.ModeParams carParams = config.scoring().getModes().get(TransportMode.car);
+		ScoringConfigGroup.ModeParams rideParams = scoringConfigGroup.getOrCreateModeParams(TransportMode.ride);
+		ScoringConfigGroup.ModeParams carParams = scoringConfigGroup.getModes().get(TransportMode.car);
 //		2.0 + 1.0 = alpha + 1
 //		ride cost = alpha * car cost
 //		ride marg utility of traveling = (alpha + 1) * marg utility travelling car + alpha * beta perf

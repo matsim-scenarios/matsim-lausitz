@@ -179,9 +179,6 @@
 	<module name="scoring">
 		<param name="fractionOfIterationsToStartScoreMSA" value="0.9"/>
 		<parameterset type="scoringParameters">
-			<!-- Inflation adjusted  -->
-			<param name="performing" value="6.67"/>
-
 			<parameterset type="modeParams">
 				<param name="constant" value="-0.49074349924922095"/>
 				<param name="marginalUtilityOfTraveling_util_hr" value="0.0"/>
