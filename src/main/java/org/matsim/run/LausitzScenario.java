@@ -47,6 +47,9 @@ public class LausitzScenario extends MATSimApplication {
 
 	public static final String VERSION = "1.1";
 
+	@CommandLine.Option(names = "--alpha", description = "alpha for ride, this is just to get a feeling for the parameters dimension, should never be configurable in release.", defaultValue = "2.")
+	private double alpha;
+
 	@CommandLine.Mixin
 	private final SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
 
@@ -95,7 +98,7 @@ public class LausitzScenario extends MATSimApplication {
 //		2.0 + 1.0 = alpha + 1
 //		ride cost = alpha * car cost
 //		ride marg utility of traveling = (alpha + 1) * marg utility travelling car + alpha * beta perf
-		double alpha = 2;
+//		double alpha = 2;
 		rideParams.setMarginalUtilityOfTraveling((alpha + 1) * carParams.getMarginalUtilityOfTraveling() - alpha * config.scoring().getPerforming_utils_hr());
 		rideParams.setDailyMonetaryConstant(0.);
 		rideParams.setMonetaryDistanceRate(carParams.getMonetaryDistanceRate() * 2);
@@ -135,7 +138,7 @@ public class LausitzScenario extends MATSimApplication {
 		controler.addOverridingModule(new AbstractModule() {
 			@Override
 			public void install() {
-				install(new LausitzPtFareModule());
+//				install(new LausitzPtFareModule());
 
 				bind(ScoringParametersForPerson.class).to(IncomeDependentUtilityOfMoneyPersonScoringParameters.class).asEagerSingleton();
 
