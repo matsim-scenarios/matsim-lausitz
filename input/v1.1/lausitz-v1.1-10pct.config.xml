@@ -85,7 +85,6 @@
 			<param name="context" value="" />
 			<param name="mapCenter" value="14.5,51.53" />
 			<param name="mapZoomLevel" value="6.8" />
-			<param name="sampleSize" value="0.25" />
 			<param name="shp" value="../shp/lausitz.shp" />
 		</parameterset>
 	</module>
