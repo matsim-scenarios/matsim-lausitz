@@ -94,6 +94,42 @@ input/plans-longHaulFreight.xml.gz: input/$V/$N-$V-network.xml.gz
 	 --shp input/shp/lausitz.shp --shp-crs $(CRS)\
 	 --cut-on-boundary\
 	 --output $@
+# create facilities for commercial traffic
+input/commercialFacilities.xml.gz:
+	$(sc) prepare create-data-distribution-of-structure-data\
+	 --outputFacilityFile $@\
+	 --outputDataDistributionFile input/dataDistributionPerZone.csv\
+	 --landuseConfiguration useOSMBuildingsAndLanduse\
+ 	 --regionsShapeFileName input/shp/commercialTraffic/lausitz_regions_25832.shp\
+	 --regionsShapeRegionColumn "GEN"\
+	 --zoneShapeFileName input/shp/commercialTraffic/lausitz_zones_25832.shp\
+	 --zoneShapeFileNameColumn "GEN"\
+	 --buildingsShapeFileName $(berlin)/input/shp/commercialTraffic/lausitz_buildings_25832.shp\
+	 --shapeFileBuildingTypeColumn "building"\
+	 --landuseShapeFileName $(berlin)/input/shp/commercialTraffic/lausitz_landuse_25832.shp\
+	 --shapeFileLanduseTypeColumn "landuse"\
+	 --shapeCRS "EPSG:25832"\
+	 --pathToInvestigationAreaData input/commercialTrafficAreaData.csv
+# generate small scale commercial traffic
+input/lausitz-small-scale-commercialTraffic-$V-100pct.plans.xml.gz: input/$V/$N-$V-network.xml.gz input/commercialFacilities.xml.gz
+	$(sc) prepare generate-small-scale-commercial-traffic\
+	  input/$V/berlin-$V.config.xml\
+	 --pathToDataDistributionToZones input/dataDistributionPerZone.csv\
+	 --pathToCommercialFacilities $(notdir $(word 2,$^))\
+	 --sample 1.0\
+	 --jspritIterations 10\
+	 --creationOption createNewCarrierFile\
+	 --network $(notdir $<)\
+	 --smallScaleCommercialTrafficType completeSmallScaleCommercialTraffic\
+	 --zoneShapeFileName input/shp/commercialTraffic/lausitz_zones_25832.shp\
+	 --zoneShapeFileNameColumn "GEN"\
+	 --shapeCRS "EPSG:25832"\
+	 --numberOfPlanVariantsPerAgent 5\
+	 --nameOutputPopulation $(notdir $@)\
+	 --pathOutput output/commercialPersonTraffic
+
+	mv output/commercialPersonTraffic/$(notdir $@) $@
+
 
 # trajectory-to-plans formerly was a collection of methods to prepare a given population
 # now, most of the functions of this class do have their own class (downsample, splitduration types...)
@@ -113,7 +149,7 @@ input/$V/prepare-100pct.plans.xml.gz:
 	 --landuse $(germany)/landuse/landuse.shp\
 	 --output $@
 
-input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz input/$V/prepare-100pct.plans.xml.gz
+input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz input/$V/prepare-100pct.plans.xml.gz input/lausitz-small-scale-commercialTraffic-$V-100pct.plans.xml.gz
 
 #	generate some short distance trips, which in senozon data generally are missing
 # trip range 700m because:
