@@ -94,7 +94,7 @@ input/$V/$N-$V-network-with-pt.xml.gz: input/$V/$N-$V-network.xml.gz
 # yyyy wie kommen wir von den 25pct hier auf 100pct?  kai, jul'24
 # yyyy und sollten wir dann nicht mal "german freight" auch für 100 pct laufen lassen? kai, jul'24//
 input/plans-longHaulFreight.xml.gz: input/$V/$N-$V-network.xml.gz
-	$(sc) prepare extract-freight-trips ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/german_freight.25pct.plans.xml.gz\
+	$(sc) prepare extract-freight-trips ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/german_freight.100pct.plans.xml.gz\
 	 --network ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/germany-europe-network.xml.gz\
 	 --input-crs $(CRS)\
 	 --target-crs $(CRS)\

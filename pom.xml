@@ -12,7 +12,7 @@
 		<!--<version>14.0-PR1452</version>-->
 
 		<!-- snapshot == not recommended: rather use PR-labelled release!-->
-		<version>16.0-PR3172</version>
+		<version>16.0-PR3381</version>
 	</parent>
 
 	<modelVersion>4.0.0</modelVersion>
