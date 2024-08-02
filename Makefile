@@ -29,22 +29,25 @@ input/Jawe2019.csv:
 	curl "https://www.bast.de/DE/Verkehrstechnik/Fachthemen/v2-verkehrszaehlung/Daten/2019_1/Jawe2019.csv?view=renderTcDataExportCSV&cms_strTyp=A" -o $@
 
 input/network.osm: $(NETWORK)
-
+	# Detailed network:
 	$(osmosis) --rb file=$<\
 	 --tf accept-ways bicycle=yes highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary_link,secondary,tertiary,motorway_junction,residential,unclassified,living_street\
 	 --bounding-polygon file="$(shared)/data/cottbus.poly"\
 	 --used-node --wb input/network-detailed.osm.pbf
+	# (yyyy warum cottbus.poly, wenn das Zentrum der Studie in Hoyerswerda liegt? kai, jul'24)
 
-	# This includes residential as well, since multiple cities are covered by the study area
+	# Coarse network.  This includes residential as well, since multiple cities are covered by the study area
 	$(osmosis) --rb file=$<\
 	 --tf accept-ways highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary_link,secondary,tertiary,motorway_junction,residential\
 	 --bounding-polygon file="$(shared)/data/lausitz.poly"\
 	 --used-node --wb input/network-coarse.osm.pbf
 
+	# german-wide motorway network:
 	$(osmosis) --rb file=$<\
 	 --tf accept-ways highway=motorway,motorway_link,motorway_junction,trunk,trunk_link,primary,primary_link\
 	 --used-node --wb input/network-germany.osm.pbf
 
+	# yyyy was ist dies hier? woher kommt der "remove-railway.xml" input?  kai, jul'24
 	$(osmosis) --rb file=input/network-germany.osm.pbf --rb file=input/network-coarse.osm.pbf --rb file=input/network-detailed.osm.pbf\
   	 --merge --merge\
   	 --tag-transform file=input/remove-railway.xml\
@@ -54,7 +57,7 @@ input/network.osm: $(NETWORK)
 	rm input/network-coarse.osm.pbf
 	rm input/network-germany.osm.pbf
 
-
+# matsim networks are generated using a detour via sumo networks:
 input/sumo.net.xml: input/network.osm
 
 	$(SUMO_HOME)/bin/netconvert --geometry.remove --ramps.guess --ramps.no-split\
@@ -71,6 +74,7 @@ input/sumo.net.xml: input/network.osm
 
 input/$V/$N-$V-network.xml.gz: input/sumo.net.xml
 	$(sc) prepare network-from-sumo $< --output $@ --free-speed-factor 0.75
+	# (yyyy what is the free-speed-factor doing?  kai, jul'24)
 	$(sc) prepare clean-network $@ --output $@ --modes car --modes bike
 
 
@@ -86,6 +90,9 @@ input/$V/$N-$V-network-with-pt.xml.gz: input/$V/$N-$V-network.xml.gz
 	 --shp $(shared)/data/network-area/network-area.shp\
 	 --shp $(shared)/data/germany-area/germany-area.shp\
 
+# extract freight trips for lausitz.shp from the germin-wide freight plans:
+# yyyy wie kommen wir von den 25pct hier auf 100pct?  kai, jul'24
+# yyyy und sollten wir dann nicht mal "german freight" auch für 100 pct laufen lassen? kai, jul'24//
 input/plans-longHaulFreight.xml.gz: input/$V/$N-$V-network.xml.gz
 	$(sc) prepare extract-freight-trips ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/german_freight.25pct.plans.xml.gz\
 	 --network ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/germany-europe-network.xml.gz\
