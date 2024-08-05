@@ -87,7 +87,7 @@ input/$V/$N-$V-network-with-pt.xml.gz: input/$V/$N-$V-network.xml.gz
 
 # extract lausitz long haul freight traffic trips from german wide file
 input/plans-longHaulFreight.xml.gz: input/$V/$N-$V-network.xml.gz
-	$(sc) prepare extract-freight-trips ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/german_freight.25pct.plans.xml.gz\
+	$(sc) prepare extract-freight-trips ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/german_freight.100pct.plans.xml.gz\
 	 --network ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/germany-europe-network.xml.gz\
 	 --input-crs $(CRS)\
 	 --target-crs $(CRS)\

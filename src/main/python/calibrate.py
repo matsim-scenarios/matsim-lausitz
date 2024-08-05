@@ -33,7 +33,7 @@ initial = {
     "ride": -0.76
 }
 
-# Based on MiD 2017, filtered on Lausitz region
+# Based on MiD 2017, filtered on Lausitz region (see create_ref.py)
 target = {
     "walk": 0.199819,
     "bike": 0.116362,
