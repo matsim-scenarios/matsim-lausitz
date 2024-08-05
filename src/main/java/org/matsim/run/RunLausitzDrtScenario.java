@@ -7,6 +7,7 @@ import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.application.MATSimApplication;
 import org.matsim.application.options.ShpOptions;
+import org.matsim.contrib.drt.estimator.DrtEstimatorModule;
 import org.matsim.contrib.drt.optimizer.constraints.DefaultDrtOptimizationConstraintsSet;
 import org.matsim.contrib.drt.optimizer.constraints.DrtOptimizationConstraintsParams;
 import org.matsim.contrib.drt.optimizer.insertion.extensive.ExtensiveInsertionSearchParams;
@@ -24,6 +25,7 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.QSimConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.config.groups.SubtourModeChoiceConfigGroup;
+import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.network.algorithms.MultimodalNetworkCleaner;
 import org.matsim.core.utils.geometry.geotools.MGC;
@@ -96,6 +98,11 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 //			this may draw more than the costumer, who want to take the train in Ruhland?! So maybe it makes sense to apply a baseFare and give it back to the agents after the sim via person money event?
 //			OR just put in drt fare via scoring mode params
 			multiModeDrtConfigGroup.addParameterSet(drtConfigGroup);
+		}
+
+		// set to drt estimate and teleport
+		for (DrtConfigGroup drtConfigGroup : multiModeDrtConfigGroup.getModalElements()) {
+			drtConfigGroup.simulationType = DrtConfigGroup.SimulationType.estimateAndTeleport;
 		}
 
 //		this is needed for DynAgents for DVRP
@@ -174,6 +181,7 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 
 //TODO: is the following if clause needed when using the DRT Estimator?!
 //		TODO: @CL where does the estimator draw its vehicles from? Are vehicle types even needed?
+		// --> No vehicle file is needed if DRT estimator is used. But the vehicle file can be specified as usual.
 		//		if there are no vehicles of above type: add some
 		if (scenario.getVehicles().getVehicles().values().stream().filter(v -> v.getType().getId().equals(drtTypeId)).toList().isEmpty()) {
 
@@ -195,6 +203,8 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 	protected void prepareControler(Controler controler) {
 //		TODO
 
+		Config config = controler.getConfig();
+
 //		apply all controller changes from base scenario class
 		baseScenario.prepareControler(controler);
 
@@ -206,7 +216,23 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 //		this is necessary for drt / dvrp to work!
 		controler.configureQSimComponents(DvrpQSimComponents.activateAllModes(ConfigUtils.addOrGetModule(controler.getConfig(), MultiModeDrtConfigGroup.class)));
 
-
+		MultiModeDrtConfigGroup multiModeDrtConfigGroup = MultiModeDrtConfigGroup.get(config);
+		for (DrtConfigGroup drtConfigGroup : multiModeDrtConfigGroup.getModalElements()) {
+			// TODO uncomment theses after the new estimator is merged to the matsim-lib master branch
+//			controler.addOverridingModule(new AbstractModule() {
+//				@Override
+//				public void install() {
+//					DrtEstimatorModule.bindEstimator(binder(), drtConfigGroup.mode).toInstance(
+//						new DirectTripBasedDrtEstimator.Builder()
+//							.setWaitingTimeEstimator(new ConstantWaitingTimeEstimator(meanWaitTime))
+//							.setWaitingTimeDistributionGenerator(new NormalDistributionGenerator(1, waitTimeStd))
+//							.setRideDurationEstimator(new ConstantRideDurationEstimator(rideTimeAlpha, rideTimeBeta))
+//							.setRideDurationDistributionGenerator(new NormalDistributionGenerator(2, rideTimeStd))
+//							.build()
+//					);
+//				}
+//			});
+		}
 
 	}
 }
