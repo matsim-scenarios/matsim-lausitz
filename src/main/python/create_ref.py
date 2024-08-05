@@ -18,7 +18,6 @@ def person_filter(df):
 
     # Groups will be shown on the dashboard
     df["age"] = cut(df.age, [0, 12, 18, 25, 35, 66, np.inf])
-    df["hh_income"] = cut(df.income, [0, 500, 900, 1500, 2000, 2600, 3000, 3600, 4600, 5600, np.inf])
 
     # Only weekdays are considered, with persons present in their home region
     return df[df.present_on_day & (df.reporting_day <= 5)]
@@ -41,7 +40,7 @@ if __name__ == "__main__":
         "/Volumes/Untitled/B3_Lokal-Datensatzpaket/CSV",
         person_filter, trip_filter,
         run_create_ref_data.InvalidHandling.REMOVE_TRIPS,
-        ref_groups=["age", "hh_income", "economic_status"]
+        ref_groups=["age", "economic_status"]
     )
 
     print("Filtered %s persons" % len(r.persons))

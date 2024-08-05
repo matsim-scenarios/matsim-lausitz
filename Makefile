@@ -38,7 +38,7 @@ input/network.osm: $(NETWORK)
 	 --tf accept-ways highway=motorway,motorway_link,motorway_junction,trunk,trunk_link,primary,primary_link\
 	 --used-node --wb input/network-germany.osm.pbf
 
-#	put the 3 above networks together and remove raia
+#	put the 3 above networks together and remove railway
 	$(osmosis) --rb file=input/network-germany.osm.pbf --rb file=input/network-coarse.osm.pbf --rb file=input/network-detailed.osm.pbf\
   	 --merge --merge\
   	 --tag-transform file=input/remove-railway.xml\
