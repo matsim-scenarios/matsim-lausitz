@@ -34,6 +34,8 @@ import playground.vsp.pt.fare.PtFareModule;
 import playground.vsp.scoring.IncomeDependentUtilityOfMoneyPersonScoringParameters;
 
 import javax.annotation.Nullable;
+import java.net.URISyntaxException;
+import java.nio.file.Paths;
 import java.util.Set;
 
 @CommandLine.Command(header = ":: Open Lausitz Scenario ::", version = LausitzScenario.VERSION, mixinStandardHelpOptions = true)
@@ -119,7 +121,11 @@ public class LausitzScenario extends MATSimApplication {
 		ptFareConfigGroup.setPtFareCalculationModel(PtFareConfigGroup.PtFareCalculationModels.fareZoneBased);
 
 		DistanceBasedPtFareParams fareParams = ConfigUtils.addOrGetModule(config, DistanceBasedPtFareParams.class);
-		fareParams.setFareZoneShp("vvo_tarifzone20/vvo_tarifzone20_hoyerswerda_utm32n.shp");
+		try {
+			fareParams.setFareZoneShp(Paths.get(config.getContext().toURI()).getParent().toString() + "/vvo_tarifzone20/vvo_tarifzone20_hoyerswerda_utm32n.shp");
+		} catch (URISyntaxException e) {
+			throw new RuntimeException(e);
+		}
 
 		// TODO: recreate counts format with car and trucks
 
