@@ -28,6 +28,9 @@ import org.matsim.run.prepare.PreparePopulation;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.simwrapper.SimWrapperModule;
 import picocli.CommandLine;
+import playground.vsp.pt.fare.DistanceBasedPtFareParams;
+import playground.vsp.pt.fare.PtFareConfigGroup;
+import playground.vsp.pt.fare.PtFareModule;
 import playground.vsp.scoring.IncomeDependentUtilityOfMoneyPersonScoringParameters;
 
 import javax.annotation.Nullable;
@@ -109,7 +112,14 @@ public class LausitzScenario extends MATSimApplication {
 		config.qsim().setUsePersonIdForMissingVehicleId(false);
 		config.routing().setAccessEgressType(RoutingConfigGroup.AccessEgressType.accessEgressModeToLink);
 
-		// TODO: Config options
+//		set pt fare calc model to fareZoneBased = fare of vvo tarifzone 20 is paid for trips within fare zone
+//		every other trip: Deutschlandtarif
+//		for more info see FareZoneBasedPtFareHandler class in vsp contrib
+		PtFareConfigGroup ptFareConfigGroup = ConfigUtils.addOrGetModule(config, PtFareConfigGroup.class);
+		ptFareConfigGroup.setPtFareCalculationModel(PtFareConfigGroup.PtFareCalculationModels.fareZoneBased);
+
+		DistanceBasedPtFareParams fareParams = ConfigUtils.addOrGetModule(config, DistanceBasedPtFareParams.class);
+		fareParams.setFareZoneShp("vvo_tarifzone20/vvo_tarifzone20_hoyerswerda_utm32n.shp");
 
 		// TODO: recreate counts format with car and trucks
 
@@ -140,8 +150,7 @@ public class LausitzScenario extends MATSimApplication {
 		controler.addOverridingModule(new AbstractModule() {
 			@Override
 			public void install() {
-				install(new LausitzPtFareModule());
-
+				install(new PtFareModule());
 				bind(ScoringParametersForPerson.class).to(IncomeDependentUtilityOfMoneyPersonScoringParameters.class).asEagerSingleton();
 
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
