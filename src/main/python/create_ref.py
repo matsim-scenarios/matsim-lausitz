@@ -18,7 +18,6 @@ def person_filter(df):
 
     # Groups will be shown on the dashboard
     df["age"] = cut(df.age, [0, 12, 18, 25, 35, 66, np.inf])
-    df["hh_income"] = cut(df.income, [0, 500, 900, 1500, 2000, 2600, 3000, 3600, 4600, 5600, np.inf])
 
     # Only weekdays are considered, with persons present in their home region
     return df[df.present_on_day & (df.reporting_day <= 5)]
@@ -37,10 +36,11 @@ if __name__ == "__main__":
     # This contains the path to the MiD 2017 data with the highest resolution
     # See https://daten.clearingstelle-verkehr.de/279/ for more information, the data is not included in this repository
     r = run_create_ref_data.create(
+        # this is the MID2017 dataset, it is not available in svn as it has to be encrypted
         "/Volumes/Untitled/B3_Lokal-Datensatzpaket/CSV",
         person_filter, trip_filter,
         run_create_ref_data.InvalidHandling.REMOVE_TRIPS,
-        ref_groups=["age", "hh_income", "economic_status"]
+        ref_groups=["age", "economic_status"]
     )
 
     print("Filtered %s persons" % len(r.persons))

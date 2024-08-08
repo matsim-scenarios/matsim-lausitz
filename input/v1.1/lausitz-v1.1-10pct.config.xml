@@ -10,7 +10,7 @@
 	<module name="controller">
 		<param name="lastIteration" value="500"/>
 		<param name="overwriteFiles" value="failIfDirectoryExists"/>
-		<param name="runId" value="lausitz-25pct"/>
+		<param name="runId" value="lausitz-10ct"/>
 		<param name="outputDirectory" value="./output/output-lausitz-25pct"/>
 		<param name="writeEventsInterval" value="100"/>
 		<param name="writePlansInterval" value="100"/>
@@ -32,12 +32,12 @@
 
 	<module name="plans">
 		<param name="inputPlansFile"
-			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-25pct.plans.xml.gz"/>
+			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-10pct.plans.xml.gz"/>
 		<param name="removingUnnecessaryPlanAttributes" value="true"/>
 	</module>
 
 	<module name="vehicles">
-		<param name="vehiclesFile" value="./vehicle-types.xml"/>
+		<param name="vehiclesFile" value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-vehicle-types.xml"/>
 	</module>
 
 	<module name="transit">
@@ -47,7 +47,7 @@
 	</module>
 
 	<module name="counts">
-		<param name="inputCountsFile" value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-counts-car-bast.xml.gz"/>
+		<param name="inputCountsFile" value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-counts-bast.xml.gz"/>
 	</module>
 
 	<module name="routing">
@@ -63,8 +63,8 @@
 
 	<module name="qsim">
 		<param name="endTime" value="36:00:00"/>
-		<param name="flowCapacityFactor" value="0.25"/>
-		<param name="storageCapacityFactor" value="0.25"/>
+		<param name="flowCapacityFactor" value="0.1"/>
+		<param name="storageCapacityFactor" value="0.1"/>
 		<param name="mainMode" value="car,bike,freight"/>
 		<param name="numberOfThreads" value="12"/>
 		<param name="startTime" value="00:00:00"/>
@@ -85,7 +85,6 @@
 			<param name="context" value="" />
 			<param name="mapCenter" value="14.5,51.53" />
 			<param name="mapZoomLevel" value="6.8" />
-			<param name="sampleSize" value="0.25" />
 			<param name="shp" value="../shp/lausitz.shp" />
 		</parameterset>
 	</module>
@@ -179,12 +178,9 @@
 	<module name="scoring">
 		<param name="fractionOfIterationsToStartScoreMSA" value="0.9"/>
 		<parameterset type="scoringParameters">
-			<!-- Inflation adjusted  -->
-			<param name="performing" value="6.67"/>
-
 			<parameterset type="modeParams">
 				<param name="constant" value="-0.49074349924922095"/>
-				<param name="marginalUtilityOfTraveling_util_hr" value="-0.5"/>
+				<param name="marginalUtilityOfTraveling_util_hr" value="0.0"/>
 				<param name="mode" value="car"/>
 				<param name="monetaryDistanceRate" value="-0.00025"/>
 <!--				the cost values come from: https://docs.google.com/spreadsheets/d/1HzWpmmws1dBJuo-1Z0TnJ6-w4vD7eXBTUUEu68Hl9Q4/edit#gid=180748432-->
@@ -192,25 +188,25 @@
 			</parameterset>
 			<parameterset type="modeParams">
 				<param name="constant" value="-0.5680132362367731"/>
-				<!-- #(2.0+1.0)*6+(2.0+1)*0.5 -->
-				<param name="marginalUtilityOfTraveling_util_hr" value="-19.5"/>
 				<param name="mode" value="ride"/>
-				<param name="monetaryDistanceRate" value="-0.0005"/>
-				<param name="dailyMonetaryConstant" value="-0.0"/>
+<!--				the following are set in code, see run class -->
+<!--				<param name="marginalUtilityOfTraveling_util_hr" value="-18.0"/>-->
+<!--				<param name="monetaryDistanceRate" value="-0.0005"/>-->
+<!--				<param name="dailyMonetaryConstant" value="-0.0"/>-->
 			</parameterset>
 			<parameterset type="modeParams">
 				<param name="constant" value="-2.156295829747925"/>
-				<param name="marginalUtilityOfTraveling_util_hr" value="-2.0"/>
+				<param name="marginalUtilityOfTraveling_util_hr" value="0.0"/>
 				<param name="mode" value="pt"/>
 				<param name="dailyMonetaryConstant" value="-2.3"/>
 			</parameterset>
 			<parameterset type="modeParams">
 				<param name="constant" value="-4.422910373377299"/>
-				<param name="marginalUtilityOfTraveling_util_hr" value="-2.5"/>
+				<param name="marginalUtilityOfTraveling_util_hr" value="0.0"/>
 				<param name="mode" value="bike"/>
 			</parameterset>
 			<parameterset type="modeParams">
-				<param name="marginalUtilityOfTraveling_util_hr" value="-1.5"/>
+				<param name="marginalUtilityOfTraveling_util_hr" value="0.0"/>
 				<param name="mode" value="walk"/>
 			</parameterset>
 
