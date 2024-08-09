@@ -8,6 +8,10 @@ import org.matsim.api.core.v01.network.Link;
 import org.matsim.application.MATSimApplication;
 import org.matsim.application.options.ShpOptions;
 import org.matsim.contrib.drt.estimator.DrtEstimatorModule;
+import org.matsim.contrib.drt.estimator.impl.DirectTripBasedDrtEstimator;
+import org.matsim.contrib.drt.estimator.impl.distribution.NormalDistributionGenerator;
+import org.matsim.contrib.drt.estimator.impl.trip_estimation.ConstantRideDurationEstimator;
+import org.matsim.contrib.drt.estimator.impl.waiting_time_estimation.ConstantWaitingTimeEstimator;
 import org.matsim.contrib.drt.optimizer.constraints.DefaultDrtOptimizationConstraintsSet;
 import org.matsim.contrib.drt.optimizer.constraints.DrtOptimizationConstraintsParams;
 import org.matsim.contrib.drt.optimizer.insertion.extensive.ExtensiveInsertionSearchParams;
@@ -47,6 +51,21 @@ import java.util.Set;
 public final class RunLausitzDrtScenario extends MATSimApplication {
 	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./input/shp/lausitz.shp")
 	private String drtAreaShp;
+
+	@CommandLine.Option(names = "--typ-wt", description = "typical waiting time", defaultValue = "300")
+	private double typicalWaitTime;
+
+	@CommandLine.Option(names = "--wt-std", description = "waiting time standard deviation", defaultValue = "0.3")
+	private double waitTimeStd;
+
+	@CommandLine.Option(names = "--ride-time-alpha", description = "ride time estimator alpha", defaultValue = "1.25")
+	private double rideTimeAlpha;
+
+	@CommandLine.Option(names = "--ride-time-beta", description = "ride time estimator beta", defaultValue = "300")
+	private double rideTimeBeta;
+
+	@CommandLine.Option(names = "--ride-time-std", description = "ride duration standard deviation", defaultValue = "0.3")
+	private double rideTimeStd;
 
 	private final LausitzScenario baseScenario = new LausitzScenario();
 
@@ -219,19 +238,19 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 		MultiModeDrtConfigGroup multiModeDrtConfigGroup = MultiModeDrtConfigGroup.get(config);
 		for (DrtConfigGroup drtConfigGroup : multiModeDrtConfigGroup.getModalElements()) {
 			// TODO uncomment theses after the new estimator is merged to the matsim-lib master branch
-//			controler.addOverridingModule(new AbstractModule() {
-//				@Override
-//				public void install() {
-//					DrtEstimatorModule.bindEstimator(binder(), drtConfigGroup.mode).toInstance(
-//						new DirectTripBasedDrtEstimator.Builder()
-//							.setWaitingTimeEstimator(new ConstantWaitingTimeEstimator(meanWaitTime))
-//							.setWaitingTimeDistributionGenerator(new NormalDistributionGenerator(1, waitTimeStd))
-//							.setRideDurationEstimator(new ConstantRideDurationEstimator(rideTimeAlpha, rideTimeBeta))
-//							.setRideDurationDistributionGenerator(new NormalDistributionGenerator(2, rideTimeStd))
-//							.build()
-//					);
-//				}
-//			});
+			controler.addOverridingModule(new AbstractModule() {
+				@Override
+				public void install() {
+					DrtEstimatorModule.bindEstimator(binder(), drtConfigGroup.mode).toInstance(
+						new DirectTripBasedDrtEstimator.Builder()
+							.setWaitingTimeEstimator(new ConstantWaitingTimeEstimator(typicalWaitTime))
+							.setWaitingTimeDistributionGenerator(new NormalDistributionGenerator(1, waitTimeStd))
+							.setRideDurationEstimator(new ConstantRideDurationEstimator(rideTimeAlpha, rideTimeBeta))
+							.setRideDurationDistributionGenerator(new NormalDistributionGenerator(2, rideTimeStd))
+							.build()
+					);
+				}
+			});
 		}
 
 	}
