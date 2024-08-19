@@ -7,7 +7,7 @@ JAR := matsim-$(N)-*.jar
 osmosis := osmosis/bin/osmosis
 germany := ../shared-svn/projects/matsim-germany
 shared := ../shared-svn/projects/DiTriMo
-lausitz := ../public-svn/matsim/scenarios/countries/de/lausitz/lausitz-$V
+lausitz := ../public-svn/matsim/scenarios/countries/de/lausitz/input/$V
 
 MEMORY ?= 20G
 SUMO_HOME ?= $(abspath ../../sumo-1.18.0/)
@@ -94,6 +94,42 @@ input/plans-longHaulFreight.xml.gz: input/$V/$N-$V-network.xml.gz
 	 --shp input/shp/lausitz.shp --shp-crs $(CRS)\
 	 --cut-on-boundary\
 	 --output $@
+# create facilities for commercial traffic
+input/commercialFacilities.xml.gz:
+	$(sc) prepare create-data-distribution-of-structure-data\
+	 --outputFacilityFile $@\
+	 --outputDataDistributionFile $(shared)/data/commercial_traffic/input/commercialTraffic/dataDistributionPerZone.csv\
+	 --landuseConfiguration useOSMBuildingsAndLanduse\
+ 	 --regionsShapeFileName $(shared)/data/commercial_traffic/input/commercialTraffic/lausitz_regions_25832.shp\
+	 --regionsShapeRegionColumn "GEN"\
+	 --zoneShapeFileName $(shared)/data/commercial_traffic/input/commercialTraffic/lausitz_zones_25832.shp\
+	 --zoneShapeFileNameColumn "GEN"\
+	 --buildingsShapeFileName $(shared)/data/commercial_traffic/input/commercialTraffic/lausitz_buildings_25832.shp\
+	 --shapeFileBuildingTypeColumn "building"\
+	 --landuseShapeFileName $(shared)/data/commercial_traffic/input/commercialTraffic/lausitz_landuse_25832.shp\
+	 --shapeFileLanduseTypeColumn "landuse"\
+	 --shapeCRS "EPSG:25832"\
+	 --pathToInvestigationAreaData $(shared)/data/commercial_traffic/input/commercialTraffic/commercialTrafficAreaData.csv
+# generate small scale commercial traffic
+input/lausitz-small-scale-commercialTraffic-$V-100pct.plans.xml.gz: input/$V/$N-$V-network.xml.gz input/commercialFacilities.xml.gz
+	$(sc) prepare generate-small-scale-commercial-traffic\
+	  input/$V/lausitz-$V-100pct.config.xml\
+	 --pathToDataDistributionToZones $(shared)/data/commercial_traffic/input/commercialTraffic/dataDistributionPerZone.csv\
+	 --pathToCommercialFacilities $(word 2,$^)\
+	 --sample 1.0\
+	 --jspritIterations 10\
+	 --creationOption createNewCarrierFile\
+	 --network $<\
+	 --smallScaleCommercialTrafficType completeSmallScaleCommercialTraffic\
+	 --zoneShapeFileName $(shared)/data/commercial_traffic/input/commercialTraffic/lausitz_zones_25832.shp\
+	 --zoneShapeFileNameColumn "GEN"\
+	 --shapeCRS "EPSG:25832"\
+	 --numberOfPlanVariantsPerAgent 5\
+	 --nameOutputPopulation $@\
+	 --pathOutput output/commercialPersonTraffic
+
+	mv output/commercialPersonTraffic/$@ $@
+
 
 # trajectory-to-plans formerly was a collection of methods to prepare a given population
 # now, most of the functions of this class do have their own class (downsample, splitduration types...)
@@ -113,7 +149,7 @@ input/$V/prepare-100pct.plans.xml.gz:
 	 --landuse $(germany)/landuse/landuse.shp\
 	 --output $@
 
-input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz input/$V/prepare-100pct.plans.xml.gz
+input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz input/$V/prepare-100pct.plans.xml.gz input/lausitz-small-scale-commercialTraffic-$V-100pct.plans.xml.gz
 
 #	generate some short distance trips, which in senozon data generally are missing
 # trip range 700m because:
@@ -126,7 +162,7 @@ input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz i
 	 --range 700\
  	 --num-trips 324430
 
-#	adapt coords of activitzies in the wider network such that they are closer to a link
+#	adapt coords of activities in the wider network such that they are closer to a link
 # 	such that agents do not have to walk as far as before
 	$(sc) prepare adjust-activity-to-link-distances input/$V/prepare-100pct.plans-with-trips.xml.gz\
 	 --shp input/shp/lausitz.shp --shp-crs $(CRS)\
@@ -144,11 +180,11 @@ input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz i
 #	split activity types to type_duration for the scoring to take into account the typical duration
 	$(sc) prepare split-activity-types-duration\
 		--input $@\
-		--exclude commercial_start,commercial_end,freight_start,freight_end\
+		--exclude commercial_start,commercial_end,freight_start,freight_end,service\
 		--output $@
 
 #	merge person and freight pops
-	$(sc) prepare merge-populations $@ $< --output $@
+	$(sc) prepare merge-populations $@ $< $(word 3,$^) --output $@
 
 	$(sc) prepare downsample-population $@\
     	 --sample-size 1\

@@ -1,6 +1,8 @@
 package org.matsim.run;
 
 import com.google.common.collect.Sets;
+import com.google.inject.Key;
+import com.google.inject.name.Names;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
@@ -18,10 +20,14 @@ import org.matsim.application.prepare.pt.CreateTransitScheduleFromGtfs;
 import org.matsim.contrib.vsp.scenario.SnzActivities;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
+import org.matsim.core.config.groups.ReplanningConfigGroup;
 import org.matsim.core.config.groups.RoutingConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
+import org.matsim.core.replanning.strategies.DefaultPlanStrategiesModule;
+import org.matsim.core.router.costcalculators.TravelDisutilityFactory;
+import org.matsim.core.router.util.TravelTime;
 import org.matsim.core.scoring.functions.ScoringParametersForPerson;
 import org.matsim.run.analysis.CommuterAnalysis;
 import org.matsim.run.prepare.PreparePopulation;
@@ -34,6 +40,8 @@ import playground.vsp.pt.fare.PtFareModule;
 import playground.vsp.scoring.IncomeDependentUtilityOfMoneyPersonScoringParameters;
 
 import javax.annotation.Nullable;
+import java.util.HashSet;
+import java.util.List;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.util.Set;
@@ -51,6 +59,7 @@ import java.util.Set;
 public class LausitzScenario extends MATSimApplication {
 
 	public static final String VERSION = "1.1";
+	private static final String FREIGHT = "freight";
 
 	@CommandLine.Mixin
 	private final SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
@@ -114,6 +123,8 @@ public class LausitzScenario extends MATSimApplication {
 		config.qsim().setUsePersonIdForMissingVehicleId(false);
 		config.routing().setAccessEgressType(RoutingConfigGroup.AccessEgressType.accessEgressModeToLink);
 
+		prepareCommercialTrafficConfig(config);
+		// TODO: Config options
 //		set pt fare calc model to fareZoneBased = fare of vvo tarifzone 20 is paid for trips within fare zone
 //		every other trip: Deutschlandtarif
 //		for more info see FareZoneBasedPtFareHandler class in vsp contrib
@@ -139,9 +150,10 @@ public class LausitzScenario extends MATSimApplication {
 			Set<String> modes = link.getAllowedModes();
 
 			// allow freight traffic together with cars
-			if (modes.contains("car")) {
+			if (modes.contains(TransportMode.car)) {
 				Set<String> newModes = Sets.newHashSet(modes);
-				newModes.add("freight");
+				newModes.add(FREIGHT);
+				newModes.add(TransportMode.truck);
 
 				link.setAllowedModes(newModes);
 			}
@@ -161,9 +173,56 @@ public class LausitzScenario extends MATSimApplication {
 
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
 				addTravelDisutilityFactoryBinding(TransportMode.ride).to(carTravelDisutilityFactoryKey());
+
+				addTravelTimeBinding(FREIGHT).to(Key.get(TravelTime.class, Names.named(TransportMode.truck)));
+				addTravelDisutilityFactoryBinding(FREIGHT).to(Key.get(TravelDisutilityFactory.class, Names.named(TransportMode.truck)));
 //				we do not need to add SwissRailRaptor explicitely! this is done in core
 			}
 
 		});
+	}
+
+	/**
+	 * Prepare the config for commercial traffic.
+	 */
+	public static void prepareCommercialTrafficConfig(Config config) {
+
+		Set<String> modes = Set.of(FREIGHT, TransportMode.truck);
+
+		modes.forEach(mode -> {
+			ScoringConfigGroup.ModeParams thisModeParams = new ScoringConfigGroup.ModeParams(mode);
+			config.scoring().addModeParams(thisModeParams);
+		});
+
+		Set<String> qsimModes = new HashSet<>(config.qsim().getMainModes());
+		config.qsim().setMainModes(Sets.union(qsimModes, modes));
+
+		Set<String> networkModes = new HashSet<>(config.routing().getNetworkModes());
+		config.routing().setNetworkModes(Sets.union(networkModes, modes));
+
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("commercial_start").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("commercial_end").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("service").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("start").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("end").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("freight_start").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("freight_end").setTypicalDuration(30 * 60.));
+
+		//TODO: add freight and remove from config or change freight subpopulation and mode for long distance freight
+		for (String subpopulation : List.of("commercialPersonTraffic", "commercialPersonTraffic_service", "goodsTraffic")) {
+			config.replanning().addStrategySettings(
+				new ReplanningConfigGroup.StrategySettings()
+					.setStrategyName(DefaultPlanStrategiesModule.DefaultSelector.ChangeExpBeta)
+					.setWeight(0.85)
+					.setSubpopulation(subpopulation)
+			);
+
+			config.replanning().addStrategySettings(
+				new ReplanningConfigGroup.StrategySettings()
+					.setStrategyName(DefaultPlanStrategiesModule.DefaultStrategy.ReRoute)
+					.setWeight(0.1)
+					.setSubpopulation(subpopulation)
+			);
+		}
 	}
 }
