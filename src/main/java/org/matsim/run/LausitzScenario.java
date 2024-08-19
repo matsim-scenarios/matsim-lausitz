@@ -54,6 +54,7 @@ import java.util.Set;
 public class LausitzScenario extends MATSimApplication {
 
 	public static final String VERSION = "1.1";
+	private static final String FREIGHT = "freight";
 
 	@CommandLine.Mixin
 	private final SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
@@ -132,10 +133,10 @@ public class LausitzScenario extends MATSimApplication {
 			Set<String> modes = link.getAllowedModes();
 
 			// allow freight traffic together with cars
-			if (modes.contains("car")) {
+			if (modes.contains(TransportMode.car)) {
 				Set<String> newModes = Sets.newHashSet(modes);
-				newModes.add("freight");
-				newModes.add("truck");
+				newModes.add(FREIGHT);
+				newModes.add(TransportMode.truck);
 
 				link.setAllowedModes(newModes);
 			}
@@ -157,8 +158,8 @@ public class LausitzScenario extends MATSimApplication {
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
 				addTravelDisutilityFactoryBinding(TransportMode.ride).to(carTravelDisutilityFactoryKey());
 
-				addTravelTimeBinding("freight").to(Key.get(TravelTime.class, Names.named(TransportMode.truck)));
-				addTravelDisutilityFactoryBinding("freight").to(Key.get(TravelDisutilityFactory.class, Names.named(TransportMode.truck)));
+				addTravelTimeBinding(FREIGHT).to(Key.get(TravelTime.class, Names.named(TransportMode.truck)));
+				addTravelDisutilityFactoryBinding(FREIGHT).to(Key.get(TravelDisutilityFactory.class, Names.named(TransportMode.truck)));
 //				we do not need to add SwissRailRaptor explicitely! this is done in core
 			}
 
@@ -170,7 +171,7 @@ public class LausitzScenario extends MATSimApplication {
 	 */
 	public static void prepareCommercialTrafficConfig(Config config) {
 
-		Set<String> modes = Set.of("freight", "truck");
+		Set<String> modes = Set.of(FREIGHT, TransportMode.truck);
 
 		modes.forEach(mode -> {
 			ScoringConfigGroup.ModeParams thisModeParams = new ScoringConfigGroup.ModeParams(mode);
@@ -183,13 +184,13 @@ public class LausitzScenario extends MATSimApplication {
 		Set<String> networkModes = new HashSet<>(config.routing().getNetworkModes());
 		config.routing().setNetworkModes(Sets.union(networkModes, modes));
 
-		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("commercial_start").setTypicalDuration(30 * 60));
-		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("commercial_end").setTypicalDuration(30 * 60));
-		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("service").setTypicalDuration(30 * 60));
-		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("start").setTypicalDuration(30 * 60));
-		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("end").setTypicalDuration(30 * 60));
-		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("freight_start").setTypicalDuration(30 * 60));
-		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("freight_end").setTypicalDuration(30 * 60));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("commercial_start").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("commercial_end").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("service").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("start").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("end").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("freight_start").setTypicalDuration(30 * 60.));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("freight_end").setTypicalDuration(30 * 60.));
 
 		//TODO: add freight and remove from config or change freight subpopulation and mode for long distance freight
 		for (String subpopulation : List.of("commercialPersonTraffic", "commercialPersonTraffic_service", "goodsTraffic")) {
