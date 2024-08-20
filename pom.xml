@@ -12,13 +12,14 @@
 		<!--<version>14.0-PR1452</version>-->
 
 		<!-- snapshot == not recommended: rather use PR-labelled release!-->
-		<version>16.0-PR3381</version>
+		<version>2025.0-PR3382</version>
 	</parent>
+
 
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.github.matsim-scenarios</groupId>
 	<artifactId>matsim-lausitz</artifactId>
-	<version>1.0</version>
+	<version>1.1</version>
 
 	<name>MATSim Lausitz Model</name>
 	<description>A transport model of the Lausitz region and its surroundings</description>
@@ -31,7 +32,7 @@
 
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<maven.compiler.release>17</maven.compiler.release>
+		<maven.compiler.release>21</maven.compiler.release>
 	</properties>
 
 	<distributionManagement>
@@ -152,7 +153,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.8</version>
+				<version>0.8.12</version>
 				<executions>
 					<execution>
 						<goals>
