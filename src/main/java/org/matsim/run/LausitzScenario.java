@@ -168,10 +168,6 @@ public class LausitzScenario extends MATSimApplication {
 			eConfig.setHbefaTableConsistencyCheckingLevel(EmissionsConfigGroup.HbefaTableConsistencyCheckingLevel.consistent);
 			eConfig.setDetailedVsAverageLookupBehavior(EmissionsConfigGroup.DetailedVsAverageLookupBehavior.tryDetailedThenTechnologyAverageThenAverageTable);
 		}
-
-
-		// TODO: recreate counts format with car and trucks
-
 		return config;
 	}
 
