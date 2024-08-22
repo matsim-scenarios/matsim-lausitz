@@ -71,9 +71,15 @@ input/$V/$N-$V-network.xml.gz: input/sumo.net.xml
 	$(sc) prepare network-from-sumo $< --output $@ --free-speed-factor 0.75
 	$(sc) prepare clean-network $@ --output $@ --modes car --modes bike
 
+# add freight modes as allowed modes
+# add hbefa attributes as link attributes
+input/$V/$N-$V-network-freight-hbefa.xml.gz: input/$V/$N-$V-network.xml.gz
+	$(sc) prepare network\
+	 --network $<\
+	 --output $@
 
 #add pt to network from german wide gtfs, but only for area of shp file
-input/$V/$N-$V-network-with-pt.xml.gz: input/$V/$N-$V-network.xml.gz
+input/$V/$N-$V-network-with-pt.xml.gz: input/$V/$N-$V-network-freight-hbefa.xml.gz
 	$(sc) prepare transit-from-gtfs --network $<\
 	 --output=input/$V\
 	 --name $N-$V --date "2023-01-11" --target-crs $(CRS) \

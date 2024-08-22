@@ -5,7 +5,6 @@ import com.google.inject.Key;
 import com.google.inject.name.Names;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
-import org.matsim.api.core.v01.network.Link;
 import org.matsim.application.MATSimApplication;
 import org.matsim.application.analysis.CheckPopulation;
 import org.matsim.application.analysis.traffic.LinkStats;
@@ -17,9 +16,7 @@ import org.matsim.application.prepare.network.CleanNetwork;
 import org.matsim.application.prepare.network.CreateNetworkFromSumo;
 import org.matsim.application.prepare.population.*;
 import org.matsim.application.prepare.pt.CreateTransitScheduleFromGtfs;
-import org.matsim.contrib.emissions.HbefaRoadTypeMapping;
 import org.matsim.contrib.emissions.HbefaVehicleCategory;
-import org.matsim.contrib.emissions.OsmHbefaMapping;
 import org.matsim.contrib.emissions.utils.EmissionsConfigGroup;
 import org.matsim.contrib.vsp.scenario.SnzActivities;
 import org.matsim.core.config.Config;
@@ -29,12 +26,12 @@ import org.matsim.core.config.groups.RoutingConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
-import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.replanning.strategies.DefaultPlanStrategiesModule;
 import org.matsim.core.router.costcalculators.TravelDisutilityFactory;
 import org.matsim.core.router.util.TravelTime;
 import org.matsim.core.scoring.functions.ScoringParametersForPerson;
 import org.matsim.run.analysis.CommuterAnalysis;
+import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.prepare.PreparePopulation;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.simwrapper.SimWrapperModule;
@@ -59,7 +56,7 @@ import java.util.Set;
 		CreateNetworkFromSumo.class, CreateTransitScheduleFromGtfs.class, TrajectoryToPlans.class, GenerateShortDistanceTrips.class,
 		MergePopulations.class, ExtractRelevantFreightTrips.class, DownSamplePopulation.class, ExtractHomeCoordinates.class, CleanNetwork.class,
 		CreateLandUseShp.class, ResolveGridCoordinates.class, FixSubtourModes.class, AdjustActivityToLinkDistances.class, XYToLinks.class,
-		SplitActivityTypesDuration.class, CreateCountsFromBAStData.class, PreparePopulation.class, CleanPopulation.class
+		SplitActivityTypesDuration.class, CreateCountsFromBAStData.class, PreparePopulation.class, CleanPopulation.class, PrepareNetwork.class
 })
 @MATSimApplication.Analysis({
 		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class,
@@ -174,32 +171,13 @@ public class LausitzScenario extends MATSimApplication {
 	@Override
 	protected void prepareScenario(Scenario scenario) {
 
-		for (Link link : scenario.getNetwork().getLinks().values()) {
-			Set<String> modes = link.getAllowedModes();
-
-			// allow freight traffic together with cars
-			if (modes.contains(TransportMode.car)) {
-				Set<String> newModes = Sets.newHashSet(modes);
-				newModes.add(FREIGHT);
-				newModes.add(TransportMode.truck);
-
-				link.setAllowedModes(newModes);
-			}
-		}
+//		add freight and truck as allowed modes together with car
+		PrepareNetwork.prepareFreightNetwork(scenario.getNetwork());
 
 		if (emissions == EmissionAnalysisHandling.PERFORM_EMISSIONS_ANALYSIS) {
-//			do not use VspHbefaRoadTypeMapping() as it results in almost every road to mapped to "highway"!
-			HbefaRoadTypeMapping roadTypeMapping = OsmHbefaMapping.build();
-//		the type attribute in our network has the prefix "highway" for all links but pt links.
-//		we need to delete that because OsmHbefaMapping does not handle that.
-			for (Link link : scenario.getNetwork().getLinks().values()) {
-				//pt links can be disregarded
-				if (!link.getAllowedModes().contains("pt")) {
-					NetworkUtils.setType(link, NetworkUtils.getType(link).replaceFirst("highway.", ""));
-				}
-			}
-			roadTypeMapping.addHbefaMappings(scenario.getNetwork());
-
+//			prepare hbefa link attributes + make link.getType() handable for OsmHbefaMapping
+			PrepareNetwork.prepareEmissionsAttributes(scenario.getNetwork());
+//			prepare vehicle types for emission analysis
 			prepareVehicleTypesForEmissionAnalysis(scenario);
 		}
 	}
