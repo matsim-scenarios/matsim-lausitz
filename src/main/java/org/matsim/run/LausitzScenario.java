@@ -17,6 +17,10 @@ import org.matsim.application.prepare.network.CleanNetwork;
 import org.matsim.application.prepare.network.CreateNetworkFromSumo;
 import org.matsim.application.prepare.population.*;
 import org.matsim.application.prepare.pt.CreateTransitScheduleFromGtfs;
+import org.matsim.contrib.emissions.HbefaRoadTypeMapping;
+import org.matsim.contrib.emissions.HbefaVehicleCategory;
+import org.matsim.contrib.emissions.OsmHbefaMapping;
+import org.matsim.contrib.emissions.utils.EmissionsConfigGroup;
 import org.matsim.contrib.vsp.scenario.SnzActivities;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
@@ -25,6 +29,7 @@ import org.matsim.core.config.groups.RoutingConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
+import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.replanning.strategies.DefaultPlanStrategiesModule;
 import org.matsim.core.router.costcalculators.TravelDisutilityFactory;
 import org.matsim.core.router.util.TravelTime;
@@ -33,6 +38,9 @@ import org.matsim.run.analysis.CommuterAnalysis;
 import org.matsim.run.prepare.PreparePopulation;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.simwrapper.SimWrapperModule;
+import org.matsim.vehicles.EngineInformation;
+import org.matsim.vehicles.VehicleType;
+import org.matsim.vehicles.VehicleUtils;
 import picocli.CommandLine;
 import playground.vsp.pt.fare.DistanceBasedPtFareParams;
 import playground.vsp.pt.fare.PtFareConfigGroup;
@@ -60,9 +68,20 @@ public class LausitzScenario extends MATSimApplication {
 
 	public static final String VERSION = "1.1";
 	private static final String FREIGHT = "freight";
+	private static final String AVERAGE = "average";
+
+//	To decrypt hbefa input files set MATSIM_DECRYPTION_PASSWORD as environment variable. ask VSP for access.
+	private static final String HBEFA_2020_PATH = "https://svn.vsp.tu-berlin.de/repos/public-svn/3507bb3997e5657ab9da76dbedbb13c9b5991d3e/0e73947443d68f95202b71a156b337f7f71604ae/";
+	private static final String HBEFA_FILE_COLD_DETAILED = HBEFA_2020_PATH + "82t7b02rc0rji2kmsahfwp933u2rfjlkhfpi2u9r20.enc";
+	private static final String HBEFA_FILE_WARM_DETAILED = HBEFA_2020_PATH + "944637571c833ddcf1d0dfcccb59838509f397e6.enc";
+	private static final String HBEFA_FILE_COLD_AVERAGE = HBEFA_2020_PATH + "r9230ru2n209r30u2fn0c9rn20n2rujkhkjhoewt84202.enc" ;
+	private static final String HBEFA_FILE_WARM_AVERAGE = HBEFA_2020_PATH + "7eff8f308633df1b8ac4d06d05180dd0c5fdf577.enc";
 
 	@CommandLine.Mixin
 	private final SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
+
+	@CommandLine.Option(names = "--emissions", defaultValue = "PERFORM_EMISSIONS_ANALYSIS", description = "Define if emission analysis should be performed or not.")
+	private EmissionAnalysisHandling emissions;
 
 
 	public LausitzScenario(@Nullable Config config) {
@@ -124,7 +143,7 @@ public class LausitzScenario extends MATSimApplication {
 		config.routing().setAccessEgressType(RoutingConfigGroup.AccessEgressType.accessEgressModeToLink);
 
 		prepareCommercialTrafficConfig(config);
-		// TODO: Config options
+
 //		set pt fare calc model to fareZoneBased = fare of vvo tarifzone 20 is paid for trips within fare zone
 //		every other trip: Deutschlandtarif
 //		for more info see FareZoneBasedPtFareHandler class in vsp contrib
@@ -138,8 +157,17 @@ public class LausitzScenario extends MATSimApplication {
 			throw new RuntimeException(e);
 		}
 
-		// TODO: recreate counts format with car and trucks
 
+		if (emissions == EmissionAnalysisHandling.PERFORM_EMISSIONS_ANALYSIS) {
+//		set hbefa input files for emission analysis
+			EmissionsConfigGroup eConfig = ConfigUtils.addOrGetModule(config, EmissionsConfigGroup.class);
+			eConfig.setDetailedColdEmissionFactorsFile(HBEFA_FILE_COLD_DETAILED);
+			eConfig.setDetailedWarmEmissionFactorsFile(HBEFA_FILE_WARM_DETAILED);
+			eConfig.setAverageColdEmissionFactorsFile(HBEFA_FILE_COLD_AVERAGE);
+			eConfig.setAverageWarmEmissionFactorsFile(HBEFA_FILE_WARM_AVERAGE);
+			eConfig.setHbefaTableConsistencyCheckingLevel(EmissionsConfigGroup.HbefaTableConsistencyCheckingLevel.consistent);
+			eConfig.setDetailedVsAverageLookupBehavior(EmissionsConfigGroup.DetailedVsAverageLookupBehavior.tryDetailedThenTechnologyAverageThenAverageTable);
+		}
 		return config;
 	}
 
@@ -157,6 +185,22 @@ public class LausitzScenario extends MATSimApplication {
 
 				link.setAllowedModes(newModes);
 			}
+		}
+
+		if (emissions == EmissionAnalysisHandling.PERFORM_EMISSIONS_ANALYSIS) {
+//			do not use VspHbefaRoadTypeMapping() as it results in almost every road to mapped to "highway"!
+			HbefaRoadTypeMapping roadTypeMapping = OsmHbefaMapping.build();
+//		the type attribute in our network has the prefix "highway" for all links but pt links.
+//		we need to delete that because OsmHbefaMapping does not handle that.
+			for (Link link : scenario.getNetwork().getLinks().values()) {
+				//pt links can be disregarded
+				if (!link.getAllowedModes().contains("pt")) {
+					NetworkUtils.setType(link, NetworkUtils.getType(link).replaceFirst("highway.", ""));
+				}
+			}
+			roadTypeMapping.addHbefaMappings(scenario.getNetwork());
+
+			prepareVehicleTypesForEmissionAnalysis(scenario);
 		}
 	}
 
@@ -225,4 +269,54 @@ public class LausitzScenario extends MATSimApplication {
 			);
 		}
 	}
+
+	private static void prepareVehicleTypesForEmissionAnalysis(Scenario scenario) {
+		for (VehicleType type : scenario.getVehicles().getVehicleTypes().values()) {
+			EngineInformation engineInformation = type.getEngineInformation();
+
+//				only set engine information if none are present
+			if (engineInformation.getAttributes().isEmpty()) {
+				switch (type.getId().toString()) {
+					case TransportMode.car -> {
+						VehicleUtils.setHbefaVehicleCategory(engineInformation, HbefaVehicleCategory.PASSENGER_CAR.toString());
+						VehicleUtils.setHbefaTechnology(engineInformation, AVERAGE);
+						VehicleUtils.setHbefaSizeClass(engineInformation, AVERAGE);
+						VehicleUtils.setHbefaEmissionsConcept(engineInformation, AVERAGE);
+					}
+					case TransportMode.ride -> {
+//							ignore ride, the mode routed on network, but then teleported
+						VehicleUtils.setHbefaVehicleCategory(engineInformation, HbefaVehicleCategory.NON_HBEFA_VEHICLE.toString());
+						VehicleUtils.setHbefaTechnology(engineInformation, AVERAGE);
+						VehicleUtils.setHbefaSizeClass(engineInformation, AVERAGE);
+						VehicleUtils.setHbefaEmissionsConcept(engineInformation, AVERAGE);
+					}
+					case FREIGHT -> {
+						VehicleUtils.setHbefaVehicleCategory(engineInformation, HbefaVehicleCategory.HEAVY_GOODS_VEHICLE.toString());
+						VehicleUtils.setHbefaTechnology(engineInformation, AVERAGE);
+						VehicleUtils.setHbefaSizeClass(engineInformation, AVERAGE);
+						VehicleUtils.setHbefaEmissionsConcept(engineInformation, AVERAGE);
+					}
+					case TransportMode.bike -> {
+//							ignore bikes
+						VehicleUtils.setHbefaVehicleCategory(engineInformation, HbefaVehicleCategory.NON_HBEFA_VEHICLE.toString());
+						VehicleUtils.setHbefaTechnology(engineInformation, AVERAGE);
+						VehicleUtils.setHbefaSizeClass(engineInformation, AVERAGE);
+						VehicleUtils.setHbefaEmissionsConcept(engineInformation, AVERAGE);
+					}
+					default -> throw new IllegalArgumentException("does not know how to handle vehicleType " + type.getId().toString());
+				}
+			}
+		}
+
+//			ignore all pt veh types
+		scenario.getTransitVehicles()
+			.getVehicleTypes()
+			.values().forEach(type -> VehicleUtils.setHbefaVehicleCategory(type.getEngineInformation(), HbefaVehicleCategory.NON_HBEFA_VEHICLE.toString()));
+	}
+
+	/**
+	 * Defines if all necessary configs for emissions analysis should be made
+	 * and hence if emissions analysis is performed or not (will fail without configs).
+	 */
+	enum EmissionAnalysisHandling {PERFORM_EMISSIONS_ANALYSIS, DO_NOT_PERFORM_EMISSIONS_ANALYSIS}
 }
