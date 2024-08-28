@@ -48,18 +48,7 @@ public class AdaptFreightTrafficToDetailedModes implements MATSimAppCommand {
 
 		for (Person person : population.getPersons().values()) {
 			if (PopulationUtils.getSubpopulation(person).equals("freight")) {
-				//			rename freight subpop to longDistanceFreight
-				person.getAttributes().removeAttribute("subpopulation");
-				person.getAttributes().putAttribute("subpopulation", FREIGHT);
-
-//				rename each leg mode freight to longDistanceFreight
-				for (Plan plan : person.getPlans()) {
-					for (Leg leg : TripStructureUtils.getLegs(plan)) {
-						if (leg.getMode().equals("freight")) {
-							leg.setMode(FREIGHT);
-						}
-					}
-				}
+				adaptFreightPerson(person);
 			} else if (PopulationUtils.getSubpopulation(person).equals(FREIGHT)) {
 				for (Plan plan : person.getPlans()) {
 					for (Leg leg : TripStructureUtils.getLegs(plan)) {
@@ -68,7 +57,6 @@ public class AdaptFreightTrafficToDetailedModes implements MATSimAppCommand {
 						}
 					}
 				}
-
 			}
 
 			if (PopulationUtils.getSubpopulation(person).contains("commercialPersonTraffic") ||
@@ -110,6 +98,21 @@ public class AdaptFreightTrafficToDetailedModes implements MATSimAppCommand {
 		PopulationUtils.writePopulation(population, output.toString());
 
 		return 0;
+	}
+
+	private static void adaptFreightPerson(Person person) {
+		//			rename freight subpop to longDistanceFreight
+		person.getAttributes().removeAttribute("subpopulation");
+		person.getAttributes().putAttribute("subpopulation", FREIGHT);
+
+//				rename each leg mode freight to longDistanceFreight
+		for (Plan plan : person.getPlans()) {
+			for (Leg leg : TripStructureUtils.getLegs(plan)) {
+				if (leg.getMode().equals("freight")) {
+					leg.setMode(FREIGHT);
+				}
+			}
+		}
 	}
 
 	private static @NotNull Population removeSmallScaleCommercialTrafficFromPopulation(Population population) {
