@@ -99,6 +99,7 @@ input/plans-longHaulFreight.xml.gz: input/$V/$N-$V-network.xml.gz
 	 --target-crs $(CRS)\
 	 --shp input/shp/lausitz.shp --shp-crs $(CRS)\
 	 --cut-on-boundary\
+	 --LegMode "longDistanceFreight"\
 	 --output $@
 # create facilities for commercial traffic
 input/commercialFacilities.xml.gz:

@@ -15,6 +15,8 @@ import picocli.CommandLine;
 
 import java.util.Set;
 
+import static org.matsim.run.LausitzScenario.*;
+
 @CommandLine.Command(
 		name = "network",
 		description = "Prepare network / link attributes."
@@ -22,8 +24,6 @@ import java.util.Set;
 public class PrepareNetwork implements MATSimAppCommand {
 
 	private static final Logger log = LogManager.getLogger(PrepareNetwork.class);
-
-	private static final String FREIGHT = "freight";
 
 	@CommandLine.Option(names = "--network", description = "Path to network file", required = true)
 	private String networkFile;
@@ -61,17 +61,19 @@ public class PrepareNetwork implements MATSimAppCommand {
 			if (modes.contains(TransportMode.car)) {
 				Set<String> newModes = Sets.newHashSet(modes);
 
+				newModes.add(HEAVY_MODE);
+				newModes.add(MEDIUM_MODE);
+				newModes.add(LIGHT_MODE);
 				newModes.add(FREIGHT);
-				newModes.add(TransportMode.truck);
 
 				link.setAllowedModes(newModes);
 				linkCount++;
 			}
 		}
 
-		log.info("For {} links {} and {} has been added as an allowed mode.", linkCount, FREIGHT, TransportMode.truck);
+		log.info("For {} links {}, {}, {} and {} has been added as an allowed mode.", linkCount, HEAVY_MODE, MEDIUM_MODE, LIGHT_MODE, FREIGHT);
 
-		new MultimodalNetworkCleaner(network).run(Set.of(FREIGHT, TransportMode.truck));
+		new MultimodalNetworkCleaner(network).run(Set.of(HEAVY_MODE, MEDIUM_MODE, LIGHT_MODE, FREIGHT));
 	}
 
 	/**

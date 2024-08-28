@@ -26,13 +26,13 @@
 
 	<module name="network">
 		<param name="inputNetworkFile"
-			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-network-with-pt.xml.gz"/>
+			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-network-with-pt.xml.gz"/>
 		<param name="laneDefinitionsFile" value="null"/>
 	</module>
 
 	<module name="plans">
 		<param name="inputPlansFile"
-			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-10pct.plans.xml.gz"/>
+			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-10pct.plans-initial.xml.gz"/>
 		<param name="removingUnnecessaryPlanAttributes" value="true"/>
 	</module>
 
@@ -53,7 +53,7 @@
 	<module name="routing">
 		<!-- Some typical teleportation routing params are set by default, such as for walk and bike.  Setting this switch to "true" will clear them.  Note that this will also clear settings for helper modes such as for non_network_walk -->
 		<param name="clearDefaultTeleportedModeParams" value="true"/>
-		<param name="networkModes" value="car,ride,bike,freight"/>
+		<param name="networkModes" value="car,ride,bike,longDistanceFreight"/>
 		<parameterset type="teleportedModeParameters">
 			<param name="beelineDistanceFactor" value="1.3"/>
 			<param name="mode" value="walk"/>
@@ -65,7 +65,7 @@
 		<param name="endTime" value="36:00:00"/>
 		<param name="flowCapacityFactor" value="0.1"/>
 		<param name="storageCapacityFactor" value="0.1"/>
-		<param name="mainMode" value="car,bike,freight"/>
+		<param name="mainMode" value="car,bike,longDistanceFreight"/>
 		<param name="numberOfThreads" value="12"/>
 		<param name="startTime" value="00:00:00"/>
 		<param name="stuckTime" value="30.0"/>
@@ -132,12 +132,12 @@
 
 		<parameterset type="strategysettings">
 			<param name="strategyName" value="ChangeExpBeta"/>
-			<param name="subpopulation" value="freight"/>
+			<param name="subpopulation" value="longDistanceFreight"/>
 			<param name="weight" value="0.95"/>
 		</parameterset>
 		<parameterset type="strategysettings">
 			<param name="strategyName" value="ReRoute"/>
-			<param name="subpopulation" value="freight"/>
+			<param name="subpopulation" value="longDistanceFreight"/>
 			<param name="weight" value="0.05"/>
 		</parameterset>
 	</module>
@@ -164,7 +164,7 @@
 		<!-- This parameter decides which modes are analyzed, when separateModes = false && filterModes = true. The 2 latter parameters are only here for backwards compability.
 		standard is separateModes = true (see below), so analyzedModes is ignored.
 		In case of separateModes = false && filterModes = true: travel time measurement for all vehicle types together (seperatemodes = false), BUT filtered (filterModes = true) for the modes in analyzedModes-->
-		<param name="analyzedModes" value="car,freight"/>
+		<param name="analyzedModes" value="car,longDistanceFreight"/>
 
 		<param name="separateModes" value="true"/>
 		<param name="calculateLinkToLinkTravelTimes" value="false"/>
@@ -212,7 +212,7 @@
 
 			<parameterset type="modeParams">
 				<param name="marginalUtilityOfTraveling_util_hr" value="-10.0"/>
-				<param name="mode" value="freight"/>
+				<param name="mode" value="longDistanceFreight"/>
 				<param name="monetaryDistanceRate" value="-0.002"/>
 <!--				-->
 			</parameterset>

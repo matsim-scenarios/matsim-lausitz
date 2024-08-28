@@ -1,11 +1,11 @@
 package org.matsim.run;
 
 import com.google.common.collect.Sets;
-import com.google.inject.Key;
-import com.google.inject.name.Names;
 import org.matsim.analysis.personMoney.PersonMoneyEventsAnalysisModule;
+import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
+import org.matsim.api.core.v01.population.Person;
 import org.matsim.application.MATSimApplication;
 import org.matsim.application.analysis.CheckPopulation;
 import org.matsim.application.analysis.traffic.LinkStats;
@@ -31,9 +31,8 @@ import org.matsim.core.config.groups.RoutingConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
+import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.replanning.strategies.DefaultPlanStrategiesModule;
-import org.matsim.core.router.costcalculators.TravelDisutilityFactory;
-import org.matsim.core.router.util.TravelTime;
 import org.matsim.core.scoring.functions.ScoringParametersForPerson;
 import org.matsim.run.analysis.CommuterAnalysis;
 import org.matsim.run.prepare.PrepareNetwork;
@@ -51,6 +50,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.Set;
 
 @CommandLine.Command(header = ":: Open Lausitz Scenario ::", version = LausitzScenario.VERSION, mixinStandardHelpOptions = true)
@@ -66,8 +66,11 @@ import java.util.Set;
 public class LausitzScenario extends MATSimApplication {
 
 	public static final String VERSION = "1.1";
-	private static final String FREIGHT = "freight";
+	public static final String FREIGHT = "longDistanceFreight";
 	private static final String AVERAGE = "average";
+	public static final String HEAVY_MODE = "truck40t";
+	public static final String MEDIUM_MODE = "truck18t";
+	public static final String LIGHT_MODE = "truck8t";
 
 //	To decrypt hbefa input files set MATSIM_DECRYPTION_PASSWORD as environment variable. ask VSP for access.
 	private static final String HBEFA_2020_PATH = "https://svn.vsp.tu-berlin.de/repos/public-svn/3507bb3997e5657ab9da76dbedbb13c9b5991d3e/0e73947443d68f95202b71a156b337f7f71604ae/";
@@ -182,6 +185,25 @@ public class LausitzScenario extends MATSimApplication {
 	@Override
 	protected void prepareScenario(Scenario scenario) {
 
+
+		for (Person person : scenario.getPopulation().getPersons().values()) {
+
+			if (PopulationUtils.getSubpopulation(person).contains("commercialPersonTraffic") ||
+				PopulationUtils.getSubpopulation(person).contains("goodsTraffic")) {
+
+				Map<String, Id<VehicleType>> types = VehicleUtils.getVehicleTypes(person);
+
+				for (Map.Entry<String, Id<VehicleType>> entry : types.entrySet()) {
+					if (Set.of(HEAVY_MODE, MEDIUM_MODE, LIGHT_MODE).contains(entry.getKey())) {
+						types.put(entry.getKey(), Id.create(entry.getKey(), VehicleType.class));
+					}
+				}
+			}
+
+		}
+
+
+
 //		add freight and truck as allowed modes together with car
 		PrepareNetwork.prepareFreightNetwork(scenario.getNetwork());
 
@@ -210,8 +232,6 @@ public class LausitzScenario extends MATSimApplication {
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
 				addTravelDisutilityFactoryBinding(TransportMode.ride).to(carTravelDisutilityFactoryKey());
 
-				addTravelTimeBinding(FREIGHT).to(Key.get(TravelTime.class, Names.named(TransportMode.truck)));
-				addTravelDisutilityFactoryBinding(FREIGHT).to(Key.get(TravelDisutilityFactory.class, Names.named(TransportMode.truck)));
 //				we do not need to add SwissRailRaptor explicitely! this is done in core
 			}
 
@@ -223,7 +243,7 @@ public class LausitzScenario extends MATSimApplication {
 	 */
 	public static void prepareCommercialTrafficConfig(Config config) {
 
-		Set<String> modes = Set.of(FREIGHT, TransportMode.truck);
+		Set<String> modes = Set.of(HEAVY_MODE, MEDIUM_MODE, LIGHT_MODE);
 
 		modes.forEach(mode -> {
 			ScoringConfigGroup.ModeParams thisModeParams = new ScoringConfigGroup.ModeParams(mode);
@@ -244,7 +264,6 @@ public class LausitzScenario extends MATSimApplication {
 		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("freight_start").setTypicalDuration(30 * 60.));
 		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("freight_end").setTypicalDuration(30 * 60.));
 
-		//TODO: add freight and remove from config or change freight subpopulation and mode for long distance freight
 		for (String subpopulation : List.of("commercialPersonTraffic", "commercialPersonTraffic_service", "goodsTraffic")) {
 			config.replanning().addStrategySettings(
 				new ReplanningConfigGroup.StrategySettings()

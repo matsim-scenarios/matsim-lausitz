@@ -96,7 +96,8 @@ public class PreparePopulation implements MATSimAppCommand {
 		}
 
 		// Assign income to person (skip the freight agents)
-		if (person.getId().toString().startsWith("freight")) {
+		if (person.getId().toString().startsWith("freight") || person.getId().toString().startsWith("commercial")
+		|| person.getId().toString().startsWith("goods")) {
 			return;
 		}
 
