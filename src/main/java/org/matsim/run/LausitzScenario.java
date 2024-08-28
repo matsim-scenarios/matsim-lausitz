@@ -3,6 +3,7 @@ package org.matsim.run;
 import com.google.common.collect.Sets;
 import com.google.inject.Key;
 import com.google.inject.name.Names;
+import org.matsim.analysis.personMoney.PersonMoneyEventsAnalysisModule;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.application.MATSimApplication;
@@ -18,6 +19,10 @@ import org.matsim.application.prepare.population.*;
 import org.matsim.application.prepare.pt.CreateTransitScheduleFromGtfs;
 import org.matsim.contrib.emissions.HbefaVehicleCategory;
 import org.matsim.contrib.emissions.utils.EmissionsConfigGroup;
+import org.matsim.contrib.vsp.pt.fare.DistanceBasedPtFareParams;
+import org.matsim.contrib.vsp.pt.fare.FareZoneBasedPtFareParams;
+import org.matsim.contrib.vsp.pt.fare.PtFareConfigGroup;
+import org.matsim.contrib.vsp.pt.fare.PtFareModule;
 import org.matsim.contrib.vsp.scenario.SnzActivities;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
@@ -39,9 +44,6 @@ import org.matsim.vehicles.EngineInformation;
 import org.matsim.vehicles.VehicleType;
 import org.matsim.vehicles.VehicleUtils;
 import picocli.CommandLine;
-import playground.vsp.pt.fare.DistanceBasedPtFareParams;
-import playground.vsp.pt.fare.PtFareConfigGroup;
-import playground.vsp.pt.fare.PtFareModule;
 import playground.vsp.scoring.IncomeDependentUtilityOfMoneyPersonScoringParameters;
 
 import javax.annotation.Nullable;
@@ -143,17 +145,26 @@ public class LausitzScenario extends MATSimApplication {
 
 //		set pt fare calc model to fareZoneBased = fare of vvo tarifzone 20 is paid for trips within fare zone
 //		every other trip: Deutschlandtarif
-//		for more info see FareZoneBasedPtFareHandler class in vsp contrib
+//		for more info see PTFareModule / ChainedPtFareCalculator classes in vsp contrib
 		PtFareConfigGroup ptFareConfigGroup = ConfigUtils.addOrGetModule(config, PtFareConfigGroup.class);
-		ptFareConfigGroup.setPtFareCalculationModel(PtFareConfigGroup.PtFareCalculationModels.fareZoneBased);
 
-		DistanceBasedPtFareParams fareParams = ConfigUtils.addOrGetModule(config, DistanceBasedPtFareParams.class);
+		FareZoneBasedPtFareParams vvo20 = new FareZoneBasedPtFareParams();
+		vvo20.setTransactionPartner("VVO Tarifzone 20");
+		vvo20.setDescription("VVO Tarifzone 20");
+		vvo20.setOrder(1);
 		try {
-			fareParams.setFareZoneShp(Paths.get(config.getContext().toURI()).getParent().toString() + "/vvo_tarifzone20/vvo_tarifzone20_hoyerswerda_utm32n.shp");
+			vvo20.setFareZoneShp(Paths.get(config.getContext().toURI()).getParent().toString() + "/vvo_tarifzone20/vvo_tarifzone20_hoyerswerda_utm32n.shp");
 		} catch (URISyntaxException e) {
 			throw new RuntimeException(e);
 		}
 
+		DistanceBasedPtFareParams germany = DistanceBasedPtFareParams.GERMAN_WIDE_FARE;
+		germany.setTransactionPartner("Deutschlandtarif");
+		germany.setDescription("Deutschlandtarif");
+		germany.setOrder(2);
+
+		ptFareConfigGroup.addParameterSet(vvo20);
+		ptFareConfigGroup.addParameterSet(germany);
 
 		if (emissions == EmissionAnalysisHandling.PERFORM_EMISSIONS_ANALYSIS) {
 //		set hbefa input files for emission analysis
@@ -184,6 +195,9 @@ public class LausitzScenario extends MATSimApplication {
 
 	@Override
 	protected void prepareControler(Controler controler) {
+
+		//analyse PersonMoneyEvents
+		controler.addOverridingModule(new PersonMoneyEventsAnalysisModule());
 
 		controler.addOverridingModule(new SimWrapperModule());
 
