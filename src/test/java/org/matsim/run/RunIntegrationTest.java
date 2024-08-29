@@ -61,11 +61,11 @@ class RunIntegrationTest {
 
 		assert MATSimApplication.execute(RunLausitzDrtScenario.class, config,
 			"--1pct",
+			"--drt-shp", "C:/Users/Simon/Documents/vsp-projects/matsim-lausitz/input/shp/lausitz.shp",
 			"--iterations", "1",
 			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-1pct.plans-initial.xml.gz",
 			"--output", utils.getOutputDirectory(),
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists") == 0 : "Must return non error code";
-
 	}
 
 	@Test
