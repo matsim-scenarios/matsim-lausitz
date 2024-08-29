@@ -82,27 +82,21 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 	@Nullable
 	@Override
 	protected Config prepareConfig(Config config) {
-//		TODO: have a look in config.xml if there is more configs to be adapted to make it "ready" for drt -> do this here
-//		TODO: add drt stops / shp file here?! OR create stops / shp in code?!
-//		TODO: add drt to mdoeparams, add as network mode, add as main mode? add to SMC, add to scoring params?!
-//		TODO: add drt speedup params, add drt fare params?!
-
-//		TODO: talk to CL about whether to use new drt approach (see kelheim) or not.. and how to implement it
-
 //		apply all config changes from base scenario class
 		baseScenario.prepareConfig(config);
 
 		DvrpConfigGroup dvrpConfigGroup = ConfigUtils.addOrGetModule(config, DvrpConfigGroup.class);
 		dvrpConfigGroup.networkModes = Set.of(TransportMode.drt);
 
+
+
 		MultiModeDrtConfigGroup multiModeDrtConfigGroup = ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class);
 
 		if (multiModeDrtConfigGroup.getModalElements().isEmpty()) {
 			DrtConfigGroup drtConfigGroup = new DrtConfigGroup();
-			drtConfigGroup.operationalScheme = DrtConfigGroup.OperationalScheme.stopbased;
+			drtConfigGroup.operationalScheme = DrtConfigGroup.OperationalScheme.serviceAreaBased;
 			drtConfigGroup.stopDuration = 60.;
-//			TODO: shp files have been created and are located on sjhared svn
-			drtConfigGroup.transitStopFile = "";
+			drtConfigGroup.drtServiceAreaShapeFile = drtAreaShp;
 
 //			optimization params now are in its own paramSet, hence the below lines
 			DrtOptimizationConstraintsParams optimizationConstraints = new DrtOptimizationConstraintsParams();
@@ -113,9 +107,6 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 			optimizationConstraints.addParameterSet(optimizationConstraintsSet);
 			drtConfigGroup.addParameterSet(optimizationConstraints);
 			drtConfigGroup.addParameterSet(new ExtensiveInsertionSearchParams());
-//			TODO: talk to KN whether to put in fare params here.. logic could be: we assume that everybody has a Deutschlandticket so no fare at all is charged?!
-//			this may draw more than the costumer, who want to take the train in Ruhland?! So maybe it makes sense to apply a baseFare and give it back to the agents after the sim via person money event?
-//			OR just put in drt fare via scoring mode params
 			multiModeDrtConfigGroup.addParameterSet(drtConfigGroup);
 		}
 
@@ -130,7 +121,7 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 		ScoringConfigGroup scoringConfigGroup = ConfigUtils.addOrGetModule(config, ScoringConfigGroup.class);
 
 		if (!scoringConfigGroup.getModes().containsKey(TransportMode.drt)) {
-//			TODO: talk to KN about this ASC value. Either set it equal to PT or 0??
+//			ASC drt = ASC pt as discussed in PHD seminar24
 //			add mode params for drt if missing and set ASC + marg utility of traveling = 0
 			scoringConfigGroup.addModeParams(new ScoringConfigGroup.ModeParams(TransportMode.drt)
 				.setConstant(scoringConfigGroup.getModes().get(TransportMode.pt).getConstant())
@@ -154,8 +145,6 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 
 	@Override
 	protected void prepareScenario(Scenario scenario) {
-//		TODO
-
 //		apply all scenario changes from base scenario class
 		baseScenario.prepareScenario(scenario);
 
@@ -168,6 +157,8 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 //		add drt as allowed mode for whole Lausitz region
 		Geometry geometry = new ShpOptions(drtAreaShp, null, null).getGeometry();
 
+//		with the estimator, drt is teleported, but we may need drt as an allowed mode for
+//		separate drt post simulation
 		for (Link link : scenario.getNetwork().getLinks().values()) {
 			if (link.getAllowedModes().contains(TransportMode.car)) {
 				boolean isInside = MGC.coord2Point(link.getFromNode().getCoord()).within(geometry) ||
@@ -196,32 +187,19 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 			capacity.setSeats(1);
 
 			scenario.getVehicles().addVehicleType(drtType);
-		}
 
-//TODO: is the following if clause needed when using the DRT Estimator?!
-//		TODO: @CL where does the estimator draw its vehicles from? Are vehicle types even needed?
-		// --> No vehicle file is needed if DRT estimator is used. But the vehicle file can be specified as usual.
-		//		if there are no vehicles of above type: add some
-		if (scenario.getVehicles().getVehicles().values().stream().filter(v -> v.getType().getId().equals(drtTypeId)).toList().isEmpty()) {
+			Vehicle drtDummy = VehicleUtils.createVehicle(Id.createVehicleId("drtDummy"), drtType);
+			drtDummy.getAttributes().putAttribute("dvrpMode", TransportMode.drt);
+			drtDummy.getAttributes().putAttribute("startLink", "706048410#0");
+			drtDummy.getAttributes().putAttribute("serviceBeginTime", 0.);
+			drtDummy.getAttributes().putAttribute("serviceEndTime", 86400.);
 
-			for (int i = 1; i <= 10; i++) {
-				Vehicle vehicle = VehicleUtils.createVehicle(Id.createVehicleId(TransportMode.drt + "_" + i), scenario.getVehicles().getVehicleTypes().get(drtTypeId));
-				vehicle.getAttributes().putAttribute("dvrpMode", TransportMode.drt);
-//				TODO: put linkId
-				vehicle.getAttributes().putAttribute("startLink", "ABC");
-				vehicle.getAttributes().putAttribute("serviceBeginTime", 0.);
-				vehicle.getAttributes().putAttribute("serviceEndTime", 86400.);
-				scenario.getVehicles().addVehicle(vehicle);
-			}
-
-
+			scenario.getVehicles().addVehicle(drtDummy);
 		}
 	}
 
 	@Override
 	protected void prepareControler(Controler controler) {
-//		TODO
-
 		Config config = controler.getConfig();
 
 //		apply all controller changes from base scenario class
@@ -237,7 +215,6 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 
 		MultiModeDrtConfigGroup multiModeDrtConfigGroup = MultiModeDrtConfigGroup.get(config);
 		for (DrtConfigGroup drtConfigGroup : multiModeDrtConfigGroup.getModalElements()) {
-			// TODO uncomment theses after the new estimator is merged to the matsim-lib master branch
 			controler.addOverridingModule(new AbstractModule() {
 				@Override
 				public void install() {
