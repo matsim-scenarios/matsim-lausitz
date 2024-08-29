@@ -40,15 +40,14 @@ import org.matsim.vehicles.VehicleUtils;
 import picocli.CommandLine;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Run the Lausitz scenario including a regional DRT service.
  * All necessary configs will be made in this class.
  */
 public final class RunLausitzDrtScenario extends MATSimApplication {
+//	TODO: upload correct service area shp file to git
 	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./input/shp/lausitz.shp")
 	private String drtAreaShp;
 
@@ -87,8 +86,6 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 
 		DvrpConfigGroup dvrpConfigGroup = ConfigUtils.addOrGetModule(config, DvrpConfigGroup.class);
 		dvrpConfigGroup.networkModes = Set.of(TransportMode.drt);
-
-
 
 		MultiModeDrtConfigGroup multiModeDrtConfigGroup = ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class);
 
@@ -130,7 +127,7 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 
 		SubtourModeChoiceConfigGroup smc = ConfigUtils.addOrGetModule(config, SubtourModeChoiceConfigGroup.class);
 
-		if (String.join(",", smc.getModes()).contains(TransportMode.drt)) {
+		if (!String.join(",", smc.getModes()).contains(TransportMode.drt)) {
 			String[] modes = Arrays.copyOf(smc.getModes(), smc.getModes().length + 1);
 			modes[modes.length - 1] = TransportMode.drt;
 

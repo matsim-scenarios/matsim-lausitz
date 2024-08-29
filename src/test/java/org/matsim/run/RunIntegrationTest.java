@@ -56,6 +56,9 @@ class RunIntegrationTest {
 
 	@Test
 	void runScenarioIncludingDrt() {
+
+//		TODO: add dummy drt person.
+//		TODO: test smc with drt. THere has to be some person changing to drt before iteration1
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
 		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
 
