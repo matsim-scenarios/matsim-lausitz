@@ -48,8 +48,6 @@ import playground.vsp.scoring.IncomeDependentUtilityOfMoneyPersonScoringParamete
 import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.List;
-import java.net.URISyntaxException;
-import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Set;
 
