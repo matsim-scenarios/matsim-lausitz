@@ -155,13 +155,9 @@ public class LausitzScenario extends MATSimApplication {
 		vvo20.setTransactionPartner("VVO Tarifzone 20");
 		vvo20.setDescription("VVO Tarifzone 20");
 		vvo20.setOrder(1);
-		try {
-			vvo20.setFareZoneShp(Paths.get(config.getContext().toURI()).getParent().toString() + "/vvo_tarifzone20/vvo_tarifzone20_hoyerswerda_utm32n.shp");
-		} catch (URISyntaxException e) {
-			throw new RuntimeException(e);
-		}
+		vvo20.setFareZoneShp("./vvo_tarifzone20/vvo_tarifzone20_hoyerswerda_utm32n.shp");
 
-		DistanceBasedPtFareParams germany = DistanceBasedPtFareParams.GERMAN_WIDE_FARE;
+		DistanceBasedPtFareParams germany = DistanceBasedPtFareParams.GERMAN_WIDE_FARE_2024;
 		germany.setTransactionPartner("Deutschlandtarif");
 		germany.setDescription("Deutschlandtarif");
 		germany.setOrder(2);
