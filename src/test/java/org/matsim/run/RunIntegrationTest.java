@@ -16,6 +16,7 @@ import org.matsim.application.MATSimApplication;
 import org.matsim.core.api.experimental.events.EventsManager;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
+import org.matsim.core.config.groups.SubtourModeChoiceConfigGroup;
 import org.matsim.core.events.EventsUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PersonUtils;
@@ -62,11 +63,61 @@ class RunIntegrationTest {
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
 		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
 
+		SubtourModeChoiceConfigGroup smc = ConfigUtils.addOrGetModule(config, SubtourModeChoiceConfigGroup.class);
+		smc.setModes(new String[]{TransportMode.drt});
+
+		config.replanning().setFractionOfIterationsToDisableInnovation(1.);
+
+		Path inputPath = p.resolve("drt-test-population.xml.gz");
+
+		Population population = PopulationUtils.createPopulation(config);
+		PopulationFactory fac = population.getFactory();
+		Person person = fac.createPerson(ptPersonId);
+		Plan plan = PopulationUtils.createPlan(person);
+
+//		home in hoyerswerda
+		Activity home = fac.createActivityFromCoord("home_2400", new Coord(863538.13,5711028.24));
+		home.setEndTime(8 * 3600);
+		Activity home2 = fac.createActivityFromCoord("home_2400", new Coord(863538.13,5711028.24));
+		home2.setEndTime(19 * 3600);
+//		work in ruhland rail station
+		Activity work = fac.createActivityFromCoord("work_2400", new Coord(838300.95,5711890.36));
+		work.setEndTime(17 * 3600 + 25 * 60);
+
+		Leg leg = fac.createLeg(TransportMode.drt);
+
+		plan.addActivity(home);
+		plan.addLeg(leg);
+		plan.addActivity(work);
+		plan.addLeg(leg);
+		plan.addActivity(home2);
+
+		person.addPlan(plan);
+		PersonUtils.setIncome(person, 1000.);
+		person.getAttributes().putAttribute("subpopulation", "person");
+		population.addPerson(person);
+
+		Person person2 = fac.createPerson(Id.createPersonId("smc-person"));
+		Plan plan2 = PopulationUtils.createPlan(person2);
+		Leg carLeg = fac.createLeg(TransportMode.car);
+
+		plan2.addActivity(home);
+		plan2.addLeg(carLeg);
+		plan2.addActivity(work);
+		plan2.addLeg(carLeg);
+		plan2.addActivity(home2);
+		person2.addPlan(plan2);
+
+		PersonUtils.setIncome(person2, 1000.);
+		person2.getAttributes().putAttribute("subpopulation", "person");
+		population.addPerson(person2);
+		new PopulationWriter(population).write(inputPath.toString());
+
 		assert MATSimApplication.execute(RunLausitzDrtScenario.class, config,
 			"--1pct",
 			"--drt-shp", "C:/Users/Simon/Documents/vsp-projects/matsim-lausitz/input/shp/lausitz.shp",
 			"--iterations", "1",
-			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-1pct.plans-initial.xml.gz",
+			"--config:plans.inputPlansFile", inputPath.toString(),
 			"--output", utils.getOutputDirectory(),
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists") == 0 : "Must return non error code";
 	}

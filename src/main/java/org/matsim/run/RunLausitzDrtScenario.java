@@ -127,12 +127,16 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 
 		SubtourModeChoiceConfigGroup smc = ConfigUtils.addOrGetModule(config, SubtourModeChoiceConfigGroup.class);
 
-		if (!String.join(",", smc.getModes()).contains(TransportMode.drt)) {
-			String[] modes = Arrays.copyOf(smc.getModes(), smc.getModes().length + 1);
-			modes[modes.length - 1] = TransportMode.drt;
+//		TODO remove this after testing and comment back in the if clause below
+		smc.setModes(new String[]{TransportMode.drt});
+		config.replanning().setFractionOfIterationsToDisableInnovation(1.);
 
-			smc.setModes(modes);
-		}
+//		if (!String.join(",", smc.getModes()).contains(TransportMode.drt)) {
+//			String[] modes = Arrays.copyOf(smc.getModes(), smc.getModes().length + 1);
+//			modes[modes.length - 1] = TransportMode.drt;
+//
+//			smc.setModes(modes);
+//		}
 
 //		creates a drt staging activity and adds it to the scoring params
 		DrtConfigs.adjustMultiModeDrtConfig(multiModeDrtConfigGroup, config.scoring(), config.routing());
