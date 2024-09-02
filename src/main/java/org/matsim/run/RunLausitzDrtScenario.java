@@ -28,7 +28,6 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.QSimConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
-import org.matsim.core.config.groups.SubtourModeChoiceConfigGroup;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.network.algorithms.MultimodalNetworkCleaner;
@@ -124,19 +123,6 @@ public final class RunLausitzDrtScenario extends MATSimApplication {
 				.setConstant(scoringConfigGroup.getModes().get(TransportMode.pt).getConstant())
 				.setMarginalUtilityOfTraveling(-0.));
 		}
-
-		SubtourModeChoiceConfigGroup smc = ConfigUtils.addOrGetModule(config, SubtourModeChoiceConfigGroup.class);
-
-//		TODO remove this after testing and comment back in the if clause below
-		smc.setModes(new String[]{TransportMode.drt});
-		config.replanning().setFractionOfIterationsToDisableInnovation(1.);
-
-//		if (!String.join(",", smc.getModes()).contains(TransportMode.drt)) {
-//			String[] modes = Arrays.copyOf(smc.getModes(), smc.getModes().length + 1);
-//			modes[modes.length - 1] = TransportMode.drt;
-//
-//			smc.setModes(modes);
-//		}
 
 //		creates a drt staging activity and adds it to the scoring params
 		DrtConfigs.adjustMultiModeDrtConfig(multiModeDrtConfigGroup, config.scoring(), config.routing());
