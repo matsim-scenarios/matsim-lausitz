@@ -125,6 +125,5 @@ public class PrepareNetwork implements MATSimAppCommand {
 			}
 		}
 		new MultimodalNetworkCleaner(network).run(Set.of(TransportMode.drt));
-
 	}
 }

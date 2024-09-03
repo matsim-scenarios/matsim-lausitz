@@ -16,6 +16,7 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.QSimConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
+import org.matsim.core.utils.io.IOUtils;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleCapacity;
@@ -29,7 +30,7 @@ import java.util.Set;
  * This class bundles some run parameter options and functionalities connected to drt-scenarios.
  */
 public class DrtOptions {
-	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./input/v1.1/drt-area/nord-bautzen-waiting-times_utm32N.shp")
+	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/nord-bautzen-waiting-times_utm32N.shp")
 	private String drtAreaShp;
 
 	@CommandLine.Option(names = "--typ-wt", description = "typical waiting time", defaultValue = "300")
@@ -109,7 +110,8 @@ public class DrtOptions {
 			.setRouteFactory(DrtRoute.class, new DrtRouteFactory());
 
 //		prepare network for drt
-		PrepareNetwork.prepareDrtNetwork(scenario.getNetwork(), getDrtAreaShp());
+//		preparation needs to be done with lausitz shp not service area shp
+		PrepareNetwork.prepareDrtNetwork(scenario.getNetwork(), IOUtils.extendUrl(scenario.getConfig().getContext(), "../shp/lausitz.shp").toString());
 		//		add drt veh type if not already existing
 		Id<VehicleType> drtTypeId = Id.create(TransportMode.drt, VehicleType.class);
 		if (!scenario.getVehicles().getVehicleTypes().containsKey(drtTypeId)) {

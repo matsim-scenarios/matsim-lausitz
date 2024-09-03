@@ -1,5 +1,6 @@
 package org.matsim.run;
 
+import com.univocity.parsers.common.input.EOFException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -12,11 +13,12 @@ import org.matsim.api.core.v01.events.PersonEntersVehicleEvent;
 import org.matsim.api.core.v01.events.handler.PersonEntersVehicleEventHandler;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
+import org.matsim.application.ApplicationUtils;
 import org.matsim.application.MATSimApplication;
+import org.matsim.application.options.CsvOptions;
 import org.matsim.core.api.experimental.events.EventsManager;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
-import org.matsim.core.config.groups.SubtourModeChoiceConfigGroup;
 import org.matsim.core.events.EventsUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PersonUtils;
@@ -25,7 +27,12 @@ import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.pt.transitSchedule.api.*;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.testcases.MatsimTestUtils;
+import tech.tablesaw.api.ColumnType;
+import tech.tablesaw.api.DoubleColumn;
+import tech.tablesaw.api.Table;
+import tech.tablesaw.io.csv.CsvReadOptions;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,14 +64,8 @@ class RunIntegrationTest {
 
 	@Test
 	void runScenarioIncludingDrt() {
-
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
 		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
-
-		SubtourModeChoiceConfigGroup smc = ConfigUtils.addOrGetModule(config, SubtourModeChoiceConfigGroup.class);
-		smc.setModes(new String[]{TransportMode.drt});
-
-		config.replanning().setFractionOfIterationsToDisableInnovation(1.);
 
 		Path inputPath = p.resolve("drt-test-population.xml.gz");
 
@@ -72,11 +73,29 @@ class RunIntegrationTest {
 
 		assert MATSimApplication.execute(RunLausitzDrtScenario.class, config,
 			"--1pct",
-			"--drt-shp", "C:/Users/Simon/Documents/vsp-projects/matsim-lausitz/input/shp/lausitz.shp",
 			"--iterations", "1",
 			"--config:plans.inputPlansFile", inputPath.toString(),
 			"--output", utils.getOutputDirectory(),
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists") == 0 : "Must return non error code";
+
+		//read customer stats
+		Path customerStatsPath = ApplicationUtils.matchInput("drt_customer_stats_" + TransportMode.drt + ".csv", Path.of(utils.getOutputDirectory()));
+		try {
+			Table customerStats = Table.read()
+				.csv(CsvReadOptions.builder(customerStatsPath.toFile())
+				.columnTypes(columnHeader -> columnHeader.equals("runId") ? ColumnType.STRING : ColumnType.DOUBLE)
+				.separator(CsvOptions.detectDelimiter(customerStatsPath.toString()))
+					.build());
+
+			Assertions.assertEquals(2, customerStats.rowCount());
+
+			DoubleColumn rideCol = customerStats.doubleColumn("rides");
+
+//			there should be exactly 2 drt rides
+			Assertions.assertEquals(2, rideCol.get(rideCol.size() - 1));
+		} catch (IOException e) {
+			throw new EOFException();
+		}
 	}
 
 	@Test
