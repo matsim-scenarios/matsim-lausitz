@@ -82,14 +82,6 @@ public class PrepareNetwork implements MATSimAppCommand {
 	public static void prepareEmissionsAttributes(Network network) {
 //		do not use VspHbefaRoadTypeMapping() as it results in almost every road to mapped to "highway"!
 		HbefaRoadTypeMapping roadTypeMapping = OsmHbefaMapping.build();
-//		the type attribute in our network has the prefix "highway" for all links but pt links.
-//		we need to delete that because OsmHbefaMapping does not handle that.
-		for (Link link : network.getLinks().values()) {
-			//pt links can be disregarded
-			if (!link.getAllowedModes().contains("pt")) {
-				NetworkUtils.setType(link, NetworkUtils.getType(link).replaceFirst("highway.", ""));
-			}
-		}
 		roadTypeMapping.addHbefaMappings(network);
 	}
 }
