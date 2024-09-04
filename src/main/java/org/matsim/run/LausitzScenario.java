@@ -34,7 +34,9 @@ import org.matsim.core.controler.Controler;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.replanning.strategies.DefaultPlanStrategiesModule;
 import org.matsim.core.scoring.functions.ScoringParametersForPerson;
+import org.matsim.run.analysis.CommunityFilter;
 import org.matsim.run.analysis.CommuterAnalysis;
+import org.matsim.run.analysis.DistanceMatrix;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.prepare.PreparePopulation;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
@@ -59,7 +61,7 @@ import java.util.Set;
 		SplitActivityTypesDuration.class, CreateCountsFromBAStData.class, PreparePopulation.class, CleanPopulation.class, PrepareNetwork.class
 })
 @MATSimApplication.Analysis({
-		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class,
+		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class, DistanceMatrix.class
 })
 public class LausitzScenario extends MATSimApplication {
 
