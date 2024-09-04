@@ -26,6 +26,10 @@ import java.util.*;
  */
 public class RunLausitzPtScenario extends MATSimApplication {
 
+	public RunLausitzPtScenario(@Nullable Config config) {
+		super(config);
+	}
+
 	private final LausitzScenario baseScenario = new LausitzScenario();
 
 	public RunLausitzPtScenario() {
