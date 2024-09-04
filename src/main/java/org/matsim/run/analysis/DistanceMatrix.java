@@ -3,6 +3,7 @@ package org.matsim.run.analysis;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.geotools.api.feature.simple.SimpleFeature;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
 import org.matsim.api.core.v01.Coord;
@@ -11,15 +12,13 @@ import org.matsim.application.options.CsvOptions;
 import org.matsim.application.options.ShpOptions;
 import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.geotools.MGC;
-import org.matsim.core.utils.gis.ShapeFileReader;
-import org.opengis.feature.simple.SimpleFeature;
+import org.matsim.core.utils.gis.GeoFileReader;
 import picocli.CommandLine;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 @CommandLine.Command(name = "distance-matrix", description = "creates a csv with commuity keys within shape")
 public class DistanceMatrix implements MATSimAppCommand{
@@ -49,7 +48,8 @@ public class DistanceMatrix implements MATSimAppCommand{
 		logger.info("Read features.");
 		List<SimpleFeature> communities = shp.readFeatures();
 
-		ArrayList<SimpleFeature> copy = new ArrayList<>(communities); //to prevent RuntimeExceptions
+		//to prevent RuntimeExceptions
+		ArrayList<SimpleFeature> copy = new ArrayList<>(communities);
 
 		Predicate<Geometry> filter = getFilter(dilutionArea);
 
@@ -59,10 +59,7 @@ public class DistanceMatrix implements MATSimAppCommand{
 
 			if(!filter.test((Geometry) community.getDefaultGeometry()))
 				continue;
-
-			//copy.remove(community);
 			String nameFrom = (String) community.getAttribute("ARS");
-
 			Point centroid = ((Geometry) community.getDefaultGeometry()).getCentroid();
 			Coord from = MGC.point2Coord(centroid);
 			for(var target: copy){
@@ -79,19 +76,19 @@ public class DistanceMatrix implements MATSimAppCommand{
 			}
 		}
 
-		logger.info("Print results to {}", output.toString());
-		CSVPrinter printer = csvOptions.createPrinter(output);
-		printer.print("from");
-		printer.print("to");
-		printer.print("distance");
-		printer.println();
-
-		for(String entry: distances){
-			for(String col: entry.split(csvOptions.getFormat().getDelimiterString()))
-				printer.print(col);
+		logger.info("Print results to {}", output);
+		try (CSVPrinter printer = csvOptions.createPrinter(output)) {
+			printer.print("from");
+			printer.print("to");
+			printer.print("distance");
 			printer.println();
+
+			for (String entry : distances) {
+				for (String col : entry.split(csvOptions.getFormat().getDelimiterString()))
+					printer.print(col);
+				printer.println();
+			}
 		}
-		printer.close();
 
 		logger.info("Done!");
 		return 0;
@@ -102,9 +99,9 @@ public class DistanceMatrix implements MATSimAppCommand{
 		if(path == null)
 			return community -> true;
 
-		List<Geometry> geometries = ShapeFileReader.getAllFeatures(path.toString()).stream()
+		List<Geometry> geometries = GeoFileReader.getAllFeatures(path.toString()).stream()
 				.map(feature -> (Geometry) feature.getDefaultGeometry())
-				.collect(Collectors.toList());
+				.toList();
 
 		return community -> geometries.stream().anyMatch(geometry -> geometry.covers(community));
 	}

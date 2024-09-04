@@ -4,7 +4,7 @@ library(readr)
 library(sf)
 
 #FILES
-FILE_DIR = "C:/Users/ACER/Desktop/Uni/VSP/Lausitz-Plots/"
+FILE_DIR = "../../shared-svn/projects/DiTriMo/data/commuters-by-town"
 SIM <- paste0(FILE_DIR, "lausitz-v1.0-commuter.csv")
 GEMEINDE <- paste0(FILE_DIR, "pgemeinden.csv")
 COMMUTER <- paste0(FILE_DIR, "commuter.csv")

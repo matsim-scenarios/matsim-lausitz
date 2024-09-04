@@ -4,8 +4,8 @@ devtools::install_github("matsim-vsp/matsim-r",ref="counts")
 library(matsim)
 library(tidyverse)
 
-COUNTS <- "Y:/matsim-lausitz/input/v1.0/lausitz-v1.0-counts-car-bast.xml.gz"
-NETWORK <- "Y:/matsim-lausitz/input/v1.0/lausitz-v1.0-network-with-pt.xml.gz"
+COUNTS <- "../../public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-counts-car-bast.xml.gz"
+NETWORK <- "../../public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-network-with-pt.xml.gz"
 
 linkstats <- readLinkStats(runId = "v1.0-uncalibrated", file = "Y:/matsim-lausitz/qa/output/lausitz-25pct.output_linkstats.csv.gz", sampleSize = 1)
 
@@ -17,7 +17,7 @@ join <- mergeCountsAndLinks(counts = counts, linkStats  = list(linkstats), netwo
 
 #### VIA-styled scatterplot ####
 
-FILE_DIR = "C:/Users/ACER/Desktop/Uni/VSP/Lausitz-Plots/"
+FILE_DIR = "../../shared-svn/projects/DiTriMo/data/commuters-by-town"
 
 createCountScatterPlot(joinedFrame = join)
 ggsave(filename = paste0(FILE_DIR, "Traffic_Count_Scatterplot_with_freight.jpg"))

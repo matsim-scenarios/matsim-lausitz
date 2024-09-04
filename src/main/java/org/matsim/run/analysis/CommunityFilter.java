@@ -1,21 +1,17 @@
 package org.matsim.run.analysis;
 
-import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
+import org.geotools.api.feature.simple.SimpleFeature;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CsvOptions;
 import org.matsim.core.utils.collections.Tuple;
-import org.matsim.core.utils.gis.ShapeFileReader;
-import org.opengis.feature.simple.SimpleFeature;
+import org.matsim.core.utils.gis.GeoFileReader;
 import picocli.CommandLine;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @CommandLine.Command(name = "community-filter", description = "creates a csv with commuity keys within shape")
 public class CommunityFilter implements MATSimAppCommand {
@@ -31,8 +27,6 @@ public class CommunityFilter implements MATSimAppCommand {
 
 	@CommandLine.Mixin
 	CsvOptions csvOptions = new CsvOptions();
-
-	private final List<String> keys = new ArrayList<>();
 	private final Map<String, Tuple<Double, Double>> filtered = new HashMap<>();
 
 	public static void main(String[] args) {
@@ -45,7 +39,7 @@ public class CommunityFilter implements MATSimAppCommand {
 		Collection<SimpleFeature> communities = readShapeFile(communityShapePath);
 		Collection<SimpleFeature> dilutionArea = readShapeFile(dilutionAreaShapePath);
 
-		List<Geometry> geometries = dilutionArea.stream().map(feature -> (Geometry) feature.getDefaultGeometry()).collect(Collectors.toList());
+		List<Geometry> geometries = dilutionArea.stream().map(feature -> (Geometry) feature.getDefaultGeometry()).toList();
 
 		for(var community: communities){
 
@@ -62,25 +56,25 @@ public class CommunityFilter implements MATSimAppCommand {
 
 		}
 
-		CSVPrinter printer = csvOptions.createPrinter(output);
-		printer.print("ars");
-		printer.print("x");
-		printer.print("y");
-		printer.println();
-
-		for(Map.Entry<String, Tuple<Double, Double>> entry: filtered.entrySet()){
-			printer.print(entry.getKey());
-			printer.print(entry.getValue().getFirst());
-			printer.print(entry.getValue().getSecond());
+		try (CSVPrinter printer = csvOptions.createPrinter(output)) {
+			printer.print("ars");
+			printer.print("x");
+			printer.print("y");
 			printer.println();
+
+			for (Map.Entry<String, Tuple<Double, Double>> entry : filtered.entrySet()) {
+				printer.print(entry.getKey());
+				printer.print(entry.getValue().getFirst());
+				printer.print(entry.getValue().getSecond());
+				printer.println();
+			}
 		}
-		printer.close();
 
 		return 0;
 	}
 
 	private static Collection<SimpleFeature> readShapeFile(Path filepath){
 
-		return ShapeFileReader.getAllFeatures(filepath.toString());
+		return GeoFileReader.getAllFeatures(filepath.toString());
 	}
 }
