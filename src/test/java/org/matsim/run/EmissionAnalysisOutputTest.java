@@ -14,6 +14,7 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.population.PersonUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.utils.io.IOUtils;
+import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.testcases.MatsimTestUtils;
 
 import java.io.BufferedReader;
@@ -37,6 +38,10 @@ class EmissionAnalysisOutputTest {
 	@Test
 	void runEmissionAnalysisOutputTest() throws IOException {
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
+		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
+
+//		TODO rather define to exclude for every single standard dashboard via config group exclude parameter than disabling all dashbaords.
+//		like this no emission dashboard will be created..
 
 		Path inputPath = p.resolve("emissions-test-population.xml.gz");
 
