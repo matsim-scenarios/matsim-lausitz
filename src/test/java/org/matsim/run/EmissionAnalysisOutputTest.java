@@ -1,6 +1,7 @@
 package org.matsim.run;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.matsim.application.ApplicationUtils.globFile;
 
@@ -34,14 +36,14 @@ class EmissionAnalysisOutputTest {
 	public Path p;
 
 	private final static Id<Person> ptPersonId = Id.createPersonId("Hoyerswerda-Cottbus_CAR");
-
+	@Disabled("Test is used to secure functionality of emission analysis. As the analysis needs" +
+		"a lot of RAM, it is disabled and only run manually. -sme0924")
 	@Test
 	void runEmissionAnalysisOutputTest() throws IOException {
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
-		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
-
-//		TODO rather define to exclude for every single standard dashboard via config group exclude parameter than disabling all dashbaords.
-//		like this no emission dashboard will be created..
+//		Here, we do want dashboards in general (emission dashboard), but do not want to waste computation time on the standard dashboards
+		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).exclude = Set.of("TripDashboard", "OverviewDashboard", "StuckAgentDashboard",
+			"TrafficCountsDashboard", "TrafficDashboard", "PublicTransitDashboard");
 
 		Path inputPath = p.resolve("emissions-test-population.xml.gz");
 
