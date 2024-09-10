@@ -42,7 +42,7 @@ import java.util.List;
 	name = "simwrapper",
 	description = "Run additional analysis and create SimWrapper dashboard for existing run output."
 )
-final class LausitzSimWrapperRunner implements MATSimAppCommand {
+public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 
 	private static final Logger log = LogManager.getLogger(LausitzSimWrapperRunner.class);
 
@@ -56,7 +56,8 @@ final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	private boolean noise;
 
 
-	private LausitzSimWrapperRunner(){
+	public LausitzSimWrapperRunner(){
+//		public constructor needed for testing purposes.
 	}
 
 	@Override
@@ -81,7 +82,7 @@ final class LausitzSimWrapperRunner implements MATSimAppCommand {
 			simwrapperCfg.defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
 
 			//add dashboards according to command line parameters
-//			TODO: if more dashboards are to be added here, we need to check if noise==true before adding noise dashboard here
+//			if more dashboards are to be added here, we need to check if noise==true before adding noise dashboard here
 			sw.addDashboard(Dashboard.customize(new NoiseDashboard()).context("noise"));
 
 
