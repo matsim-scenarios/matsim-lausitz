@@ -25,6 +25,7 @@ import org.matsim.pt.transitSchedule.api.*;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.testcases.MatsimTestUtils;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,7 +52,11 @@ class RunIntegrationTest {
 			"--iterations", "1",
 			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-1pct.plans-initial.xml.gz",
 			"--output", utils.getOutputDirectory(),
-			"--config:controller.overwriteFiles=deleteDirectoryIfExists") == 0 : "Must return non error code";
+			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+			== 0 : "Must return non error code";
+
+		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
+		Assertions.assertTrue(new File(utils.getOutputDirectory()).exists());
 	}
 
 	@Test
@@ -64,8 +69,11 @@ class RunIntegrationTest {
 			"--iterations", "1",
 			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-1pct.plans-initial.xml.gz",
 			"--output", utils.getOutputDirectory(),
-			"--config:controller.overwriteFiles=deleteDirectoryIfExists") == 0 : "Must return non error code";
+			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+			== 0 : "Must return non error code";
 
+		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
+		Assertions.assertTrue(new File(utils.getOutputDirectory()).exists());
 	}
 
 	@Test
@@ -109,7 +117,11 @@ class RunIntegrationTest {
 			"--iterations", "1",
 			"--output", utils.getOutputDirectory(),
 			"--config:plans.inputPlansFile", inputPath.toString(),
-			"--config:controller.overwriteFiles=deleteDirectoryIfExists") == 0 : "Must return non error code";
+			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+			== 0 : "Must return non error code";
+
+		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
+		Assertions.assertTrue(new File(utils.getOutputDirectory()).exists());
 
 		Scenario scenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
 
