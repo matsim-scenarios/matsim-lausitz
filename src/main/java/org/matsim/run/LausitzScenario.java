@@ -75,6 +75,9 @@ public class LausitzScenario extends MATSimApplication {
 	private static final String HBEFA_FILE_COLD_AVERAGE = HBEFA_2020_PATH + "r9230ru2n209r30u2fn0c9rn20n2rujkhkjhoewt84202.enc" ;
 	private static final String HBEFA_FILE_WARM_AVERAGE = HBEFA_2020_PATH + "7eff8f308633df1b8ac4d06d05180dd0c5fdf577.enc";
 
+	@CommandLine.Option(names = "--alpha", description = "alpha for ride, this is just to get a feeling for the parameters dimension, should never be configurable in release.", defaultValue = "2.")
+	private double alpha;
+
 	@CommandLine.Mixin
 	private final SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
 
@@ -131,7 +134,7 @@ public class LausitzScenario extends MATSimApplication {
 //		2.0 + 1.0 = alpha + 1
 //		ride cost = alpha * car cost
 //		ride marg utility of traveling = (alpha + 1) * marg utility travelling car + alpha * beta perf
-		double alpha = 2;
+//		double alpha = 2;
 		rideParams.setMarginalUtilityOfTraveling((alpha + 1) * carParams.getMarginalUtilityOfTraveling() - alpha * config.scoring().getPerforming_utils_hr());
 		rideParams.setDailyMonetaryConstant(0.);
 		rideParams.setMonetaryDistanceRate(carParams.getMonetaryDistanceRate() * 2);
