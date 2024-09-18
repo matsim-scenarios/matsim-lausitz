@@ -17,6 +17,7 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.QSimConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.utils.io.IOUtils;
+import org.matsim.extensions.pt.routing.ptRoutingModes.PtIntermodalRoutingModesConfigGroup;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleCapacity;
@@ -47,6 +48,10 @@ public class DrtOptions {
 
 	@CommandLine.Option(names = "--ride-time-std", description = "ride duration standard deviation", defaultValue = "0.3")
 	protected double rideTimeStd;
+
+	@CommandLine.Option(names = "--intermodal", defaultValue = "false", description = "enable intermodality for DRT service")
+	private boolean intermodal;
+
 
 	/**
 	 * a helper method, which makes all necessary config changes to simulate drt.
@@ -96,6 +101,10 @@ public class DrtOptions {
 
 //		creates a drt staging activity and adds it to the scoring params
 		DrtConfigs.adjustMultiModeDrtConfig(multiModeDrtConfigGroup, config.scoring(), config.routing());
+
+		if (intermodal) {
+			ConfigUtils.addOrGetModule(config, PtIntermodalRoutingModesConfigGroup.class);
+		}
 	}
 
 	/**

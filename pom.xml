@@ -77,6 +77,35 @@
 			<version>${matsim.version}</version>
 		</dependency>
 
+		<dependency>
+			<groupId>com.github.matsim-vsp</groupId>
+			<artifactId>pt-extensions</artifactId>
+			<version>ceef00ef6e</version>
+			<exclusions>
+				<!-- Will pull old drt version -->
+				<exclusion>
+					<groupId>org.matsim.contrib</groupId>
+					<artifactId>drt</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.matsim</groupId>
+					<artifactId>matsim</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.matsim</groupId>
+					<artifactId>matsim-examples</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.matsim.contrib</groupId>
+					<artifactId>vsp</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.openjfx</groupId>
+					<artifactId>javafx-graphics</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
 
 		<!-- Custom dependencies -->
 		<dependency>
