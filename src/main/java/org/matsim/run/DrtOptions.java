@@ -1,5 +1,6 @@
 package org.matsim.run;
 
+import ch.sbb.matsim.config.SwissRailRaptorConfigGroup;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
@@ -103,7 +104,22 @@ public class DrtOptions {
 		DrtConfigs.adjustMultiModeDrtConfig(multiModeDrtConfigGroup, config.scoring(), config.routing());
 
 		if (intermodal) {
-			ConfigUtils.addOrGetModule(config, PtIntermodalRoutingModesConfigGroup.class);
+			SwissRailRaptorConfigGroup srrConfig = ConfigUtils.addOrGetModule(config, SwissRailRaptorConfigGroup.class);
+			srrConfig.setUseIntermodalAccessEgress(true);
+			srrConfig.setIntermodalAccessEgressModeSelection(SwissRailRaptorConfigGroup.IntermodalAccessEgressModeSelection.CalcLeastCostModePerStop);
+
+			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressDrtParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
+			accessEgressDrtParam.setMode(TransportMode.drt);
+			// Euclidean distance from Hoyerswerda to Ruhland: 20-30 km
+			accessEgressDrtParam.setInitialSearchRadius(20000);
+			accessEgressDrtParam.setMaxRadius(30000);
+			accessEgressDrtParam.setSearchExtensionRadius(1000);
+			accessEgressDrtParam.setStopFilterAttribute("allowDrtAccessEgress");
+			accessEgressDrtParam.setStopFilterValue("true");
+			srrConfig.addIntermodalAccessEgress(accessEgressDrtParam);
+
+			// Note: I do not include "walk" as access/egress for intermodal trips, as it should be already taken care of in the transit router.
+			// If it complains, we can add it back here
 		}
 	}
 
