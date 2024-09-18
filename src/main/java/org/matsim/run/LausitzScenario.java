@@ -2,10 +2,8 @@ package org.matsim.run;
 
 import com.google.common.collect.Sets;
 import org.matsim.analysis.personMoney.PersonMoneyEventsAnalysisModule;
-import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
-import org.matsim.api.core.v01.population.Person;
 import org.matsim.application.MATSimApplication;
 import org.matsim.application.analysis.CheckPopulation;
 import org.matsim.application.analysis.traffic.LinkStats;
@@ -31,10 +29,11 @@ import org.matsim.core.config.groups.RoutingConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
-import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.replanning.strategies.DefaultPlanStrategiesModule;
 import org.matsim.core.scoring.functions.ScoringParametersForPerson;
+import org.matsim.run.analysis.CommunityFilter;
 import org.matsim.run.analysis.CommuterAnalysis;
+import org.matsim.run.analysis.DistanceMatrix;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.prepare.PreparePopulation;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
@@ -48,9 +47,6 @@ import playground.vsp.scoring.IncomeDependentUtilityOfMoneyPersonScoringParamete
 import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.List;
-import java.net.URISyntaxException;
-import java.nio.file.Paths;
-import java.util.Map;
 import java.util.Set;
 
 @CommandLine.Command(header = ":: Open Lausitz Scenario ::", version = LausitzScenario.VERSION, mixinStandardHelpOptions = true)
@@ -61,7 +57,7 @@ import java.util.Set;
 		SplitActivityTypesDuration.class, CreateCountsFromBAStData.class, PreparePopulation.class, CleanPopulation.class, PrepareNetwork.class
 })
 @MATSimApplication.Analysis({
-		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class,
+		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class, DistanceMatrix.class
 })
 public class LausitzScenario extends MATSimApplication {
 
@@ -78,6 +74,9 @@ public class LausitzScenario extends MATSimApplication {
 	private static final String HBEFA_FILE_WARM_DETAILED = HBEFA_2020_PATH + "944637571c833ddcf1d0dfcccb59838509f397e6.enc";
 	private static final String HBEFA_FILE_COLD_AVERAGE = HBEFA_2020_PATH + "r9230ru2n209r30u2fn0c9rn20n2rujkhkjhoewt84202.enc" ;
 	private static final String HBEFA_FILE_WARM_AVERAGE = HBEFA_2020_PATH + "7eff8f308633df1b8ac4d06d05180dd0c5fdf577.enc";
+
+	@CommandLine.Option(names = "--alpha", description = "alpha for ride, this is just to get a feeling for the parameters dimension, should never be configurable in release.", defaultValue = "2.")
+	private double alpha;
 
 	@CommandLine.Mixin
 	private final SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
@@ -135,7 +134,7 @@ public class LausitzScenario extends MATSimApplication {
 //		2.0 + 1.0 = alpha + 1
 //		ride cost = alpha * car cost
 //		ride marg utility of traveling = (alpha + 1) * marg utility travelling car + alpha * beta perf
-		double alpha = 2;
+//		double alpha = 2;
 		rideParams.setMarginalUtilityOfTraveling((alpha + 1) * carParams.getMarginalUtilityOfTraveling() - alpha * config.scoring().getPerforming_utils_hr());
 		rideParams.setDailyMonetaryConstant(0.);
 		rideParams.setMonetaryDistanceRate(carParams.getMonetaryDistanceRate() * 2);
@@ -155,13 +154,9 @@ public class LausitzScenario extends MATSimApplication {
 		vvo20.setTransactionPartner("VVO Tarifzone 20");
 		vvo20.setDescription("VVO Tarifzone 20");
 		vvo20.setOrder(1);
-		try {
-			vvo20.setFareZoneShp(Paths.get(config.getContext().toURI()).getParent().toString() + "/vvo_tarifzone20/vvo_tarifzone20_hoyerswerda_utm32n.shp");
-		} catch (URISyntaxException e) {
-			throw new RuntimeException(e);
-		}
+		vvo20.setFareZoneShp("./vvo_tarifzone20/vvo_tarifzone20_hoyerswerda_utm32n.shp");
 
-		DistanceBasedPtFareParams germany = DistanceBasedPtFareParams.GERMAN_WIDE_FARE;
+		DistanceBasedPtFareParams germany = DistanceBasedPtFareParams.GERMAN_WIDE_FARE_2024;
 		germany.setTransactionPartner("Deutschlandtarif");
 		germany.setDescription("Deutschlandtarif");
 		germany.setOrder(2);
@@ -184,26 +179,6 @@ public class LausitzScenario extends MATSimApplication {
 
 	@Override
 	protected void prepareScenario(Scenario scenario) {
-
-
-		for (Person person : scenario.getPopulation().getPersons().values()) {
-
-			if (PopulationUtils.getSubpopulation(person).contains("commercialPersonTraffic") ||
-				PopulationUtils.getSubpopulation(person).contains("goodsTraffic")) {
-
-				Map<String, Id<VehicleType>> types = VehicleUtils.getVehicleTypes(person);
-
-				for (Map.Entry<String, Id<VehicleType>> entry : types.entrySet()) {
-					if (Set.of(HEAVY_MODE, MEDIUM_MODE, LIGHT_MODE).contains(entry.getKey())) {
-						types.put(entry.getKey(), Id.create(entry.getKey(), VehicleType.class));
-					}
-				}
-			}
-
-		}
-
-
-
 //		add freight and truck as allowed modes together with car
 		PrepareNetwork.prepareFreightNetwork(scenario.getNetwork());
 

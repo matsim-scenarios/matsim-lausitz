@@ -28,6 +28,10 @@ public class RunLausitzPtScenario extends MATSimApplication {
 
 	private final LausitzScenario baseScenario = new LausitzScenario();
 
+	public RunLausitzPtScenario(@Nullable Config config) {
+		super(config);
+	}
+
 	public RunLausitzPtScenario() {
 		super(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
 	}
