@@ -4,6 +4,7 @@ import ch.sbb.matsim.config.SwissRailRaptorConfigGroup;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
+import org.matsim.application.options.ShpOptions;
 import org.matsim.contrib.drt.optimizer.constraints.DefaultDrtOptimizationConstraintsSet;
 import org.matsim.contrib.drt.optimizer.constraints.DrtOptimizationConstraintsParams;
 import org.matsim.contrib.drt.optimizer.insertion.extensive.ExtensiveInsertionSearchParams;
@@ -18,8 +19,9 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.QSimConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.utils.io.IOUtils;
-import org.matsim.extensions.pt.routing.ptRoutingModes.PtIntermodalRoutingModesConfigGroup;
+import org.matsim.run.prepare.PrepareDrtScenarioAgents;
 import org.matsim.run.prepare.PrepareNetwork;
+import org.matsim.run.prepare.PrepareTransitSchedule;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleCapacity;
 import org.matsim.vehicles.VehicleType;
@@ -34,6 +36,9 @@ import java.util.Set;
 public class DrtOptions {
 	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/nord-bautzen-waiting-times_utm32N.shp")
 	private String drtAreaShp;
+
+	@CommandLine.Option(names = "--intermodal-shp", description = "Path to shp file for adding intermodal tags for drt to pt intermodality.", defaultValue = "./intermodal-area/pt-intermodal-areas-ruhland.shp")
+	private String intermodalAreaShp;
 
 	@CommandLine.Option(names = "--typ-wt", description = "typical waiting time", defaultValue = "300")
 	protected double typicalWaitTime;
@@ -50,8 +55,8 @@ public class DrtOptions {
 	@CommandLine.Option(names = "--ride-time-std", description = "ride duration standard deviation", defaultValue = "0.3")
 	protected double rideTimeStd;
 
-	@CommandLine.Option(names = "--intermodal", defaultValue = "false", description = "enable intermodality for DRT service")
-	private boolean intermodal;
+	@CommandLine.Option(names = "--intermodal", defaultValue = "INTERMODALITY_ACTIVE", description = "enable intermodality for DRT service")
+	private IntermodalityHandling intermodal;
 
 
 	/**
@@ -103,22 +108,24 @@ public class DrtOptions {
 //		creates a drt staging activity and adds it to the scoring params
 		DrtConfigs.adjustMultiModeDrtConfig(multiModeDrtConfigGroup, config.scoring(), config.routing());
 
-		if (intermodal) {
+		if (intermodal == IntermodalityHandling.INTERMODALITY_ACTIVE) {
 			SwissRailRaptorConfigGroup srrConfig = ConfigUtils.addOrGetModule(config, SwissRailRaptorConfigGroup.class);
 			srrConfig.setUseIntermodalAccessEgress(true);
 			srrConfig.setIntermodalAccessEgressModeSelection(SwissRailRaptorConfigGroup.IntermodalAccessEgressModeSelection.CalcLeastCostModePerStop);
 
+//			add drt as access egress mode for pt
 			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressDrtParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
 			accessEgressDrtParam.setMode(TransportMode.drt);
 			// Euclidean distance from Hoyerswerda to Ruhland: 20-30 km
-			accessEgressDrtParam.setInitialSearchRadius(50000);
-			accessEgressDrtParam.setMaxRadius(50000);
+			accessEgressDrtParam.setInitialSearchRadius(40000);
+			accessEgressDrtParam.setMaxRadius(40000);
 			accessEgressDrtParam.setSearchExtensionRadius(1000);
 			accessEgressDrtParam.setStopFilterAttribute("allowDrtAccessEgress");
 			accessEgressDrtParam.setStopFilterValue("true");
 			srrConfig.addIntermodalAccessEgress(accessEgressDrtParam);
 
 			// TODO adjust the distance after test or make it configurable
+//			walk also needs to be added as access egress mode
 			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressWalkParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
 			accessEgressWalkParam.setMode(TransportMode.walk);
 			accessEgressWalkParam.setInitialSearchRadius(300);
@@ -163,11 +170,23 @@ public class DrtOptions {
 			drtDummy.getAttributes().putAttribute("serviceEndTime", 86400.);
 
 			scenario.getVehicles().addVehicle(drtDummy);
+
+			PrepareDrtScenarioAgents.convertPtToDrtTrips(scenario.getPopulation(), scenario.getNetwork(), new ShpOptions(drtAreaShp, null, null));
+
+//			tag intermodal pt stops for intermodality between pt and drt
+			if (intermodal == IntermodalityHandling.INTERMODALITY_ACTIVE) {
+				PrepareTransitSchedule.tagIntermodalStops(scenario.getTransitSchedule(), new ShpOptions(intermodalAreaShp, null, null));
+			}
 		}
 	}
 
 	public String getDrtAreaShp() {
 		return drtAreaShp;
 	}
+
+	/**
+	 * Defines if all necessary configs for intermodality between drt and pt should be made.
+	 */
+	enum IntermodalityHandling {INTERMODALITY_ACTIVE, INTERMODALITY_NOT_ACTIVE}
 
 }

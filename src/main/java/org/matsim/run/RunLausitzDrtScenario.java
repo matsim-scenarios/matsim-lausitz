@@ -26,6 +26,8 @@ import javax.annotation.Nullable;
  */
 public final class RunLausitzDrtScenario extends MATSimApplication {
 
+//	TODO: re-structure like pt scenario run class
+
 //	run params re drt are contained in separate class DrtOptions
 	@CommandLine.ArgGroup(heading = "%nDrt options%n", exclusive = false, multiplicity = "0..1")
 	private final DrtOptions drtOpt = new DrtOptions();
