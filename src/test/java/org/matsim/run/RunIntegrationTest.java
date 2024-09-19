@@ -29,6 +29,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import static org.matsim.application.ApplicationUtils.globFile;
 
@@ -64,12 +65,18 @@ class RunIntegrationTest {
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
 		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
 
+		Path inputPath = p.resolve("drt-test-population.xml.gz");
+
+		createDrtTestPopulation(inputPath);
+
 		assert MATSimApplication.execute(RunLausitzDrtScenario.class, config,
 			"--1pct",
 			"--iterations", "1",
-			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-1pct.plans-initial.xml.gz",
+			"--config:plans.inputPlansFile", inputPath.toString(),
 			"--output", utils.getOutputDirectory(),
-			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS",
+			"--config:transit.transitScheduleFile", "../v1.0/lausitz-v1.0-transitSchedule-with-intermodal.xml.gz",
+			"--intermodal")
 			== 0 : "Must return non error code";
 
 		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
@@ -147,6 +154,40 @@ class RunIntegrationTest {
 		Assertions.assertEquals("pt_RE-VSP1_0_9", PersonEntersPtVehicleEventHandler.enterEvents.get(0).getVehicleId().toString());
 		Assertions.assertEquals("pt_RE-VSP1_1_18", PersonEntersPtVehicleEventHandler.enterEvents.get(1).getVehicleId().toString());
 
+	}
+
+	private void createDrtTestPopulation(Path inputPath) {
+		Random random = new Random(1);
+		Config config = ConfigUtils.createConfig();
+		Scenario scenario = ScenarioUtils.loadScenario(config);
+		Population population = scenario.getPopulation();
+		PopulationFactory populationFactory = population.getFactory();
+
+		for (int i = 0; i < 500; i++) {
+			Person person = populationFactory.createPerson(Id.createPersonId("dummy_person_" + i));
+			PersonUtils.setIncome(person, 1000.);
+			Plan plan = populationFactory.createPlan();
+			// a random location in the Hoyerswerda town center
+			Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(863949.91, 5711547.75));
+			// Somewhere near Ruhland Hbf
+//			Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(838213.25, 5711776.54));
+			// a random time between 6:00-9:00
+			fromAct.setEndTime(21600 + random.nextInt(10800));
+			// set the link to PT, such that agent could find a potential intermodal trip
+			Leg leg = populationFactory.createLeg(TransportMode.pt);
+			// a location close to Cottbus Hbf
+			Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(867341.75, 5746965.87));
+//			somewhere near ruhland hbf
+//			Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(838646.6900000001, 5711749.89));
+
+			plan.addActivity(fromAct);
+			plan.addLeg(leg);
+			plan.addActivity(toAct);
+
+			person.addPlan(plan);
+			population.addPerson(person);
+		}
+		new PopulationWriter(population).write(inputPath.toString());
 	}
 
 	private static final class PersonEntersPtVehicleEventHandler implements PersonEntersVehicleEventHandler {

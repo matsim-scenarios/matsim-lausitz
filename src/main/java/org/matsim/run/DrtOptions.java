@@ -111,15 +111,21 @@ public class DrtOptions {
 			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressDrtParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
 			accessEgressDrtParam.setMode(TransportMode.drt);
 			// Euclidean distance from Hoyerswerda to Ruhland: 20-30 km
-			accessEgressDrtParam.setInitialSearchRadius(20000);
-			accessEgressDrtParam.setMaxRadius(30000);
+			accessEgressDrtParam.setInitialSearchRadius(50000);
+			accessEgressDrtParam.setMaxRadius(50000);
 			accessEgressDrtParam.setSearchExtensionRadius(1000);
 			accessEgressDrtParam.setStopFilterAttribute("allowDrtAccessEgress");
 			accessEgressDrtParam.setStopFilterValue("true");
 			srrConfig.addIntermodalAccessEgress(accessEgressDrtParam);
 
-			// Note: I do not include "walk" as access/egress for intermodal trips, as it should be already taken care of in the transit router.
-			// If it complains, we can add it back here
+			// TODO adjust the distance after test or make it configurable
+			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressWalkParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
+			accessEgressWalkParam.setMode(TransportMode.walk);
+			accessEgressWalkParam.setInitialSearchRadius(300);
+			accessEgressWalkParam.setMaxRadius(300);
+			accessEgressWalkParam.setSearchExtensionRadius(0.1);
+			srrConfig.addIntermodalAccessEgress(accessEgressWalkParam);
+
 		}
 	}
 
