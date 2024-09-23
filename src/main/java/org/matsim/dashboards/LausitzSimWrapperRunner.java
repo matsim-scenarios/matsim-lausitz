@@ -31,6 +31,7 @@ import org.matsim.simwrapper.Dashboard;
 import org.matsim.simwrapper.SimWrapper;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.simwrapper.dashboard.NoiseDashboard;
+import org.matsim.simwrapper.dashboard.TripDashboard;
 import picocli.CommandLine;
 
 import java.io.IOException;
@@ -54,6 +55,8 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 
 	@CommandLine.Option(names = "--noise", defaultValue = "false", description = "create noise dashboard")
 	private boolean noise;
+	@CommandLine.Option(names = "--trips", defaultValue = "false", description = "create trips dashboard")
+	private boolean trips;
 
 
 	public LausitzSimWrapperRunner(){
@@ -63,7 +66,7 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 
-		if (!noise){
+		if (!noise && !trips){
 			throw new IllegalArgumentException("you have not configured any dashboard to be created! Please use command line parameters!");
 		}
 
@@ -83,7 +86,18 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 
 			//add dashboards according to command line parameters
 //			if more dashboards are to be added here, we need to check if noise==true before adding noise dashboard here
-			sw.addDashboard(Dashboard.customize(new NoiseDashboard()).context("noise"));
+			if (noise) {
+				sw.addDashboard(Dashboard.customize(new NoiseDashboard()).context("noise"));
+			}
+
+			if (trips) {
+				sw.addDashboard(new TripDashboard(
+					"lausitz_mode_share.csv",
+					"lausitz_mode_share_per_dist.csv",
+					"lausitz_mode_users.csv")
+					.withGroupedRefData("lausitz_mode_share_per_group_dist_ref.csv", "age", "economic_status", "income")
+					.withDistanceDistribution("lausitz_mode_share_distance_distribution.csv"));
+			}
 
 
 			try {
