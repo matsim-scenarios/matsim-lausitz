@@ -112,7 +112,7 @@ class RunIntegrationTest {
 
 		new PopulationWriter(population).write(inputPath.toString());
 
-		assert MATSimApplication.execute(RunLausitzPtScenario.class, config,
+		assert MATSimApplication.execute(LausitzPtScenario.class, config,
 			"--1pct",
 			"--iterations", "1",
 			"--output", utils.getOutputDirectory(),
