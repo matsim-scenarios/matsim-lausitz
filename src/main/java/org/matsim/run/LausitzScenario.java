@@ -79,10 +79,10 @@ public class LausitzScenario extends MATSimApplication {
 	private double alpha;
 
 	@CommandLine.Mixin
-	private final SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
+	SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
 
 	@CommandLine.Option(names = "--emissions", defaultValue = "PERFORM_EMISSIONS_ANALYSIS", description = "Define if emission analysis should be performed or not.")
-	private EmissionAnalysisHandling emissions;
+	EmissionAnalysisHandling emissions;
 
 
 	public LausitzScenario(@Nullable Config config) {
@@ -95,6 +95,11 @@ public class LausitzScenario extends MATSimApplication {
 
 	public LausitzScenario() {
 		super(String.format("input/v1.1/lausitz-v1.1-10pct.config.xml", VERSION, VERSION));
+	}
+
+	public LausitzScenario(SampleOptions sample, EmissionAnalysisHandling handling) {
+		this.sample = sample;
+		this.emissions = handling;
 	}
 
 	public static void main(String[] args) {
