@@ -103,6 +103,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 				if (startInside && endInside) {
 					int oldIndex = selected.getPlanElements().indexOf(trip.getLegsOnly().stream().filter(l -> l.getMode().equals(TransportMode.pt)).toList().getFirst());
 
+//					TODO: erst plan kopieren dann converten
 					int index = convertPtTripToLeg(trip, selected, identifier);
 
 //					copy pt plan and create drt plan. Tag it as drtPlan
@@ -122,6 +123,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 //		TODO: test if new leg is pasted at correct index.
 //		TODO: index in this method is always -1. fix this
 
+//		TODO: rather use trips2LegsALgo instead of copy paste
 		final List<PlanElement> fullTrip =
 			planElements.subList(
 				planElements.indexOf(trip.getOriginActivity()) + 1,
