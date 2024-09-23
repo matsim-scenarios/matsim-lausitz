@@ -19,7 +19,7 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.QSimConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.utils.io.IOUtils;
-import org.matsim.run.prepare.PrepareDrtScenarioAgents;
+import org.matsim.pt.config.TransitRouterConfigGroup;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.prepare.PrepareTransitSchedule;
 import org.matsim.vehicles.Vehicle;
@@ -81,6 +81,8 @@ public class DrtOptions {
 			optimizationConstraintsSet.maxTravelTimeBeta = 1200.;
 			optimizationConstraintsSet.maxTravelTimeAlpha = 1.5;
 			optimizationConstraints.addParameterSet(optimizationConstraintsSet);
+//			set maxwalk distance to transit search radius. Drt is feeder for Pt.
+			optimizationConstraintsSet.maxWalkDistance = ConfigUtils.addOrGetModule(config, TransitRouterConfigGroup.class).getSearchRadius();
 			drtConfigGroup.addParameterSet(optimizationConstraints);
 			drtConfigGroup.addParameterSet(new ExtensiveInsertionSearchParams());
 			multiModeDrtConfigGroup.addParameterSet(drtConfigGroup);
@@ -128,8 +130,8 @@ public class DrtOptions {
 //			walk also needs to be added as access egress mode
 			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressWalkParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
 			accessEgressWalkParam.setMode(TransportMode.walk);
-			accessEgressWalkParam.setInitialSearchRadius(300);
-			accessEgressWalkParam.setMaxRadius(300);
+			accessEgressWalkParam.setInitialSearchRadius(1000);
+			accessEgressWalkParam.setMaxRadius(1000);
 			accessEgressWalkParam.setSearchExtensionRadius(0.1);
 			srrConfig.addIntermodalAccessEgress(accessEgressWalkParam);
 
@@ -170,8 +172,6 @@ public class DrtOptions {
 			drtDummy.getAttributes().putAttribute("serviceEndTime", 86400.);
 
 			scenario.getVehicles().addVehicle(drtDummy);
-
-			PrepareDrtScenarioAgents.convertPtToDrtTrips(scenario.getPopulation(), scenario.getNetwork(), new ShpOptions(drtAreaShp, null, null));
 
 //			tag intermodal pt stops for intermodality between pt and drt
 			if (intermodal == IntermodalityHandling.INTERMODALITY_ACTIVE) {
