@@ -69,7 +69,7 @@ class RunIntegrationTest {
 
 		createDrtTestPopulation(inputPath);
 
-		assert MATSimApplication.execute(RunLausitzDrtScenario.class, config,
+		assert MATSimApplication.execute(LausitzDrtScenario.class, config,
 			"--1pct",
 			"--iterations", "1",
 			"--config:plans.inputPlansFile", inputPath.toString(),
