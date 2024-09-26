@@ -1,7 +1,6 @@
 package org.matsim.dashboards;
 
 import org.matsim.core.config.Config;
-import org.matsim.core.population.PersonUtils;
 import org.matsim.simwrapper.Dashboard;
 import org.matsim.simwrapper.DashboardProvider;
 import org.matsim.simwrapper.SimWrapper;

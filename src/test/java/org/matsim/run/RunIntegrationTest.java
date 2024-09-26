@@ -1,6 +1,7 @@
 package org.matsim.run;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
@@ -20,6 +21,8 @@ import org.matsim.core.events.EventsUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PersonUtils;
 import org.matsim.core.population.PopulationUtils;
+import org.matsim.core.router.RoutingModeMainModeIdentifier;
+import org.matsim.core.router.TripStructureUtils;
 import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.pt.transitSchedule.api.*;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
@@ -29,18 +32,29 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.matsim.application.ApplicationUtils.globFile;
 
 class RunIntegrationTest {
 
 	@RegisterExtension
-	public MatsimTestUtils utils = new MatsimTestUtils();
+	private MatsimTestUtils utils = new MatsimTestUtils();
 
 	@TempDir
-	public Path p;
+	private Path p;
 
-	private final static Id<Person> ptPersonId = Id.createPersonId("Hoyerswerda-Cottbus_PT");
+	private String inputPath;
+
+	private final static Id<Person> personId = Id.createPersonId("Hoyerswerda-Cottbus");
+
+	private final RoutingModeMainModeIdentifier identifier = new RoutingModeMainModeIdentifier();
+
+	@BeforeEach
+	void setUp() {
+		// Initialize inputPath after p is injected
+		inputPath = p.resolve("test-population.xml.gz").toString();
+	}
 
 	@Test
 	void runScenario() {
@@ -50,7 +64,7 @@ class RunIntegrationTest {
 		assert MATSimApplication.execute(LausitzScenario.class, config,
 			"--1pct",
 			"--iterations", "1",
-			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-1pct.plans-initial.xml.gz",
+			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-0.1pct.plans-initial.xml.gz",
 			"--output", utils.getOutputDirectory(),
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
 			== 0 : "Must return non error code";
@@ -81,42 +95,13 @@ class RunIntegrationTest {
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
 		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
 
-		Path inputPath = p.resolve("pt-test-population.xml.gz");
-
-		Population population = PopulationUtils.createPopulation(config);
-		PopulationFactory fac = population.getFactory();
-		Person person = fac.createPerson(ptPersonId);
-		Plan plan = PopulationUtils.createPlan(person);
-
-//		home in hoyerswerda
-		Activity home = fac.createActivityFromCoord("home_2400", new Coord(863538.13,5711028.24));
-		home.setEndTime(8 * 3600);
-		Activity home2 = fac.createActivityFromCoord("home_2400", new Coord(863538.13,5711028.24));
-		home2.setEndTime(19 * 3600);
-//		work in cottbus
-		Activity work = fac.createActivityFromCoord("work_2400", new Coord(867489.48,5746587.47));
-		work.setEndTime(17 * 3600 + 25 * 60);
-
-		Leg leg = fac.createLeg(TransportMode.pt);
-
-		plan.addActivity(home);
-		plan.addLeg(leg);
-		plan.addActivity(work);
-		plan.addLeg(leg);
-		plan.addActivity(home2);
-
-		person.addPlan(plan);
-		PersonUtils.setIncome(person, 1000.);
-		person.getAttributes().putAttribute("subpopulation", "person");
-		population.addPerson(person);
-
-		new PopulationWriter(population).write(inputPath.toString());
+		createSinglePersonTestPopulation(config, TransportMode.pt);
 
 		assert MATSimApplication.execute(LausitzPtScenario.class, config,
 			"--1pct",
 			"--iterations", "1",
 			"--output", utils.getOutputDirectory(),
-			"--config:plans.inputPlansFile", inputPath.toString(),
+			"--config:plans.inputPlansFile", inputPath,
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
 			== 0 : "Must return non error code";
 
@@ -149,12 +134,108 @@ class RunIntegrationTest {
 
 	}
 
+	@Test
+	void runSpeedReductionScenario() {
+		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
+		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
+
+		assert MATSimApplication.execute(LausitzSpeedReductionScenario.class, config,
+			"--1pct",
+			"--iterations", "0",
+			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.1/lausitz-v1.1-0.1pct.plans-initial.xml.gz",
+			"--output", utils.getOutputDirectory(),
+			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+			== 0 : "Must return non error code";
+
+		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
+		Assertions.assertTrue(new File(utils.getOutputDirectory()).exists());
+
+		Network network = NetworkUtils.readNetwork(globFile(Path.of(utils.getOutputDirectory()), "*output_network.xml.gz").toString());
+
+	//	motorway speed should not be altered
+		Assertions.assertEquals(39.44, network.getLinks().get(Id.createLinkId("267472144")).getFreespeed());
+		Assertions.assertEquals(27.78 * 0.6, network.getLinks().get(Id.createLinkId("-134417722")).getFreespeed());
+		Assertions.assertEquals(10.4175 * 0.6, network.getLinks().get(Id.createLinkId("-67544888")).getFreespeed());
+		Assertions.assertEquals(6.2475000000000005 * 0.6, network.getLinks().get(Id.createLinkId("-836484274")).getFreespeed());
+	}
+
+	@Test
+	void runSingleModeScenario() {
+		Set<String> modes = Set.of(TransportMode.car, TransportMode.bike, TransportMode.pt, TransportMode.walk);
+
+		for (String mode : modes){
+			Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
+			ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
+
+			createSinglePersonTestPopulation(config, mode);
+
+			assert MATSimApplication.execute(LausitzSingleModeScenario.class, config,
+				"--1pct",
+				"--iterations", "1",
+				"--config:plans.inputPlansFile", inputPath,
+				"--output", utils.getOutputDirectory(),
+				"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS",
+				"--transport-mode", mode)
+				== 0 : "Must return non error code";
+
+			Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
+			Assertions.assertTrue(new File(utils.getOutputDirectory()).exists());
+
+			Config outputConfig = ConfigUtils.loadConfig(globFile(Path.of(utils.getOutputDirectory()), "*output_config.xml").toString());
+
+//		config should not have any smc modes + no smc strategy
+			Assertions.assertEquals(1, outputConfig.subtourModeChoice().getModes().length);
+			Assertions.assertEquals("", outputConfig.subtourModeChoice().getModes()[0]);
+			Assertions.assertEquals(0, outputConfig.replanning().getStrategySettings()
+				.stream()
+				.filter(setting -> setting.getStrategyName().equals("SubtourModeChoice"))
+				.toList()
+				.size());
+
+			Population population = PopulationUtils.readPopulation(globFile(Path.of(utils.getOutputDirectory()), "*output_plans.xml.gz").toString());
+
+			TripStructureUtils.getTrips(population.getPersons().get(Id.createPersonId(personId)).getSelectedPlan())
+				.forEach(t -> Assertions.assertEquals(mode, this.identifier.identifyMainMode(t.getTripElements())));
+		}
+	}
+
+	private void createSinglePersonTestPopulation(Config config, String mode) {
+		Population population = PopulationUtils.createPopulation(config);
+		PopulationFactory fac = population.getFactory();
+		Person person = fac.createPerson(personId);
+		Plan plan = PopulationUtils.createPlan(person);
+
+//		home in hoyerswerda
+		Activity home = fac.createActivityFromCoord("home_2400", new Coord(863538.13,5711028.24));
+		home.setEndTime(8 * 3600);
+		Activity home2 = fac.createActivityFromCoord("home_2400", new Coord(863538.13,5711028.24));
+		home2.setEndTime(19 * 3600);
+//		work in cottbus
+		Activity work = fac.createActivityFromCoord("work_2400", new Coord(867489.48,5746587.47));
+		work.setEndTime(17 * 3600 + 25 * 60);
+
+		Leg leg = fac.createLeg(mode);
+
+		plan.addActivity(home);
+		plan.addLeg(leg);
+		plan.addActivity(work);
+		plan.addLeg(leg);
+		plan.addActivity(home2);
+
+		person.addPlan(plan);
+		PersonUtils.setIncome(person, 1000.);
+		person.getAttributes().putAttribute("subpopulation", "person");
+		population.addPerson(person);
+
+		new PopulationWriter(population).write(this.inputPath);
+	}
+
 	private static final class PersonEntersPtVehicleEventHandler implements PersonEntersVehicleEventHandler {
 		static List<PersonEntersVehicleEvent> enterEvents = new ArrayList<>();
 
 		@Override
 		public void handleEvent(PersonEntersVehicleEvent event) {
-			if (event.getPersonId().equals(ptPersonId) && event.getVehicleId().toString().contains("RE-VSP1")) {
+			if (event.getPersonId().equals(personId) && event.getVehicleId().toString().contains("RE-VSP1")) {
 				enterEvents.add(event);
 			}
 		}
