@@ -16,6 +16,7 @@ import org.matsim.core.population.PersonUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.utils.io.IOUtils;
 import org.matsim.dashboards.LausitzSimWrapperRunner;
+import org.matsim.run.scenarios.LausitzScenario;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.testcases.MatsimTestUtils;
 

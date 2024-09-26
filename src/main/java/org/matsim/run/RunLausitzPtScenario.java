@@ -1,6 +1,7 @@
 package org.matsim.run;
 
 import org.matsim.application.MATSimApplication;
+import org.matsim.run.scenarios.LausitzPtScenario;
 
 /**
  * Run the Lausitz PT scenario policy case.
