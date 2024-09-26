@@ -1,4 +1,4 @@
-package org.matsim.run;
+package org.matsim.run.scenarios;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,14 +47,14 @@ public class LausitzSpeedReductionScenario extends LausitzScenario {
 
 	@Nullable
 	@Override
-	protected Config prepareConfig(Config config) {
+	public Config prepareConfig(Config config) {
 		//		apply all config changes from base scenario class
 		baseScenario.prepareConfig(config);
 		return config;
 	}
 
 	@Override
-	protected void prepareScenario(Scenario scenario) {
+	public void prepareScenario(Scenario scenario) {
 		//		apply all scenario changes from base scenario class
 		baseScenario.prepareScenario(scenario);
 
@@ -81,7 +81,7 @@ public class LausitzSpeedReductionScenario extends LausitzScenario {
 	}
 
 	@Override
-	protected void prepareControler(Controler controler) {
+	public void prepareControler(Controler controler) {
 		//		apply all controller changes from base scenario class
 		baseScenario.prepareControler(controler);
 	}

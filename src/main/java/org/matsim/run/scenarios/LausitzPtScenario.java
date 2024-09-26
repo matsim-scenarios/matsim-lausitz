@@ -1,4 +1,4 @@
-package org.matsim.run;
+package org.matsim.run.scenarios;
 
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
@@ -46,7 +46,7 @@ public class LausitzPtScenario extends LausitzScenario {
 
 	@Nullable
 	@Override
-	protected Config prepareConfig(Config config) {
+	public Config prepareConfig(Config config) {
 		//		apply all config changes from base scenario class
 		baseScenario.prepareConfig(config);
 
@@ -54,7 +54,7 @@ public class LausitzPtScenario extends LausitzScenario {
 	}
 
 	@Override
-	protected void prepareScenario(Scenario scenario) {
+	public void prepareScenario(Scenario scenario) {
 		//		apply all scenario changes from base scenario class
 		baseScenario.prepareScenario(scenario);
 
@@ -147,7 +147,7 @@ public class LausitzPtScenario extends LausitzScenario {
 	}
 
 	@Override
-	protected void prepareControler(Controler controler) {
+	public void prepareControler(Controler controler) {
 		//		apply all controller changes from base scenario class
 		baseScenario.prepareControler(controler);
 //		TODO: add potential new Listeners here

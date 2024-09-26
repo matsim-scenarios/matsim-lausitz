@@ -1,4 +1,4 @@
-package org.matsim.run;
+package org.matsim.run.scenarios;
 
 import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
@@ -43,7 +43,7 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 
 	@Nullable
 	@Override
-	protected Config prepareConfig(Config config) {
+	public Config prepareConfig(Config config) {
 		//		apply all config changes from base scenario class
 		baseScenario.prepareConfig(config);
 
@@ -61,7 +61,7 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 	}
 
 	@Override
-	protected void prepareScenario(Scenario scenario) {
+	public void prepareScenario(Scenario scenario) {
 		//		apply all scenario changes from base scenario class
 		baseScenario.prepareScenario(scenario);
 
@@ -91,7 +91,7 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 	}
 
 	@Override
-	protected void prepareControler(Controler controler) {
+	public void prepareControler(Controler controler) {
 		//		apply all controller changes from base scenario class
 		baseScenario.prepareControler(controler);
 	}

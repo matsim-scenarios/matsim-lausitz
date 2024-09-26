@@ -1,6 +1,7 @@
 package org.matsim.run;
 
 import org.matsim.application.MATSimApplication;
+import org.matsim.run.scenarios.LausitzSingleModeScenario;
 
 /**
  * Run the Lausitz single mode scenario policy case.
