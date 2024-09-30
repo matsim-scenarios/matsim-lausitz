@@ -12,7 +12,7 @@
 		<!--<version>14.0-PR1452</version>-->
 
 		<!-- snapshot == not recommended: rather use PR-labelled release!-->
-		<version>2025.0-PR3486</version>
+		<version>2025.0-PR3496</version>
 	</parent>
 
 
@@ -144,7 +144,7 @@
 				<configuration>
 					<forkMode>once</forkMode>
 					<!-- avoid out of memory errors: -->
-					<argLine>@{argLine} -Xmx6500m -Djava.awt.headless=true -Dmatsim.preferLocalDtds=true</argLine>
+					<argLine>@{argLine} -Djava.awt.headless=true -Dmatsim.preferLocalDtds=true</argLine>
 					<!--necessary in tu berlin gitlab. BUT not good in other places, so solve by command line switch only where needed.  kai, nov'18-->
 					<!--<useSystemClassLoader>false</useSystemClassLoader>-->
 				</configuration>
