@@ -1,11 +1,11 @@
 package org.matsim.run.scenarios;
 
-import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.population.*;
+import org.matsim.application.prepare.population.CleanPopulation;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.groups.ReplanningConfigGroup;
 import org.matsim.core.controler.Controler;
@@ -65,7 +65,6 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 		//		apply all scenario changes from base scenario class
 		baseScenario.prepareScenario(scenario);
 
-//		TODO: replace code segment that selects, cleans routes and converts trips 2 legs with call of CleanPopulation PR3496
 		TripsToLegsAlgorithm trips2Legs = new TripsToLegsAlgorithm(new RoutingModeMainModeIdentifier());
 
 		for (Person person : scenario.getPopulation().getPersons().values()) {
@@ -73,18 +72,14 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 				continue;
 			}
 
-			Plan selected = person.getSelectedPlan();
-			for (Plan plan : Lists.newArrayList(person.getPlans())) {
-				if (plan != selected)
-					person.removePlan(plan);
-			}
+			CleanPopulation.removeUnselectedPlans(person);
 
 			for (Plan plan : person.getPlans()) {
 				trips2Legs.run(plan);
 
 				for (PlanElement el : plan.getPlanElements()) {
 					if (el instanceof Leg leg) {
-						leg.setRoute(null);
+						CleanPopulation.removeRouteFromLeg(el);
 						leg.setMode(mode);
 					}
 				}
