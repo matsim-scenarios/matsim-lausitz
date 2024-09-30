@@ -69,6 +69,10 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 		TripsToLegsAlgorithm trips2Legs = new TripsToLegsAlgorithm(new RoutingModeMainModeIdentifier());
 
 		for (Person person : scenario.getPopulation().getPersons().values()) {
+			if (!person.getAttributes().getAttribute("subpopulation").equals("person")) {
+				continue;
+			}
+
 			Plan selected = person.getSelectedPlan();
 			for (Plan plan : Lists.newArrayList(person.getPlans())) {
 				if (plan != selected)
@@ -86,7 +90,7 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 				}
 			}
 		}
-		log.info("For all agents: Unselected plans have been removed. Trips were converted to legs. Routes have been removed." +
+		log.info("For all non-freight agents: Unselected plans have been removed. Trips were converted to legs. Routes have been removed." +
 			" For every leg, the mode was changed to {}", mode);
 	}
 
