@@ -10,7 +10,9 @@ import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.ShpOptions;
+import org.matsim.core.config.groups.NetworkConfigGroup;
 import org.matsim.core.network.NetworkUtils;
+import org.matsim.core.network.filter.NetworkFilterManager;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.router.AnalysisMainModeIdentifier;
 import org.matsim.core.router.DefaultAnalysisMainModeIdentifier;
@@ -39,6 +41,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 	private final ShpOptions shp = new ShpOptions();
 
 	private static final String PLAN_TYPE = "drtPlan";
+	private static final String PT_INTERACTION = "pt interaction";
 
 	public static void main(String[] args) {
 		new PrepareDrtScenarioAgents().execute(args);
@@ -59,11 +62,116 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 		Population population = PopulationUtils.readPopulation(input.toString());
 		Network network = NetworkUtils.readNetwork(networkPath.toString());
 
-		convertPtToDrtTrips(population, network, shp);
+//		convertPtToDrtTrips(population, network, shp);
+
+//		TODO: try if for 3 and 5 it is enough to delete act locations instead of searching for nearest drt link
+		convertVspRegionalTrainLegsToDrt(population, network);
 
 		PopulationUtils.writePopulation(population, output.toString());
 
 		return 0;
+	}
+
+	private void convertVspRegionalTrainLegsToDrt(Population population, Network network) {
+//		shp needs to include all locations, where the new pt line (from pt policy case) has a station
+//		thus, lausitz.shp should be chosen as an input
+		PrepareNetwork.prepareDrtNetwork(network, shp.getShapeFile());
+
+		NetworkFilterManager manager = new NetworkFilterManager(network, new NetworkConfigGroup());
+		manager.addLinkFilter(l -> l.getAllowedModes().contains(TransportMode.drt));
+		Network filtered = manager.applyFilters();
+
+		for (Person person : population.getPersons().values()) {
+//			TODO: replace with static call of CleanPopulation method
+			Plan selected = person.getSelectedPlan();
+			for (Plan plan : Lists.newArrayList(person.getPlans())) {
+				if (plan != selected)
+					person.removePlan(plan);
+			}
+
+//			get indexes of pt legs with new pt line
+			List<Integer> indexes = TripStructureUtils.getLegs(selected).stream()
+				.filter(l -> l.getRoute().getStartLinkId().toString().contains("pt_vsp_")
+					&& l.getRoute().getEndLinkId().toString().contains("pt_vsp_"))
+				.map(l -> selected.getPlanElements().indexOf(l)).toList();
+
+			for (Integer index : indexes) {
+				for (int i = 0; i < selected.getPlanElements().size(); i++) {
+					if ((i == index - 2 || i == index + 2) && selected.getPlanElements().get(i) instanceof Leg leg) {
+//						access / egress walk leg
+						if (!(leg.getMode().equals(TransportMode.walk) && leg.getRoutingMode().equals(TransportMode.pt))) {
+							log.fatal("For selected plan of person {} mode {} and routing mode {} expected for leg at index {}. " +
+									"Leg has mode {} and routing mode {} instead. Abort.",
+								person.getId(), TransportMode.walk, TransportMode.pt, i, leg.getMode(), leg.getRoutingMode());
+							throw new IllegalStateException();
+						}
+						leg.setRoute(null);
+						leg.setRoutingMode(TransportMode.drt);
+						continue;
+					}
+
+					if (i == index - 1 && selected.getPlanElements().get(i) instanceof Activity act) {
+//						interaction act before leg
+						if (!act.getType().equals(PT_INTERACTION)) {
+							logNotPtInteractionAct(person, act, i);
+							throw new IllegalStateException();
+						}
+
+						if (selected.getPlanElements().get(i - 2) instanceof Activity prev) {
+							convertToDrtInteraction(act, prev, network, filtered);
+						} else {
+							logWrongPlanElementType(person, i);
+							throw new IllegalStateException();
+						}
+						continue;
+					}
+
+					if (i == index && selected.getPlanElements().get(i) instanceof Leg leg) {
+//						pt leg with new pt line
+						leg.setRoute(null);
+						leg.setMode(TransportMode.drt);
+						continue;
+					}
+
+					if (i == index + 1 && selected.getPlanElements().get(i) instanceof Activity act) {
+//						interaction act before leg
+						if (!act.getType().equals(PT_INTERACTION)) {
+							logNotPtInteractionAct(person, act, i);
+							throw new IllegalStateException();
+						}
+						if (selected.getPlanElements().get(i + 2) instanceof Activity prev) {
+							convertToDrtInteraction(act, prev, network, filtered);
+						} else {
+							logWrongPlanElementType(person, i);
+							throw new IllegalStateException();
+						}
+					}
+				}
+			}
+		}
+	}
+
+	private static void logNotPtInteractionAct(Person person, Activity act, int i) {
+		log.fatal("For selected plan of person {} type {} expected for activity at index {}. Activity has type {} instead. Abort.",
+			person.getId(), PT_INTERACTION, i, act.getType());
+	}
+
+	private static void logWrongPlanElementType(Person person, int i) {
+		log.fatal("For the selected plan of person {} the plan element with index {} was expected to be an activity." +
+			"It seems to be a leg. Abort.", person.getId(), i);
+	}
+
+	private static void convertToDrtInteraction(Activity act, Activity previous, Network fullNetwork, Network filtered) {
+//							TODO: test if it is enough to delete link and facility, but keep coord. Correct link shoulb be found automatically then
+
+		if (filtered.getLinks().containsKey(previous.getLinkId())) {
+			act.setLinkId(previous.getLinkId());
+		} else {
+			act.setLinkId(NetworkUtils.getNearestLink(filtered, fullNetwork.getLinks().get(previous.getLinkId()).getToNode().getCoord()).getId());
+		}
+		act.setFacilityId(null);
+		act.setCoord(null);
+		act.setType("drt interaction");
 	}
 
 	/**
