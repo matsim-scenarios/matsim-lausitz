@@ -71,12 +71,10 @@ class RunIntegrationTest {
 
 		assert MATSimApplication.execute(LausitzDrtScenario.class, config,
 			"--1pct",
-			"--iterations", "1",
+			"--iterations", "0",
 			"--config:plans.inputPlansFile", inputPath.toString(),
 			"--output", utils.getOutputDirectory(),
-			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS",
-			"--config:transit.transitScheduleFile", "../v1.0/lausitz-v1.0-transitSchedule-with-intermodal.xml.gz",
-			"--intermodal")
+			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
 			== 0 : "Must return non error code";
 
 		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
@@ -187,6 +185,26 @@ class RunIntegrationTest {
 			person.addPlan(plan);
 			population.addPerson(person);
 		}
+
+		Person drtOnly = populationFactory.createPerson(Id.createPersonId("drtOnly"));
+		PersonUtils.setIncome(drtOnly, 1000.);
+		Plan plan = populationFactory.createPlan();
+		// a random location in the Hoyerswerda town center
+		Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(863949.91, 5711547.75));
+		// a random time between 6:00-9:00
+		fromAct.setEndTime(21600 + random.nextInt(10800));
+		Leg leg = populationFactory.createLeg(TransportMode.drt);
+		// a location in Wittichenau
+		Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(864808.3,5705774.7));
+
+		plan.addActivity(fromAct);
+		plan.addLeg(leg);
+		plan.addActivity(toAct);
+
+		drtOnly.addPlan(plan);
+		population.addPerson(drtOnly);
+
+
 		new PopulationWriter(population).write(inputPath.toString());
 	}
 

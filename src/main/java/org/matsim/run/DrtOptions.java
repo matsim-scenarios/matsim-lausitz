@@ -175,7 +175,7 @@ public class DrtOptions {
 
 //			tag intermodal pt stops for intermodality between pt and drt
 			if (intermodal == IntermodalityHandling.INTERMODALITY_ACTIVE) {
-				PrepareTransitSchedule.tagIntermodalStops(scenario.getTransitSchedule(), new ShpOptions(intermodalAreaShp, null, null));
+				PrepareTransitSchedule.tagIntermodalStops(scenario.getTransitSchedule(), new ShpOptions(IOUtils.extendUrl(scenario.getConfig().getContext(), intermodalAreaShp).toString(), null, null));
 			}
 		}
 	}
