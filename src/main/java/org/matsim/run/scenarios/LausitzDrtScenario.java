@@ -1,4 +1,4 @@
-package org.matsim.run;
+package org.matsim.run.scenarios;
 
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.application.MATSimApplication;
@@ -16,6 +16,7 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
+import org.matsim.run.DrtOptions;
 import picocli.CommandLine;
 
 import javax.annotation.Nullable;
@@ -47,7 +48,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 
 	@Nullable
 	@Override
-	protected Config prepareConfig(Config config) {
+	public Config prepareConfig(Config config) {
 //		apply all config changes from base scenario class
 		baseScenario.prepareConfig(config);
 
@@ -58,7 +59,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 	}
 
 	@Override
-	protected void prepareScenario(Scenario scenario) {
+	public void prepareScenario(Scenario scenario) {
 //		apply all scenario changes from base scenario class
 		baseScenario.prepareScenario(scenario);
 
@@ -67,7 +68,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 	}
 
 	@Override
-	protected void prepareControler(Controler controler) {
+	public void prepareControler(Controler controler) {
 		Config config = controler.getConfig();
 
 //		apply all controller changes from base scenario class
@@ -88,10 +89,10 @@ public final class LausitzDrtScenario extends LausitzScenario {
 				public void install() {
 					DrtEstimatorModule.bindEstimator(binder(), drtConfigGroup.mode).toInstance(
 						new DirectTripBasedDrtEstimator.Builder()
-							.setWaitingTimeEstimator(new ConstantWaitingTimeEstimator(drtOpt.typicalWaitTime))
-							.setWaitingTimeDistributionGenerator(new NormalDistributionGenerator(1, drtOpt.waitTimeStd))
-							.setRideDurationEstimator(new ConstantRideDurationEstimator(drtOpt.rideTimeAlpha, drtOpt.rideTimeBeta))
-							.setRideDurationDistributionGenerator(new NormalDistributionGenerator(2, drtOpt.rideTimeStd))
+							.setWaitingTimeEstimator(new ConstantWaitingTimeEstimator(drtOpt.getTypicalWaitTime()))
+							.setWaitingTimeDistributionGenerator(new NormalDistributionGenerator(1, drtOpt.getWaitTimeStd()))
+							.setRideDurationEstimator(new ConstantRideDurationEstimator(drtOpt.getRideTimeAlpha(), drtOpt.getRideTimeBeta()))
+							.setRideDurationDistributionGenerator(new NormalDistributionGenerator(2, drtOpt.getRideTimeStd()))
 							.build()
 					);
 				}

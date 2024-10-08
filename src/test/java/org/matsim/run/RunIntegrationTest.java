@@ -25,10 +25,7 @@ import org.matsim.core.router.RoutingModeMainModeIdentifier;
 import org.matsim.core.router.TripStructureUtils;
 import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.pt.transitSchedule.api.*;
-import org.matsim.run.scenarios.LausitzPtScenario;
-import org.matsim.run.scenarios.LausitzScenario;
-import org.matsim.run.scenarios.LausitzSingleModeScenario;
-import org.matsim.run.scenarios.LausitzSpeedReductionScenario;
+import org.matsim.run.scenarios.*;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.testcases.MatsimTestUtils;
 
