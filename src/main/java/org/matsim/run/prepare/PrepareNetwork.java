@@ -20,7 +20,7 @@ import picocli.CommandLine;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.matsim.run.LausitzScenario.*;
+import static org.matsim.run.scenarios.LausitzScenario.*;
 
 @CommandLine.Command(
 		name = "network",

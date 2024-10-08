@@ -1,6 +1,7 @@
 package org.matsim.run;
 
 import org.matsim.application.MATSimApplication;
+import org.matsim.run.scenarios.LausitzScenario;
 
 /**
  * Run the Lausitz scenario with default configuration.

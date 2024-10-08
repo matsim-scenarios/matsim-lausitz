@@ -1,4 +1,4 @@
-package org.matsim.run;
+package org.matsim.run.scenarios;
 
 import com.google.common.collect.Sets;
 import org.matsim.analysis.personMoney.PersonMoneyEventsAnalysisModule;
@@ -108,7 +108,7 @@ public class LausitzScenario extends MATSimApplication {
 
 	@Nullable
 	@Override
-	protected Config prepareConfig(Config config) {
+	public Config prepareConfig(Config config) {
 
 		// Add all activity types with time bins
 		SnzActivities.addScoringParams(config);
@@ -132,6 +132,7 @@ public class LausitzScenario extends MATSimApplication {
 		double performing = 6.0;
 		ScoringConfigGroup scoringConfigGroup = config.scoring();
 		scoringConfigGroup.setPerforming_utils_hr(performing);
+		scoringConfigGroup.setWriteExperiencedPlans(true);
 
 //		set ride scoring params dependent from car params
 		ScoringConfigGroup.ModeParams rideParams = scoringConfigGroup.getOrCreateModeParams(TransportMode.ride);
@@ -183,7 +184,7 @@ public class LausitzScenario extends MATSimApplication {
 	}
 
 	@Override
-	protected void prepareScenario(Scenario scenario) {
+	public void prepareScenario(Scenario scenario) {
 //		add freight and truck as allowed modes together with car
 		PrepareNetwork.prepareFreightNetwork(scenario.getNetwork());
 
@@ -196,7 +197,7 @@ public class LausitzScenario extends MATSimApplication {
 	}
 
 	@Override
-	protected void prepareControler(Controler controler) {
+	public void prepareControler(Controler controler) {
 
 		//analyse PersonMoneyEvents
 		controler.addOverridingModule(new PersonMoneyEventsAnalysisModule());

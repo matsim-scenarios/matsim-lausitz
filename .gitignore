@@ -6,6 +6,7 @@
 output/
 scenarios/output
 test/output
+runs/
 
 *.gz
 *.pbf
