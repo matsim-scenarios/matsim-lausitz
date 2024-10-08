@@ -1,6 +1,9 @@
 package org.matsim.run;
 
 import ch.sbb.matsim.config.SwissRailRaptorConfigGroup;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.geotools.api.feature.simple.SimpleFeature;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
@@ -18,6 +21,7 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.QSimConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
+import org.matsim.core.utils.gis.GeoFileWriter;
 import org.matsim.core.utils.io.IOUtils;
 import org.matsim.pt.config.TransitRouterConfigGroup;
 import org.matsim.run.prepare.PrepareNetwork;
@@ -28,12 +32,15 @@ import org.matsim.vehicles.VehicleType;
 import org.matsim.vehicles.VehicleUtils;
 import picocli.CommandLine;
 
+import java.util.List;
 import java.util.Set;
 
 /**
  * This class bundles some run parameter options and functionalities connected to drt-scenarios.
  */
 public class DrtOptions {
+	private static final Logger log = LogManager.getLogger(DrtOptions.class);
+
 	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/nord-bautzen-waiting-times_utm32N.shp")
 	private String drtAreaShp;
 
@@ -58,11 +65,12 @@ public class DrtOptions {
 	@CommandLine.Option(names = "--intermodal", defaultValue = "INTERMODALITY_ACTIVE", description = "enable intermodality for DRT service")
 	private IntermodalityHandling intermodal;
 
-
 	/**
 	 * a helper method, which makes all necessary config changes to simulate drt.
 	 */
-	void configureDrtConfig(Config config) {
+	public void configureDrtConfig(Config config) {
+//		check if every feature of shp file has attr typ_wt for drt estimation. Add attr with standard value if not present.
+		checkServiceAreaShapeFile(config);
 		DvrpConfigGroup dvrpConfigGroup = ConfigUtils.addOrGetModule(config, DvrpConfigGroup.class);
 		dvrpConfigGroup.networkModes = Set.of(TransportMode.drt);
 
@@ -141,7 +149,7 @@ public class DrtOptions {
 	/**
 	 * a helper method, which makes all necessary scenario changes to simulate drt.
 	 */
-	void configureDrtScenario(Scenario scenario) {
+	public void configureDrtScenario(Scenario scenario) {
 
 		//		drt route factory has to be added as factory for drt routes, as there were no drt routes before.
 		scenario.getPopulation()
@@ -180,8 +188,48 @@ public class DrtOptions {
 		}
 	}
 
+	private void checkServiceAreaShapeFile(Config config) {
+		ShpOptions shp = new ShpOptions(drtAreaShp, null, null);
+		List<SimpleFeature> features = shp.readFeatures();
+		boolean adapted = false;
+		for (SimpleFeature feature : features) {
+			if (feature.getAttribute("typ_wt") == null) {
+				feature.setAttribute("typ_wt", 10 * 60.);
+				adapted = true;
+			}
+		}
+
+		if (adapted) {
+			log.warn("For drt service area shape file {}, at least one feature did not have the obligatory attribute typ_wt. " +
+				"The attribute is needed for drt estimation. The attribute was added with a standard value of 10min for those features.", drtAreaShp);
+
+			GeoFileWriter.writeGeometries(features, IOUtils.extendUrl(config.getContext(), drtAreaShp).toString());
+			log.warn("Adapted drt service area shp file written to {}.", drtAreaShp);
+		}
+	}
+
 	public String getDrtAreaShp() {
 		return drtAreaShp;
+	}
+
+	public double getTypicalWaitTime() {
+		return typicalWaitTime;
+	}
+
+	public double getWaitTimeStd() {
+		return waitTimeStd;
+	}
+
+	public double getRideTimeAlpha() {
+		return rideTimeAlpha;
+	}
+
+	public double getRideTimeBeta() {
+		return rideTimeBeta;
+	}
+
+	public double getRideTimeStd() {
+		return rideTimeStd;
 	}
 
 	/**
