@@ -3,6 +3,7 @@ package org.matsim.run.prepare;
 import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.locationtech.jts.geom.Geometry;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
@@ -10,6 +11,7 @@ import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.ShpOptions;
+import org.matsim.application.prepare.population.CleanPopulation;
 import org.matsim.core.config.groups.NetworkConfigGroup;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.network.filter.NetworkFilterManager;
@@ -34,7 +36,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 	@CommandLine.Parameters(arity = "1", paramLabel = "INPUT", description = "Path to input population")
 	private Path input;
 	@CommandLine.Option(names = "--network", description = "Path to network", required = true)
-	private Path networkPath;
+	private String networkPath;
 	@CommandLine.Option(names = "--output", description = "Path to output population", required = true)
 	private Path output;
 	@CommandLine.Mixin
@@ -60,7 +62,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 		}
 
 		Population population = PopulationUtils.readPopulation(input.toString());
-		Network network = NetworkUtils.readNetwork(networkPath.toString());
+		Network network = NetworkUtils.readNetwork(networkPath);
 
 //		convertPtToDrtTrips(population, network, shp);
 
@@ -82,18 +84,17 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 		Network filtered = manager.applyFilters();
 
 		for (Person person : population.getPersons().values()) {
-//			TODO: replace with static call of CleanPopulation method
+			CleanPopulation.removeUnselectedPlans(person);
 			Plan selected = person.getSelectedPlan();
-			for (Plan plan : Lists.newArrayList(person.getPlans())) {
-				if (plan != selected)
-					person.removePlan(plan);
-			}
 
 //			get indexes of pt legs with new pt line
-			List<Integer> indexes = TripStructureUtils.getLegs(selected).stream()
-				.filter(l -> l.getRoute().getStartLinkId().toString().contains("pt_vsp_")
-					&& l.getRoute().getEndLinkId().toString().contains("pt_vsp_"))
-				.map(l -> selected.getPlanElements().indexOf(l)).toList();
+			List<Integer> indexes = getNewPtLineIndexes(selected);
+
+//			only remove routes from legs if no legs with new vsp pt line
+			if (indexes.isEmpty()) {
+				TripStructureUtils.getLegs(selected).forEach(CleanPopulation::removeRouteFromLeg);
+				continue;
+			}
 
 			for (Integer index : indexes) {
 				for (int i = 0; i < selected.getPlanElements().size(); i++) {
@@ -105,8 +106,10 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 								person.getId(), TransportMode.walk, TransportMode.pt, i, leg.getMode(), leg.getRoutingMode());
 							throw new IllegalStateException();
 						}
-						leg.setRoute(null);
+						CleanPopulation.removeRouteFromLeg(leg);
 						leg.setRoutingMode(TransportMode.drt);
+						leg.setTravelTimeUndefined();
+						leg.setDepartureTimeUndefined();
 						continue;
 					}
 
@@ -130,17 +133,20 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 //						pt leg with new pt line
 						leg.setRoute(null);
 						leg.setMode(TransportMode.drt);
+						leg.setTravelTimeUndefined();
+						leg.setDepartureTimeUndefined();
+						leg.getAttributes().removeAttribute("enterVehicleTime");
 						continue;
 					}
 
 					if (i == index + 1 && selected.getPlanElements().get(i) instanceof Activity act) {
-//						interaction act before leg
+//						interaction act after leg
 						if (!act.getType().equals(PT_INTERACTION)) {
 							logNotPtInteractionAct(person, act, i);
 							throw new IllegalStateException();
 						}
-						if (selected.getPlanElements().get(i + 2) instanceof Activity prev) {
-							convertToDrtInteraction(act, prev, network, filtered);
+						if (selected.getPlanElements().get(i + 2) instanceof Activity next) {
+							convertToDrtInteraction(act, next, network, filtered);
 						} else {
 							logWrongPlanElementType(person, i);
 							throw new IllegalStateException();
@@ -149,6 +155,13 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 				}
 			}
 		}
+	}
+
+	public static @NotNull List<Integer> getNewPtLineIndexes(Plan selected) {
+		return TripStructureUtils.getLegs(selected).stream()
+			.filter(l -> l.getRoute().getStartLinkId().toString().contains("pt_vsp_")
+				&& l.getRoute().getEndLinkId().toString().contains("pt_vsp_"))
+			.map(l -> selected.getPlanElements().indexOf(l)).toList();
 	}
 
 	private static void logNotPtInteractionAct(Person person, Activity act, int i) {
