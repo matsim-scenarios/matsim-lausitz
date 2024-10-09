@@ -80,7 +80,7 @@ public class DrtOptions {
 			DrtConfigGroup drtConfigGroup = new DrtConfigGroup();
 			drtConfigGroup.operationalScheme = DrtConfigGroup.OperationalScheme.serviceAreaBased;
 			drtConfigGroup.stopDuration = 60.;
-			drtConfigGroup.drtServiceAreaShapeFile = getDrtAreaShp();
+			drtConfigGroup.drtServiceAreaShapeFile = IOUtils.extendUrl(config.getContext(), getDrtAreaShp()).toString();
 
 //			optimization params now are in its own paramSet, hence the below lines
 			DrtOptimizationConstraintsParams optimizationConstraints = new DrtOptimizationConstraintsParams();
@@ -189,7 +189,7 @@ public class DrtOptions {
 	}
 
 	private void checkServiceAreaShapeFile(Config config) {
-		ShpOptions shp = new ShpOptions(drtAreaShp, null, null);
+		ShpOptions shp = new ShpOptions(getDrtAreaShp(), null, null);
 		List<SimpleFeature> features = shp.readFeatures();
 		boolean adapted = false;
 		for (SimpleFeature feature : features) {
@@ -201,10 +201,10 @@ public class DrtOptions {
 
 		if (adapted) {
 			log.warn("For drt service area shape file {}, at least one feature did not have the obligatory attribute typ_wt. " +
-				"The attribute is needed for drt estimation. The attribute was added with a standard value of 10min for those features.", drtAreaShp);
+				"The attribute is needed for drt estimation. The attribute was added with a standard value of 10min for those features.", getDrtAreaShp());
 
-			GeoFileWriter.writeGeometries(features, IOUtils.extendUrl(config.getContext(), drtAreaShp).toString());
-			log.warn("Adapted drt service area shp file written to {}.", drtAreaShp);
+			GeoFileWriter.writeGeometries(features, IOUtils.extendUrl(config.getContext(), getDrtAreaShp()).toString());
+			log.warn("Adapted drt service area shp file written to {}.", IOUtils.extendUrl(config.getContext(), getDrtAreaShp()));
 		}
 	}
 
