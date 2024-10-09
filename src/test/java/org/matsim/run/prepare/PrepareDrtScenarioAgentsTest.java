@@ -22,7 +22,7 @@ class PrepareDrtScenarioAgentsTest {
 
 	@Test
 	void testPrepareDrtScenarioAgents() {
-		String inputPopulationPath = "./input/v1.1/lausitz-pt-case-test_experienced_plans_1person.xml.gz";
+		String inputPopulationPath = "./input/v1.1/lausitz-pt-case-test_plans_1person.xml.gz";
 		Population in = PopulationUtils.readPopulation(inputPopulationPath);
 		String networkPath = URL + String.format("lausitz-v%s-network-with-pt.xml.gz", LausitzScenario.VERSION);
 		String outPath = utils.getOutputDirectory() + "/drt-test-population.xml.gz";

@@ -1,12 +1,9 @@
 package org.matsim.run.prepare;
 
-import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
-import org.locationtech.jts.geom.Geometry;
 import org.matsim.api.core.v01.TransportMode;
-import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
@@ -16,10 +13,8 @@ import org.matsim.core.config.groups.NetworkConfigGroup;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.network.filter.NetworkFilterManager;
 import org.matsim.core.population.PopulationUtils;
-import org.matsim.core.router.AnalysisMainModeIdentifier;
-import org.matsim.core.router.DefaultAnalysisMainModeIdentifier;
 import org.matsim.core.router.TripStructureUtils;
-import org.matsim.core.utils.geometry.geotools.MGC;
+import org.matsim.run.DrtOptions;
 import picocli.CommandLine;
 
 import java.nio.file.Files;
@@ -42,7 +37,6 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 	@CommandLine.Mixin
 	private final ShpOptions shp = new ShpOptions();
 
-	private static final String PLAN_TYPE = "drtPlan";
 	private static final String PT_INTERACTION = "pt interaction";
 
 	public static void main(String[] args) {
@@ -64,7 +58,9 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 		Population population = PopulationUtils.readPopulation(input.toString());
 		Network network = NetworkUtils.readNetwork(networkPath);
 
-//		convertPtToDrtTrips(population, network, shp);
+		//		shp needs to include all locations, where the new pt line (from pt policy case) has a station
+//		thus, lausitz.shp should be chosen as an input
+		PrepareNetwork.prepareDrtNetwork(network, shp.getShapeFile());
 
 //		TODO: try if for 3 and 5 it is enough to delete act locations instead of searching for nearest drt link
 		convertVspRegionalTrainLegsToDrt(population, network);
@@ -74,12 +70,12 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 		return 0;
 	}
 
-	private void convertVspRegionalTrainLegsToDrt(Population population, Network network) {
-//		shp needs to include all locations, where the new pt line (from pt policy case) has a station
-//		thus, lausitz.shp should be chosen as an input
-		PrepareNetwork.prepareDrtNetwork(network, shp.getShapeFile());
-
-		NetworkFilterManager manager = new NetworkFilterManager(network, new NetworkConfigGroup());
+	/**
+	 * Method to convert agents, which are using the new vsp pt line (see RunLausitzPtScenario) manually to mode DRT.
+	 * The network needs to be including DRT as an allowed mode.
+	 */
+	public static void convertVspRegionalTrainLegsToDrt(Population population, Network networkInclDrt) {
+		NetworkFilterManager manager = new NetworkFilterManager(networkInclDrt, new NetworkConfigGroup());
 		manager.addLinkFilter(l -> l.getAllowedModes().contains(TransportMode.drt));
 		Network filtered = manager.applyFilters();
 
@@ -121,7 +117,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 						}
 
 						if (selected.getPlanElements().get(i - 2) instanceof Activity prev) {
-							convertToDrtInteraction(act, prev, network, filtered);
+							convertToDrtInteractionAndSplitTrip(act, prev, filtered);
 						} else {
 							logWrongPlanElementType(person, i);
 							throw new IllegalStateException();
@@ -133,6 +129,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 //						pt leg with new pt line
 						leg.setRoute(null);
 						leg.setMode(TransportMode.drt);
+						leg.setRoutingMode(TransportMode.drt);
 						leg.setTravelTimeUndefined();
 						leg.setDepartureTimeUndefined();
 						leg.getAttributes().removeAttribute("enterVehicleTime");
@@ -146,7 +143,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 							throw new IllegalStateException();
 						}
 						if (selected.getPlanElements().get(i + 2) instanceof Activity next) {
-							convertToDrtInteraction(act, next, network, filtered);
+							convertToDrtInteractionAndSplitTrip(act, next, filtered);
 						} else {
 							logWrongPlanElementType(person, i);
 							throw new IllegalStateException();
@@ -174,93 +171,19 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 			"It seems to be a leg. Abort.", person.getId(), i);
 	}
 
-	private static void convertToDrtInteraction(Activity act, Activity previous, Network fullNetwork, Network filtered) {
+	private static void convertToDrtInteractionAndSplitTrip(Activity act, Activity previous, Network filtered) {
 //							TODO: test if it is enough to delete link and facility, but keep coord. Correct link shoulb be found automatically then
 
-		if (filtered.getLinks().containsKey(previous.getLinkId())) {
-			act.setLinkId(previous.getLinkId());
-		} else {
-			act.setLinkId(NetworkUtils.getNearestLink(filtered, fullNetwork.getLinks().get(previous.getLinkId()).getToNode().getCoord()).getId());
+//		The original trip has to be split up because MATSim does not allow trips with 2 different routing modes.
+//		for the drt subtrip, a dummy act, which is not scored, is created.
+		if (TripStructureUtils.isStageActivityType(previous.getType())) {
+			previous.setType(DrtOptions.DRT_DUMMY_ACT_TYPE);
+			previous.setFacilityId(null);
+			previous.setLinkId(null);
 		}
+		act.setLinkId(NetworkUtils.getNearestLink(filtered, previous.getCoord()).getId());
 		act.setFacilityId(null);
 		act.setCoord(null);
 		act.setType("drt interaction");
-	}
-
-	/**
-	 * This is implemented as a separate method to be able to use it in a scenario run class.
-	 * Additionally, it can be used to write a new output population by calling this class.
-	 */
-	public static void convertPtToDrtTrips(Population population, Network network, ShpOptions shp) {
-		Geometry serviceArea = shp.getGeometry();
-
-		AnalysisMainModeIdentifier identifier = new DefaultAnalysisMainModeIdentifier();
-
-		log.info("Starting to iterate through population.");
-
-		int count = 0;
-		for (Person person : population.getPersons().values()) {
-			Plan selected = person.getSelectedPlan();
-//			remove all unselected plans
-			for (Plan plan : Lists.newArrayList(person.getPlans())) {
-				if (plan != selected)
-					person.removePlan(plan);
-			}
-
-			for (TripStructureUtils.Trip trip : TripStructureUtils.getTrips(selected)) {
-
-				String tripMode = identifier.identifyMainMode(trip.getTripElements());
-
-				if (!tripMode.equals(TransportMode.pt)) {
-					continue;
-				}
-
-				boolean startInside = isInside(network.getLinks().get(trip.getLegsOnly().getFirst().getRoute().getStartLinkId()), serviceArea);
-				boolean endInside = isInside(network.getLinks().get(trip.getLegsOnly().getLast().getRoute().getEndLinkId()), serviceArea);
-
-//				we only need to change the mode for trips within the drt service area.
-//				All others will be handled by intermodal trips between drt and pt.
-//				"other" would be ending in service area but not starting and vice versa
-				if (startInside && endInside) {
-					int oldIndex = selected.getPlanElements().indexOf(trip.getLegsOnly().stream().filter(l -> l.getMode().equals(TransportMode.pt)).toList().getFirst());
-
-//					TODO: erst plan kopieren dann converten
-					int index = convertPtTripToLeg(trip, selected, identifier);
-
-//					copy pt plan and create drt plan. Tag it as drtPlan
-					Plan drtCopy = person.createCopyOfSelectedPlanAndMakeSelected();
-					((Leg) drtCopy.getPlanElements().get(index)).setMode(TransportMode.drt);
-					drtCopy.setType(PLAN_TYPE);
-					count++;
-				}
-			}
-		}
-		log.info("For {} trips, a copy of the selected plan with a drt trip has been created.", count);
-	}
-
-	private static int convertPtTripToLeg(TripStructureUtils.Trip trip, Plan selected, AnalysisMainModeIdentifier identifier) {
-		final List<PlanElement> planElements = selected.getPlanElements();
-
-//		TODO: test if new leg is pasted at correct index.
-//		TODO: index in this method is always -1. fix this
-
-//		TODO: rather use trips2LegsALgo instead of copy paste
-		final List<PlanElement> fullTrip =
-			planElements.subList(
-				planElements.indexOf(trip.getOriginActivity()) + 1,
-				planElements.indexOf(trip.getDestinationActivity()));
-		final String mode = identifier.identifyMainMode(fullTrip);
-		fullTrip.clear();
-		Leg leg = PopulationUtils.createLeg(mode);
-		TripStructureUtils.setRoutingMode(leg, mode);
-		int index = planElements.indexOf(leg);
-		fullTrip.add(leg);
-		if ( fullTrip.size() != 1 ) throw new IllegalArgumentException(fullTrip.toString());
-		return index;
-	}
-
-	private static boolean isInside(Link link, Geometry geometry) {
-		return MGC.coord2Point(link.getFromNode().getCoord()).within(geometry) ||
-			MGC.coord2Point(link.getToNode().getCoord()).within(geometry);
 	}
 }

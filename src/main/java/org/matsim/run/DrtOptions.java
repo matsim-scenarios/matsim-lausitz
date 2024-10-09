@@ -4,6 +4,9 @@ import ch.sbb.matsim.config.SwissRailRaptorConfigGroup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.feature.simple.SimpleFeatureBuilder;
+import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
@@ -24,6 +27,7 @@ import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.utils.gis.GeoFileWriter;
 import org.matsim.core.utils.io.IOUtils;
 import org.matsim.pt.config.TransitRouterConfigGroup;
+import org.matsim.run.prepare.PrepareDrtScenarioAgents;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.prepare.PrepareTransitSchedule;
 import org.matsim.vehicles.Vehicle;
@@ -32,6 +36,10 @@ import org.matsim.vehicles.VehicleType;
 import org.matsim.vehicles.VehicleUtils;
 import picocli.CommandLine;
 
+import java.io.File;
+import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -40,6 +48,7 @@ import java.util.Set;
  */
 public class DrtOptions {
 	private static final Logger log = LogManager.getLogger(DrtOptions.class);
+	public static final String DRT_DUMMY_ACT_TYPE = "drt-split-trip";
 
 	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/nord-bautzen-waiting-times_utm32N.shp")
 	private String drtAreaShp;
@@ -65,12 +74,14 @@ public class DrtOptions {
 	@CommandLine.Option(names = "--intermodal", defaultValue = "INTERMODALITY_ACTIVE", description = "enable intermodality for DRT service")
 	private IntermodalityHandling intermodal;
 
+	@CommandLine.Option(names = "--manual-trip-conversion", defaultValue = "NOT_CONVERT_TRIPS_MANUALLY", description = "enable manual trip conversion from pt to drt " +
+		"(for legs with new pt line of LausitzPtScenario).")
+	private ManualTripConversionHandling manualTripConversion;
+
 	/**
 	 * a helper method, which makes all necessary config changes to simulate drt.
 	 */
 	public void configureDrtConfig(Config config) {
-//		check if every feature of shp file has attr typ_wt for drt estimation. Add attr with standard value if not present.
-		checkServiceAreaShapeFile(config);
 		DvrpConfigGroup dvrpConfigGroup = ConfigUtils.addOrGetModule(config, DvrpConfigGroup.class);
 		dvrpConfigGroup.networkModes = Set.of(TransportMode.drt);
 
@@ -93,6 +104,11 @@ public class DrtOptions {
 			optimizationConstraintsSet.maxWalkDistance = ConfigUtils.addOrGetModule(config, TransitRouterConfigGroup.class).getSearchRadius();
 			drtConfigGroup.addParameterSet(optimizationConstraints);
 			drtConfigGroup.addParameterSet(new ExtensiveInsertionSearchParams());
+
+			//			check if every feature of shp file has attr typ_wt for drt estimation. Add attr with standard value if not present
+//			+ set new shp file as drtServiceAreaShapeFile
+			checkServiceAreaShapeFile(config, drtConfigGroup);
+
 			multiModeDrtConfigGroup.addParameterSet(drtConfigGroup);
 		}
 
@@ -144,6 +160,15 @@ public class DrtOptions {
 			srrConfig.addIntermodalAccessEgress(accessEgressWalkParam);
 
 		}
+
+		if (manualTripConversion == ManualTripConversionHandling.CONVERT_TRIPS_MANUALLY) {
+			ScoringConfigGroup.ActivityParams drtDummyScoringParams = new ScoringConfigGroup.ActivityParams();
+			drtDummyScoringParams.setTypicalDuration(0.);
+			drtDummyScoringParams.setActivityType(DRT_DUMMY_ACT_TYPE);
+			drtDummyScoringParams.setScoringThisActivityAtAll(false);
+
+			scoringConfigGroup.addActivityParams(drtDummyScoringParams);
+		}
 	}
 
 	/**
@@ -180,31 +205,67 @@ public class DrtOptions {
 			drtDummy.getAttributes().putAttribute("serviceEndTime", 86400.);
 
 			scenario.getVehicles().addVehicle(drtDummy);
+		}
 
-//			tag intermodal pt stops for intermodality between pt and drt
-			if (intermodal == IntermodalityHandling.INTERMODALITY_ACTIVE) {
-				PrepareTransitSchedule.tagIntermodalStops(scenario.getTransitSchedule(), new ShpOptions(IOUtils.extendUrl(scenario.getConfig().getContext(), intermodalAreaShp).toString(), null, null));
-			}
+		//			tag intermodal pt stops for intermodality between pt and drt
+		if (intermodal == IntermodalityHandling.INTERMODALITY_ACTIVE) {
+			PrepareTransitSchedule.tagIntermodalStops(scenario.getTransitSchedule(), new ShpOptions(IOUtils.extendUrl(scenario.getConfig().getContext(), intermodalAreaShp).toString(), null, null));
+		}
+
+		if (manualTripConversion == ManualTripConversionHandling.CONVERT_TRIPS_MANUALLY) {
+			PrepareDrtScenarioAgents.convertVspRegionalTrainLegsToDrt(scenario.getPopulation(), scenario.getNetwork());
 		}
 	}
 
-	private void checkServiceAreaShapeFile(Config config) {
-		ShpOptions shp = new ShpOptions(getDrtAreaShp(), null, null);
+	private void checkServiceAreaShapeFile(Config config, DrtConfigGroup drtConfigGroup) {
+		ShpOptions shp = new ShpOptions(IOUtils.extendUrl(config.getContext(), getDrtAreaShp()).toString(), null, null);
 		List<SimpleFeature> features = shp.readFeatures();
+		List<SimpleFeature> newFeatures = new ArrayList<>();
 		boolean adapted = false;
 		for (SimpleFeature feature : features) {
 			if (feature.getAttribute("typ_wt") == null) {
-				feature.setAttribute("typ_wt", 10 * 60.);
+				SimpleFeatureType existingFeatureType = feature.getFeatureType();
+
+				SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
+				builder.init(existingFeatureType);
+
+				builder.add("typ_wt", Double.class);
+				SimpleFeatureType newFeatureType = builder.buildFeatureType();
+
+				SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(newFeatureType);
+
+				List<Object> existingAttributes = feature.getAttributes();
+				featureBuilder.addAll(existingAttributes);
+				featureBuilder.add(10 * 60.);
+
+				// Step 7: Build the new feature with a unique ID (same geometry, updated attributes)
+				SimpleFeature newFeature = featureBuilder.buildFeature(feature.getID());
+				newFeatures.add(newFeature);
 				adapted = true;
+			} else {
+				newFeatures.add(feature);
 			}
 		}
 
 		if (adapted) {
-			log.warn("For drt service area shape file {}, at least one feature did not have the obligatory attribute typ_wt. " +
-				"The attribute is needed for drt estimation. The attribute was added with a standard value of 10min for those features.", getDrtAreaShp());
+			String newServiceAreaPath;
+			try {
+				File file = new File(Path.of(IOUtils.extendUrl(config.getContext(), getDrtAreaShp()).toURI()).getParent().toString(),
+					Path.of(IOUtils.extendUrl(config.getContext(), getDrtAreaShp()).toURI()).getFileName().toString().split(".shp")[0] + "-with-waiting-time.shp");
+				newServiceAreaPath = file.getAbsolutePath();
+			} catch (URISyntaxException e) {
+				throw new RuntimeException(e);
+			}
 
-			GeoFileWriter.writeGeometries(features, IOUtils.extendUrl(config.getContext(), getDrtAreaShp()).toString());
-			log.warn("Adapted drt service area shp file written to {}.", IOUtils.extendUrl(config.getContext(), getDrtAreaShp()));
+
+
+
+			log.warn("For drt service area shape file {}, at least one feature did not have the obligatory attribute typ_wt. " +
+				"The attribute is needed for drt estimation. The attribute was added with a standard value of 10min for those features " +
+				"and saved to file {}.", IOUtils.extendUrl(config.getContext(), getDrtAreaShp()), newServiceAreaPath);
+
+			GeoFileWriter.writeGeometries(newFeatures, newServiceAreaPath);
+			drtConfigGroup.drtServiceAreaShapeFile = newServiceAreaPath;
 		}
 	}
 
@@ -236,5 +297,10 @@ public class DrtOptions {
 	 * Defines if all necessary configs for intermodality between drt and pt should be made.
 	 */
 	enum IntermodalityHandling {INTERMODALITY_ACTIVE, INTERMODALITY_NOT_ACTIVE}
+
+	/**
+	 * Defines if pt legs with new pt regional train from LausitzPtScenario are converted to drt legs manually or not.
+	 */
+	enum ManualTripConversionHandling {CONVERT_TRIPS_MANUALLY, NOT_CONVERT_TRIPS_MANUALLY}
 
 }
