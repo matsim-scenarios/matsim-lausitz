@@ -80,14 +80,12 @@ class RunIntegrationTest {
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
 		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
 
-		Path inputPath = p.resolve("drt-test-population.xml.gz");
-
 		createDrtTestPopulation(inputPath);
 
 		assert MATSimApplication.execute(LausitzDrtScenario.class, config,
 			"--1pct",
 			"--iterations", "0",
-			"--config:plans.inputPlansFile", inputPath.toString(),
+			"--config:plans.inputPlansFile", inputPath,
 			"--output", utils.getOutputDirectory(),
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
 			== 0 : "Must return non error code";
@@ -140,7 +138,7 @@ class RunIntegrationTest {
 
 	}
 
-	private void createDrtTestPopulation(Path inputPath) {
+	private void createDrtTestPopulation(String inputPath) {
 		Random random = new Random(1);
 		Config config = ConfigUtils.createConfig();
 		Scenario scenario = ScenarioUtils.loadScenario(config);
@@ -153,16 +151,12 @@ class RunIntegrationTest {
 			Plan plan = populationFactory.createPlan();
 			// a random location in the Hoyerswerda town center
 			Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(863949.91, 5711547.75));
-			// Somewhere near Ruhland Hbf
-//			Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(838213.25, 5711776.54));
 			// a random time between 6:00-9:00
 			fromAct.setEndTime(21600 + random.nextInt(10800));
 			// set the link to PT, such that agent could find a potential intermodal trip
 			Leg leg = populationFactory.createLeg(TransportMode.pt);
 			// a location close to Cottbus Hbf
 			Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(867341.75, 5746965.87));
-//			somewhere near ruhland hbf
-//			Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(838646.6900000001, 5711749.89));
 
 			plan.addActivity(fromAct);
 			plan.addLeg(leg);
@@ -191,7 +185,7 @@ class RunIntegrationTest {
 		population.addPerson(drtOnly);
 
 
-		new PopulationWriter(population).write(inputPath.toString());
+		new PopulationWriter(population).write(inputPath);
 }
 	@Test
 	void runSpeedReductionScenario() {

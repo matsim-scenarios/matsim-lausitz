@@ -254,7 +254,7 @@ public class DrtOptions {
 					Path.of(IOUtils.extendUrl(config.getContext(), getDrtAreaShp()).toURI()).getFileName().toString().split(".shp")[0] + "-with-waiting-time.shp");
 				newServiceAreaPath = file.getAbsolutePath();
 			} catch (URISyntaxException e) {
-				throw new RuntimeException(e);
+				throw new IllegalArgumentException("Error handling the Drt service area shapefile URI.", e);
 			}
 
 
