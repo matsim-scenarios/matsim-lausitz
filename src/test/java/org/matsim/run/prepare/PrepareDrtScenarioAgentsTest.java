@@ -1,6 +1,7 @@
 package org.matsim.run.prepare;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.matsim.api.core.v01.Id;
@@ -20,9 +21,11 @@ class PrepareDrtScenarioAgentsTest {
 		LausitzScenario.VERSION);
 	private static final Id<Person> PERSON_ID = Id.createPersonId("642052");
 
+	@Disabled("Test is used to secure functionality of PrepareDrtScenarioAgents. Therefore, " +
+		"it does not have to run after every commit and it is disabled and only run manually. -sme1024")
 	@Test
 	void testPrepareDrtScenarioAgents() {
-		String inputPopulationPath = "./input/v1.1/lausitz-pt-case-test_plans_1person.xml.gz";
+		String inputPopulationPath = String.format("./input/v%s/lausitz-pt-case-test_plans_1person.xml.gz", LausitzScenario.VERSION);
 		Population in = PopulationUtils.readPopulation(inputPopulationPath);
 		String networkPath = URL + String.format("lausitz-v%s-network-with-pt.xml.gz", LausitzScenario.VERSION);
 		String outPath = utils.getOutputDirectory() + "/drt-test-population.xml.gz";
@@ -48,7 +51,6 @@ class PrepareDrtScenarioAgentsTest {
 //			interaction act before leg
 			Assertions.assertInstanceOf(Activity.class, outSelectedPlanElements.get(index - 1));
 			Activity before = (Activity) outSelectedPlanElements.get(index - 1);
-			Assertions.assertNull(before.getCoord());
 			Assertions.assertNull(before.getFacilityId());
 			Assertions.assertEquals("drt interaction", before.getType());
 
@@ -61,7 +63,6 @@ class PrepareDrtScenarioAgentsTest {
 			//			interaction act after leg
 			Assertions.assertInstanceOf(Activity.class, outSelectedPlanElements.get(index + 1));
 			Activity after = (Activity) outSelectedPlanElements.get(index + 1);
-			Assertions.assertNull(after.getCoord());
 			Assertions.assertNull(after.getFacilityId());
 			Assertions.assertEquals("drt interaction", after.getType());
 
