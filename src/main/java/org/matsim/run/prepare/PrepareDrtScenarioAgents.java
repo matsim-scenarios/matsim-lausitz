@@ -2,7 +2,6 @@ package org.matsim.run.prepare;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
@@ -62,7 +61,6 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 //		thus, lausitz.shp should be chosen as an input
 		PrepareNetwork.prepareDrtNetwork(network, shp.getShapeFile());
 
-//		TODO: try if for 3 and 5 it is enough to delete act locations instead of searching for nearest drt link
 		convertVspRegionalTrainLegsToDrt(population, network);
 
 		PopulationUtils.writePopulation(population, output.toString());
@@ -113,7 +111,6 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 //						interaction act before leg
 						if (!act.getType().equals(PT_INTERACTION)) {
 							logNotPtInteractionAct(person, act, i);
-							throw new IllegalStateException();
 						}
 
 						if (selected.getPlanElements().get(i - 2) instanceof Activity prev) {
@@ -140,7 +137,6 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 //						interaction act after leg
 						if (!act.getType().equals(PT_INTERACTION)) {
 							logNotPtInteractionAct(person, act, i);
-							throw new IllegalStateException();
 						}
 						if (selected.getPlanElements().get(i + 2) instanceof Activity next) {
 							convertToDrtInteractionAndSplitTrip(act, next, filtered);
@@ -154,7 +150,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 		}
 	}
 
-	public static @NotNull List<Integer> getNewPtLineIndexes(Plan selected) {
+	public static List<Integer> getNewPtLineIndexes(Plan selected) {
 		return TripStructureUtils.getLegs(selected).stream()
 			.filter(l -> l.getRoute().getStartLinkId().toString().contains("pt_vsp_")
 				&& l.getRoute().getEndLinkId().toString().contains("pt_vsp_"))
@@ -164,6 +160,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 	private static void logNotPtInteractionAct(Person person, Activity act, int i) {
 		log.fatal("For selected plan of person {} type {} expected for activity at index {}. Activity has type {} instead. Abort.",
 			person.getId(), PT_INTERACTION, i, act.getType());
+		throw new IllegalStateException();
 	}
 
 	private static void logWrongPlanElementType(Person person, int i) {
@@ -172,8 +169,6 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 	}
 
 	private static void convertToDrtInteractionAndSplitTrip(Activity act, Activity previous, Network filtered) {
-//							TODO: test if it is enough to delete link and facility, but keep coord. Correct link shoulb be found automatically then
-
 //		The original trip has to be split up because MATSim does not allow trips with 2 different routing modes.
 //		for the drt subtrip, a dummy act, which is not scored, is created.
 		if (TripStructureUtils.isStageActivityType(previous.getType())) {
@@ -181,9 +176,15 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 			previous.setFacilityId(null);
 			previous.setLinkId(null);
 		}
-		act.setLinkId(NetworkUtils.getNearestLink(filtered, previous.getCoord()).getId());
+
+//		only set linkId here, if act has no coord. otherwise the correct link will be found during sim preparation.
+		if (act.getCoord() == null) {
+			act.setLinkId(NetworkUtils.getNearestLink(filtered, previous.getCoord()).getId());
+			act.setCoord(null);
+		} else {
+			act.setLinkId(null);
+		}
 		act.setFacilityId(null);
-		act.setCoord(null);
 		act.setType("drt interaction");
 	}
 }
