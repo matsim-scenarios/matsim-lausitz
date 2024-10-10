@@ -41,8 +41,8 @@
 	</module>
 
 	<module name="transit">
-		<param name="transitScheduleFile" value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-transitSchedule.xml.gz"/>
-		<param name="vehiclesFile"  value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v1.0/lausitz-v1.0-transitVehicles.xml.gz"/>
+		<param name="transitScheduleFile" value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v2024.2/lausitz-v2024.2-transitSchedule.xml.gz"/>
+		<param name="vehiclesFile"  value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v2024.2/lausitz-v2024.2-transitVehicles.xml.gz"/>
 		<param name="useTransit" value="true"/>
 	</module>
 
