@@ -61,7 +61,7 @@ import java.util.Set;
 })
 public class LausitzScenario extends MATSimApplication {
 
-	public static final String VERSION = "1.1";
+	public static final String VERSION = "2024.2";
 	public static final String FREIGHT = "longDistanceFreight";
 	private static final String AVERAGE = "average";
 	public static final String HEAVY_MODE = "truck40t";
@@ -94,7 +94,7 @@ public class LausitzScenario extends MATSimApplication {
 	}
 
 	public LausitzScenario() {
-		super(String.format("input/v1.1/lausitz-v1.1-10pct.config.xml", VERSION, VERSION));
+		super(String.format("input/v%s/lausitz-v%s-10pct.config.xml", VERSION, VERSION));
 	}
 
 	public LausitzScenario(SampleOptions sample, EmissionAnalysisHandling handling) {
