@@ -25,10 +25,7 @@ import org.matsim.core.router.RoutingModeMainModeIdentifier;
 import org.matsim.core.router.TripStructureUtils;
 import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.pt.transitSchedule.api.*;
-import org.matsim.run.scenarios.LausitzPtScenario;
-import org.matsim.run.scenarios.LausitzScenario;
-import org.matsim.run.scenarios.LausitzSingleModeScenario;
-import org.matsim.run.scenarios.LausitzSpeedReductionScenario;
+import org.matsim.run.scenarios.*;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.testcases.MatsimTestUtils;
 
@@ -36,6 +33,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 
 import static org.matsim.application.ApplicationUtils.globFile;
@@ -82,10 +80,12 @@ class RunIntegrationTest {
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
 		ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class).defaultDashboards = SimWrapperConfigGroup.Mode.disabled;
 
-		assert MATSimApplication.execute(RunLausitzDrtScenario.class, config,
+		createDrtTestPopulation(inputPath);
+
+		assert MATSimApplication.execute(LausitzDrtScenario.class, config,
 			"--1pct",
-			"--iterations", "1",
-			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v2024.2/lausitz-v2024.2-1pct.plans-initial.xml.gz",
+			"--iterations", "0",
+			"--config:plans.inputPlansFile", inputPath,
 			"--output", utils.getOutputDirectory(),
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists", "--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
 			== 0 : "Must return non error code";
@@ -138,6 +138,55 @@ class RunIntegrationTest {
 
 	}
 
+	private void createDrtTestPopulation(String inputPath) {
+		Random random = new Random(1);
+		Config config = ConfigUtils.createConfig();
+		Scenario scenario = ScenarioUtils.loadScenario(config);
+		Population population = scenario.getPopulation();
+		PopulationFactory populationFactory = population.getFactory();
+
+		for (int i = 0; i < 500; i++) {
+			Person person = populationFactory.createPerson(Id.createPersonId("dummy_person_" + i));
+			PersonUtils.setIncome(person, 1000.);
+			Plan plan = populationFactory.createPlan();
+			// a random location in the Hoyerswerda town center
+			Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(863949.91, 5711547.75));
+			// a random time between 6:00-9:00
+			fromAct.setEndTime(21600 + random.nextInt(10800));
+			// set the link to PT, such that agent could find a potential intermodal trip
+			Leg leg = populationFactory.createLeg(TransportMode.pt);
+			// a location close to Cottbus Hbf
+			Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(867341.75, 5746965.87));
+
+			plan.addActivity(fromAct);
+			plan.addLeg(leg);
+			plan.addActivity(toAct);
+
+			person.addPlan(plan);
+			population.addPerson(person);
+		}
+
+		Person drtOnly = populationFactory.createPerson(Id.createPersonId("drtOnly"));
+		PersonUtils.setIncome(drtOnly, 1000.);
+		Plan plan = populationFactory.createPlan();
+		// a random location in the Hoyerswerda town center
+		Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(863949.91, 5711547.75));
+		// a random time between 6:00-9:00
+		fromAct.setEndTime(21600 + random.nextInt(10800));
+		Leg leg = populationFactory.createLeg(TransportMode.drt);
+		// a location in Wittichenau
+		Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(864808.3,5705774.7));
+
+		plan.addActivity(fromAct);
+		plan.addLeg(leg);
+		plan.addActivity(toAct);
+
+		drtOnly.addPlan(plan);
+		population.addPerson(drtOnly);
+
+
+		new PopulationWriter(population).write(inputPath);
+}
 	@Test
 	void runSpeedReductionScenario() {
 		Config config = ConfigUtils.loadConfig(String.format("input/v%s/lausitz-v%s-10pct.config.xml", LausitzScenario.VERSION, LausitzScenario.VERSION));
