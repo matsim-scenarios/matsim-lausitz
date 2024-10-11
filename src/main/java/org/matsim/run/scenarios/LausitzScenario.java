@@ -132,6 +132,7 @@ public class LausitzScenario extends MATSimApplication {
 		ScoringConfigGroup scoringConfigGroup = config.scoring();
 		scoringConfigGroup.setPerforming_utils_hr(performing);
 		scoringConfigGroup.setWriteExperiencedPlans(true);
+		scoringConfigGroup.setPathSizeLogitBeta(0.);
 
 //		set ride scoring params dependent from car params
 		ScoringConfigGroup.ModeParams rideParams = scoringConfigGroup.getOrCreateModeParams(TransportMode.ride);
