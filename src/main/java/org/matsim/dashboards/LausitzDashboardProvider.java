@@ -25,7 +25,7 @@ public class LausitzDashboardProvider implements DashboardProvider {
 			.setAnalysisArgs("--person-filter", "subpopulation=person");
 
 		return List.of(trips,
-			new EmissionsDashboard()
+			new EmissionsDashboard(config.global().getCoordinateSystem())
 //			the NoiseAnalysis is not run here because it needs more RAM than the entire simulation,
 //			which leads to VM crashes and prevents other analysis to run. We have to run it separately (e.g. with LausitzSimWrapperRunner)
 		);

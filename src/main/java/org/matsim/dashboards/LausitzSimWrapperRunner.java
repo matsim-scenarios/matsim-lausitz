@@ -87,7 +87,7 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 			//add dashboards according to command line parameters
 //			if more dashboards are to be added here, we need to check if noise==true before adding noise dashboard here
 			if (noise) {
-				sw.addDashboard(Dashboard.customize(new NoiseDashboard()).context("noise"));
+				sw.addDashboard(Dashboard.customize(new NoiseDashboard(config.global().getCoordinateSystem())).context("noise"));
 			}
 
 			if (trips) {
