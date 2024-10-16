@@ -169,13 +169,7 @@ public class LausitzScenario extends MATSimApplication {
 
 		if (emissions == EmissionAnalysisHandling.PERFORM_EMISSIONS_ANALYSIS) {
 //		set hbefa input files for emission analysis
-			EmissionsConfigGroup eConfig = ConfigUtils.addOrGetModule(config, EmissionsConfigGroup.class);
-			eConfig.setDetailedColdEmissionFactorsFile(HBEFA_FILE_COLD_DETAILED);
-			eConfig.setDetailedWarmEmissionFactorsFile(HBEFA_FILE_WARM_DETAILED);
-			eConfig.setAverageColdEmissionFactorsFile(HBEFA_FILE_COLD_AVERAGE);
-			eConfig.setAverageWarmEmissionFactorsFile(HBEFA_FILE_WARM_AVERAGE);
-			eConfig.setHbefaTableConsistencyCheckingLevel(EmissionsConfigGroup.HbefaTableConsistencyCheckingLevel.consistent);
-			eConfig.setDetailedVsAverageLookupBehavior(EmissionsConfigGroup.DetailedVsAverageLookupBehavior.tryDetailedThenTechnologyAverageThenAverageTable);
+			setEmissionsConfigs(config);
 		}
 		return config;
 	}
@@ -259,7 +253,20 @@ public class LausitzScenario extends MATSimApplication {
 		}
 	}
 
-	private static void prepareVehicleTypesForEmissionAnalysis(Scenario scenario) {
+	public static void setEmissionsConfigs(Config config) {
+		EmissionsConfigGroup eConfig = ConfigUtils.addOrGetModule(config, EmissionsConfigGroup.class);
+		eConfig.setDetailedColdEmissionFactorsFile(HBEFA_FILE_COLD_DETAILED);
+		eConfig.setDetailedWarmEmissionFactorsFile(HBEFA_FILE_WARM_DETAILED);
+		eConfig.setAverageColdEmissionFactorsFile(HBEFA_FILE_COLD_AVERAGE);
+		eConfig.setAverageWarmEmissionFactorsFile(HBEFA_FILE_WARM_AVERAGE);
+		eConfig.setHbefaTableConsistencyCheckingLevel(EmissionsConfigGroup.HbefaTableConsistencyCheckingLevel.consistent);
+		eConfig.setDetailedVsAverageLookupBehavior(EmissionsConfigGroup.DetailedVsAverageLookupBehavior.tryDetailedThenTechnologyAverageThenAverageTable);
+	}
+
+	/**
+	 * Prepare vehicle types with necessary HBEFA information for emission analysis.
+	 */
+	public static void prepareVehicleTypesForEmissionAnalysis(Scenario scenario) {
 		for (VehicleType type : scenario.getVehicles().getVehicleTypes().values()) {
 			EngineInformation engineInformation = type.getEngineInformation();
 
