@@ -22,6 +22,7 @@ import org.matsim.contrib.vsp.pt.fare.FareZoneBasedPtFareParams;
 import org.matsim.contrib.vsp.pt.fare.PtFareConfigGroup;
 import org.matsim.contrib.vsp.pt.fare.PtFareModule;
 import org.matsim.contrib.vsp.scenario.SnzActivities;
+import org.matsim.contrib.vsp.scoring.RideScoringParamsFromCarParams;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.ReplanningConfigGroup;
@@ -135,15 +136,11 @@ public class LausitzScenario extends MATSimApplication {
 		scoringConfigGroup.setPathSizeLogitBeta(0.);
 
 //		set ride scoring params dependent from car params
-		ScoringConfigGroup.ModeParams rideParams = scoringConfigGroup.getOrCreateModeParams(TransportMode.ride);
-		ScoringConfigGroup.ModeParams carParams = scoringConfigGroup.getModes().get(TransportMode.car);
 //		2.0 + 1.0 = alpha + 1
 //		ride cost = alpha * car cost
 //		ride marg utility of traveling = (alpha + 1) * marg utility travelling car + alpha * beta perf
 		double alpha = 2;
-		rideParams.setMarginalUtilityOfTraveling((alpha + 1) * carParams.getMarginalUtilityOfTraveling() - alpha * config.scoring().getPerforming_utils_hr());
-		rideParams.setDailyMonetaryConstant(0.);
-		rideParams.setMonetaryDistanceRate(carParams.getMonetaryDistanceRate() * 2);
+		RideScoringParamsFromCarParams.setRideScoringParamsBasedOnCarParams(scoringConfigGroup, alpha);
 
 		config.qsim().setUsingTravelTimeCheckInTeleportation(true);
 		config.qsim().setUsePersonIdForMissingVehicleId(false);
