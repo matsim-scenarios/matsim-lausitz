@@ -66,6 +66,8 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	private boolean trips;
 	@CommandLine.Option(names = "--emissions", defaultValue = "false", description = "create emission dashboard")
 	private boolean emissions;
+	@CommandLine.Option(names = "--pt-line-base-dir", description = "create pt line dashboard with base run dir as input")
+	private String baseDir;
 
 
 	public LausitzSimWrapperRunner(){
@@ -75,7 +77,7 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 
-		if (!noise && !trips && !emissions){
+		if (!noise && !trips && !emissions && baseDir == null){
 			throw new IllegalArgumentException("you have not configured any dashboard to be created! Please use command line parameters!");
 		}
 
@@ -136,6 +138,9 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 				new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(transitVehiclesPath);
 			}
 
+			if (baseDir != null) {
+				sw.addDashboard(new PtLineDashboard(baseDir));
+			}
 
 			try {
 				sw.generate(runDirectory, true);
