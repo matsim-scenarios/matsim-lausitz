@@ -222,6 +222,8 @@ class RunIntegrationTest {
 		Population population = PopulationUtils.createPopulation(config);
 		PopulationFactory fac = population.getFactory();
 		Person person = fac.createPerson(personId);
+		person.getAttributes().putAttribute("home_x", 863538.13);
+		person.getAttributes().putAttribute("home_y", 5711028.24);
 		Plan plan = PopulationUtils.createPlan(person);
 
 //		home in hoyerswerda
@@ -243,6 +245,7 @@ class RunIntegrationTest {
 
 		person.addPlan(plan);
 		PersonUtils.setIncome(person, 1000.);
+		PersonUtils.setAge(person, 30);
 		person.getAttributes().putAttribute("subpopulation", "person");
 		population.addPerson(person);
 

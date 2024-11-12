@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.matsim.api.core.v01.events.PersonEntersVehicleEvent;
 import org.matsim.api.core.v01.events.handler.PersonEntersVehicleEventHandler;
-import org.matsim.api.core.v01.population.Population;
 import org.matsim.application.CommandSpec;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CsvOptions;
@@ -19,7 +18,6 @@ import org.matsim.application.options.OutputOptions;
 import org.matsim.core.api.experimental.events.EventsManager;
 import org.matsim.core.events.EventsUtils;
 import org.matsim.core.events.MatsimEventsReader;
-import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.utils.io.IOUtils;
 import picocli.CommandLine;
 import tech.tablesaw.api.*;
@@ -39,10 +37,12 @@ import java.util.*;
 import static org.matsim.application.ApplicationUtils.globFile;
 import static tech.tablesaw.aggregate.AggregateFunctions.*;
 
-@CommandLine.Command(name = "pt-line", description = "Get all agents who use the newly created pt line.")
+@CommandLine.Command(name = "pt-line", description = "Analyze and compare agents who use new pt connection from " +
+	" policy case and the respective trips in the base case..")
 @CommandSpec(requireRunDirectory = true,
 	produces = {"pt_persons.csv", "pt_persons_home_locations.csv", "pt_persons_income_groups.csv", "pt_persons_age_groups.csv",
-		"mean_travel_stats.csv", "pt_persons_trav_time.csv", "pt_persons_traveled_distance.csv", "pt_persons_base_modal_share.csv"
+		"mean_travel_stats.csv", "pt_persons_trav_time.csv", "pt_persons_traveled_distance.csv", "pt_persons_base_modal_share.csv",
+		"pt_persons_mean_score_per_income_group.csv", "pt_persons_executed_score.csv"
 	}
 )
 
@@ -62,10 +62,19 @@ public class PtLineAnalysis implements MATSimAppCommand {
 
 	private final Map<String, List<Double>> ptPersons = new HashMap<>();
 
-	private final String incomeGroup = "incomeGroup";
-	private final String person = "person";
-	private final String share = "share";
-	private final String ageGroup = "ageGroup";
+	private static final String INCOME_GROUP = "incomeGroup";
+	private static final String PERSON = "person";
+	private static final String SHARE = "share";
+	private static final String AGE_GROUP = "ageGroup";
+	private static final String SCORE = "executed_score";
+	private static final String INCOME = "income";
+	private static final String TRAV_TIME = "trav_time";
+	private static final String TRAV_DIST = "traveled_distance";
+	private static final String EUCL_DIST = "euclidean_distance";
+	private static final String MAIN_MODE = "main_mode";
+	private static final String TRIP_ID = "trip_id";
+	private static final String BASE_SUFFIX = "_base";
+	private static final String COUNT_PERSON = "Count [person]";
 
 	public static void main(String[] args) {
 		new PtLineAnalysis().execute(args);
@@ -84,14 +93,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		manager.finishProcessing();
 
 //		write persons, who use new pt line and their entry time to csv file
-		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("pt_persons.csv")), getCsvFormat())) {
-			printer.printRecord("person", "time");
-			for (Map.Entry<String, List<Double>> e : ptPersons.entrySet()) {
-				for (Double time : e.getValue()) {
-					printer.printRecord(e.getKey(), time);
-				}
-			}
-		}
+		writePtPersons();
 
 //		all necessary file input paths are defined here
 		String personsPath = globFile(input.getRunDirectory(), "*output_persons.csv.gz").toString();
@@ -100,42 +102,60 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		String baseTripsPath = globFile(basePath, "*output_trips.csv.gz").toString();
 
 		Table persons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(personsPath))
-			.columnTypesPartial(Map.of("person", ColumnType.TEXT, "executed_score", ColumnType.LONG))
+			.columnTypesPartial(Map.of(PERSON, ColumnType.TEXT, SCORE, ColumnType.DOUBLE, INCOME, ColumnType.DOUBLE))
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(personsPath)).build());
 
-//		TODO: anpassen auf verwendete columns / columntypes
-		Map<String, ColumnType> columnTypes = new HashMap<>(Map.of("person", ColumnType.TEXT,
-			"trav_time", ColumnType.STRING, "wait_time", ColumnType.STRING, "dep_time", ColumnType.STRING,
-			"longest_distance_mode", ColumnType.STRING, "main_mode", ColumnType.STRING,
-			"start_activity_type", ColumnType.TEXT, "end_activity_type", ColumnType.TEXT,
-			"first_pt_boarding_stop", ColumnType.TEXT, "last_pt_egress_stop", ColumnType.TEXT));
-
-		// Map.of only has 10 argument max
-		columnTypes.put("traveled_distance", ColumnType.LONG);
-		columnTypes.put("euclidean_distance", ColumnType.LONG);
+		Map<String, ColumnType> columnTypes = new HashMap<>(Map.of(PERSON, ColumnType.TEXT,
+			TRAV_TIME, ColumnType.STRING, "dep_time", ColumnType.STRING, MAIN_MODE, ColumnType.STRING,
+			TRAV_DIST, ColumnType.DOUBLE, EUCL_DIST, ColumnType.DOUBLE, TRIP_ID, ColumnType.STRING));
 
 //		filter for persons, which used the new pt line in pt policy case
-		TextColumn personColumn = persons.textColumn("person");
+		TextColumn personColumn = persons.textColumn(PERSON);
 		persons = persons.where(personColumn.isIn(ptPersons.keySet()));
 
 		//		read base persons and filter them
 		Table basePersons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(basePersonsPath))
-			.columnTypesPartial(Map.of("person", ColumnType.TEXT, "executed_score", ColumnType.LONG))
+			.columnTypesPartial(Map.of(PERSON, ColumnType.TEXT, SCORE, ColumnType.DOUBLE, INCOME, ColumnType.DOUBLE))
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(basePersonsPath)).build());
 
-		TextColumn basePersonColumn = basePersons.textColumn("person");
+		TextColumn basePersonColumn = basePersons.textColumn(PERSON);
 		basePersons = basePersons.where(basePersonColumn.isIn(ptPersons.keySet()));
+
+		writeComparisonTable(persons, basePersons, SCORE, PERSON);
 
 //		print csv file with home coords of new pt line agents
 		writeHomeLocations(persons);
 
+		Map<String, Range<Integer>> incomeLabels = getLabels(incomeGroups);
+		incomeLabels.put(incomeGroups.getLast() + "+", Range.of(incomeGroups.getLast(), 9999999));
+		incomeGroups.add(Integer.MAX_VALUE);
+
+
+//		add income group column to persons table for further analysis
+		persons = addIncomeGroupColumnToTable(persons, incomeLabels);
+
 //		write income distr of new pt line agents
-		writeIncomeDistr(persons);
+		writeIncomeDistr(persons, incomeLabels);
 
 //		write age distr of new pt line agents
 		writeAgeDistr(persons);
+
+		for (int i = 0; i < basePersons.columnCount(); i++) {
+			Column column = basePersons.column(i);
+			if (!column.name().equals(PERSON)) {
+				column.setName(column.name() + BASE_SUFFIX);
+			}
+		}
+		Table basePersonsIncomeGroup = basePersons.joinOn(PERSON).inner(persons).retainColumns(PERSON, INCOME_GROUP, SCORE + BASE_SUFFIX);
+
+//		calc mean score for every income group in base and policy and save to table
+		Table scoresPerIncomeGroup = persons.summarize(SCORE, mean).by(INCOME_GROUP)
+			.joinOn(INCOME_GROUP).inner(basePersonsIncomeGroup.summarize(SCORE + BASE_SUFFIX, mean).by(INCOME_GROUP));
+
+//		write scores per income group
+		writeScorePerIncomeGroupDistr(scoresPerIncomeGroup);
 
 		Table trips = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(tripsPath))
 			.columnTypesPartial(columnTypes)
@@ -148,7 +168,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			.separator(CsvOptions.detectDelimiter(baseTripsPath)).build());
 
 //		filter for trips with new pt line only
-		TextColumn personTripsColumn = persons.textColumn("person");
+		TextColumn personTripsColumn = trips.textColumn(PERSON);
 		trips = trips.where(personTripsColumn.isIn(ptPersons.keySet()));
 
 		IntList idx = new IntArrayList();
@@ -157,9 +177,9 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			Row row = trips.row(i);
 
 			Double tripStart = (double) LocalTime.parse(row.getString("dep_time")).toSecondOfDay();
-			Double travelTime = (double) LocalTime.parse(row.getString("trav_time")).toSecondOfDay();
+			Double travelTime = (double) LocalTime.parse(row.getString(TRAV_TIME)).toSecondOfDay();
 
-			List<Double> enterTimes = ptPersons.get(row.getString("person"));
+			List<Double> enterTimes = ptPersons.get(row.getString(PERSON));
 
 			for (Double enterTime : enterTimes) {
 				if (Range.of(tripStart, tripStart + travelTime).contains(enterTime)) {
@@ -170,8 +190,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		trips = trips.where(Selection.with(idx.toIntArray()));
 
 //		filter trips of base case for comparison
-		TextColumn tripIdColumn = trips.textColumn("trip_number");
-		TextColumn baseTripIdColumn = baseTrips.textColumn("trip_number");
+		StringColumn tripIdColumn = trips.stringColumn(TRIP_ID);
+		StringColumn baseTripIdColumn = baseTrips.stringColumn(TRIP_ID);
 
 		baseTrips = baseTrips.where(baseTripIdColumn.isIn(tripIdColumn));
 
@@ -182,17 +202,32 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			return 2;
 		}
 
-		double meanTravelTimePolicy = calcMean(trips.column("trav_time"));
-		double meanTravelDistancePolicy = calcMean(trips.column("traveled_distance"));
-		double meanEuclideanDistancePolicy = calcMean(trips.column("euclidean_distance"));
-		double meanTravelTimeBase = calcMean(baseTrips.column("trav_time"));
-		double meanTravelDistanceBase = calcMean(baseTrips.column("traveled_distance"));
-		double meanEuclideanDistanceBase = calcMean(baseTrips.column("euclidean_distance"));
+//		calc and write mean stats for policy and base case
+		calcAndWriteMeanStats(trips, persons, baseTrips, basePersons);
+
+//		write tables for comparison of travel time and distance
+		writeComparisonTable(trips, baseTrips, TRAV_TIME, TRIP_ID);
+		writeComparisonTable(trips, baseTrips, TRAV_DIST, TRIP_ID);
+
+//		write mode shares to csv
+		writeBaseModeShares(baseTrips);
+		return 0;
+	}
+
+	private void calcAndWriteMeanStats(Table trips, Table persons, Table baseTrips, Table basePersons) throws IOException {
+		double meanTravelTimePolicy = calcMean(trips.column(TRAV_TIME));
+		double meanTravelDistancePolicy = calcMean(trips.column(TRAV_DIST));
+		double meanEuclideanDistancePolicy = calcMean(trips.column(EUCL_DIST));
+		double meanScorePolicy = calcMean(persons.column(SCORE));
+		double meanTravelTimeBase = calcMean(baseTrips.column(TRAV_TIME));
+		double meanTravelDistanceBase = calcMean(baseTrips.column(TRAV_DIST));
+		double meanEuclideanDistanceBase = calcMean(baseTrips.column(EUCL_DIST));
+		double meanScoreBase = calcMean(basePersons.column(SCORE + BASE_SUFFIX));
 
 		if (meanTravelTimePolicy <= 0 || meanTravelTimeBase <= 0) {
 			log.fatal("Mean travel time for either base ({}) or policy case ({}) are zero. Mean travel velocity cannot" +
 				"be calculated! Divison by 0 not possible!", meanTravelTimeBase, meanTravelTimePolicy);
-			return 2;
+			throw new IllegalArgumentException();
 		}
 
 		double meanVelocityPolicy = meanTravelDistancePolicy / meanTravelTimePolicy;
@@ -210,51 +245,64 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			printer.printRecord("\"mean trip velocity base case\"", f.format(meanVelocityBase));
 			printer.printRecord("\"mean euclidean distance policy case\"", f.format(meanEuclideanDistancePolicy));
 			printer.printRecord("\"mean euclidean distance base case\"", f.format(meanEuclideanDistanceBase));
+			printer.printRecord("\"mean score policy case\"", f.format(meanScorePolicy));
+			printer.printRecord("\"mean score base case\"", f.format(meanScoreBase));
 		}
+	}
 
-//		write tables for comparison of travel time and distance
-		writeComparisonTable(trips, baseTrips, "trav_time");
-		writeComparisonTable(trips, baseTrips, "traveled_distance");
-
-//		calc shares for new pt line trips in base case
-		StringColumn mainModeColumn = baseTrips.stringColumn("main_mode");
+	private void writeBaseModeShares(Table baseTrips) {
+		//		calc shares for new pt line trips in base case
+		StringColumn mainModeColumn = baseTrips.stringColumn(MAIN_MODE);
 
 		Table counts = baseTrips.countBy(mainModeColumn);
 
 		counts.addColumns(
-			counts.doubleColumn("Count")
+			counts.intColumn("Count")
 				.divide(mainModeColumn.size())
-				.setName("share")
+				.setName(SHARE)
 		);
 
-		//		TODO: further analysis see trello
-//		score vergleich. scores sind in persons.csv enthalten
-//		mean score berechnen
-//		mean score per income group?
-//		tabelle mit score base <-> policy
-
-//		write mode shares to csv
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_base_modal_share.csv").toString()), getCsvFormat())) {
-			printer.printRecord("main_mode", "share");
+			printer.printRecord(MAIN_MODE, SHARE);
 			for (int i = 0; i < counts.rowCount(); i++) {
 				Row row = counts.row(i);
-				printer.printRecord(row.getString("main_mode"), row.getDouble("share"));
+				printer.printRecord(row.getString(MAIN_MODE), row.getDouble(SHARE));
 			}
 		} catch (IOException e) {
 			throw new IllegalArgumentException();
 		}
-
-
-
-
-
-
-		return 0;
 	}
 
-	private void writeComparisonTable(Table policy, Table base, String paramName) {
+	private void writePtPersons() throws IOException {
+		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("pt_persons.csv")), getCsvFormat())) {
+			printer.printRecord(PERSON, "time");
+			for (Map.Entry<String, List<Double>> e : ptPersons.entrySet()) {
+				for (Double time : e.getValue()) {
+					printer.printRecord(e.getKey(), time);
+				}
+			}
+		}
+	}
+
+	private void writeScorePerIncomeGroupDistr(Table scoresPerIncomeGroup) {
+
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_mean_score_per_income_group.csv").toString()), getCsvFormat())) {
+			printer.printRecord(INCOME_GROUP, "mean_score_base", "mean_score_policy");
+
+			for (int i = 0; i < scoresPerIncomeGroup.rowCount(); i++) {
+				Row row = scoresPerIncomeGroup.row(i);
+
+				printer.printRecord(row.getString(INCOME_GROUP), row.getDouble(2), row.getDouble(1));
+			}
+
+		} catch (IOException e) {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void writeComparisonTable(Table policy, Table base, String paramName, String id) {
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_" + paramName + ".csv").toString()), getCsvFormat())) {
-			printer.printRecord("trip", paramName + "_policy", paramName + "_base");
+			printer.printRecord(id, paramName + "_policy", paramName + BASE_SUFFIX);
 			for (int i = 0; i < policy.rowCount(); i++) {
 				Row row = policy.row(i);
 				Row baseRow = base.row(i);
@@ -269,76 +317,31 @@ public class PtLineAnalysis implements MATSimAppCommand {
 					policyValue = String.valueOf(row.getDouble(paramName));
 					baseValue = String.valueOf(baseRow.getDouble(paramName));
 				}
-				printer.printRecord(row.getText("trip_id"), policyValue, baseValue);
+				printer.printRecord(row.getText(id), policyValue, baseValue);
 			}
 		} catch (IOException e) {
 			throw new IllegalArgumentException();
 		}
 	}
 
-
-
-	private Double calcMean(Column column) {
-		double total = 0;
-
-		for (int i = 0; i < column.size(); i++) {
-			double value = 0;
-			if (column instanceof StringColumn stringColumn) {
-//				travel time is saved in hh:mm:ss format, thus read as string
-				value = LocalTime.parse(stringColumn.get(i)).toSecondOfDay();
-			} else if (column instanceof DoubleColumn doubleColumn) {
-//				distances are saved as doubles
-				value = doubleColumn.get(i);
-			}
-			total += value;
-		}
-		return total / column.size();
-	}
-
 	private void writeHomeLocations(Table persons) throws IOException {
-		//		TODO: think about adding first act coords here or even act before / after pt trip
+		//		y think about adding first act coords here or even act before / after pt trip
 		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("pt_persons_home_locations.csv")), getCsvFormat())) {
-			printer.printRecord("personId", "home_x", "home_y");
+			printer.printRecord("person", "home_x", "home_y");
 
 			for (int i = 0; i < persons.rowCount(); i++) {
 				Row row = persons.row(i);
-				printer.printRecord(row.getText("person"), row.getDouble("home_x"), row.getDouble("home_y"));
+				printer.printRecord(row.getText(PERSON), row.getDouble("home_x"), row.getDouble("home_y"));
 			}
 		}
 	}
 
-	private void writeIncomeDistr(Table persons) {
-		Map<String, Range<Integer>> labels = getLabels(incomeGroups);
-		labels.put(incomeGroups.getLast() + "+", Range.of(incomeGroups.getLast(), 9999999));
-		incomeGroups.add(Integer.MAX_VALUE);
-
-		persons.addColumns(StringColumn.create(incomeGroup));
-
-		for (int i = 0; i < persons.rowCount() - 1; i++) {
-			Row row = persons.row(i);
-
-			int income = (int) Math.round(Double.parseDouble(row.getString("income")));
-			String p = row.getText("person");
-
-			if (income < 0) {
-				log.error("income {} of person {} is negative. This should not happen!", income, p);
-				throw new IllegalArgumentException();
-			}
-
-			for (Map.Entry<String, Range<Integer>> e : labels.entrySet()) {
-				Range<Integer> range = e.getValue();
-				if (range.contains(income)) {
-					row.setString(incomeGroup, e.getKey());
-					break;
-				}
-			}
-		}
-
-		List<String> incomeDistr = getDistr(persons, incomeGroup, labels);
+	private void writeIncomeDistr(Table persons, Map<String, Range<Integer>> labels) {
+		List<String> incomeDistr = getDistr(persons, INCOME_GROUP, labels);
 
 //		print income distr
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_income_groups.csv").toString()), getCsvFormat())) {
-			printer.printRecord("incomeGroup", "Count [person]", share);
+			printer.printRecord(INCOME_GROUP, COUNT_PERSON, SHARE);
 			for (String s : incomeDistr) {
 				printer.printRecord(s);
 			}
@@ -352,13 +355,13 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		labels.put(ageGroups.getLast() + "+", Range.of(ageGroups.getLast(), 120));
 		ageGroups.add(Integer.MAX_VALUE);
 
-		persons.addColumns(StringColumn.create(ageGroup));
+		persons.addColumns(StringColumn.create(AGE_GROUP));
 
-		for (int i = 0; i < persons.rowCount() - 1; i++) {
+		for (int i = 0; i < persons.rowCount(); i++) {
 			Row row = persons.row(i);
 
-			int age = (int) Math.round(Double.parseDouble(row.getString("income")));
-			String p = row.getText("person");
+			int age = row.getInt("age");
+			String p = row.getText(PERSON);
 
 			if (age < 0) {
 				log.error("age {} of person {} is negative. This should not happen!", age, p);
@@ -368,23 +371,65 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			for (Map.Entry<String, Range<Integer>> e : labels.entrySet()) {
 				Range<Integer> range = e.getValue();
 				if (range.contains(age)) {
-					row.setString(ageGroup, e.getKey());
+					row.setString(AGE_GROUP, e.getKey());
 					break;
 				}
 			}
 		}
 
-		List<String> ageDistr = getDistr(persons, ageGroup, labels);
+		List<String> ageDistr = getDistr(persons, AGE_GROUP, labels);
 
 //		print age distr
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_age_groups.csv").toString()), getCsvFormat())) {
-			printer.printRecord("ageGroup", "Count [person]", share);
+			printer.printRecord(AGE_GROUP, COUNT_PERSON, SHARE);
 			for (String s : ageDistr) {
 				printer.printRecord(s);
 			}
 		} catch (IOException e) {
 			throw new IllegalArgumentException();
 		}
+	}
+
+	private Double calcMean(Column column) {
+		double total = 0;
+
+		for (int i = 0; i < column.size(); i++) {
+			double value = 0;
+			if (column instanceof StringColumn stringColumn) {
+//				travel time is saved in hh:mm:ss format, thus read as string
+				value = LocalTime.parse(stringColumn.get(i)).toSecondOfDay();
+			} else if (column instanceof DoubleColumn doubleColumn) {
+//				distances / scores are saved as doubles
+				value = doubleColumn.get(i);
+			}
+			total += value;
+		}
+		return total / column.size();
+	}
+
+	private Table addIncomeGroupColumnToTable(Table persons, Map<String, Range<Integer>> incomeLabels) {
+		persons.addColumns(StringColumn.create(INCOME_GROUP));
+
+		for (int i = 0; i < persons.rowCount(); i++) {
+			Row row = persons.row(i);
+
+			int income = (int) Math.round(row.getDouble(INCOME));
+			String p = row.getText(PERSON);
+
+			if (income < 0) {
+				log.error("income {} of person {} is negative. This should not happen!", income, p);
+				throw new IllegalArgumentException();
+			}
+
+			for (Map.Entry<String, Range<Integer>> e : incomeLabels.entrySet()) {
+				Range<Integer> range = e.getValue();
+				if (range.contains(income)) {
+					row.setString(INCOME_GROUP, e.getKey());
+					break;
+				}
+			}
+		}
+		return persons;
 	}
 
 	private Map<String, Range<Integer>> getLabels(List<Integer> groups) {
@@ -397,19 +442,19 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	}
 
 	private @NotNull List<String> getDistr(Table persons, String group, Map<String, Range<Integer>> labels) {
-		Table aggr = persons.summarize(person, count).by(group);
+		Table aggr = persons.summarize(PERSON, count).by(group);
 
 //		how to sort rows here? agg.sortOn does not work! Using workaround instead. -sme0324
-		DoubleColumn shareCol = aggr.numberColumn(1).divide(aggr.numberColumn(1).sum()).setName(share);
+		DoubleColumn shareCol = aggr.numberColumn(1).divide(aggr.numberColumn(1).sum()).setName(SHARE);
 		aggr.addColumns(shareCol);
 
 		List<String> distr = new ArrayList<>();
 
 		for (String k : labels.keySet()) {
-			for (int i = 0; i < aggr.rowCount() - 1; i++) {
+			for (int i = 0; i < aggr.rowCount(); i++) {
 				Row row = aggr.row(i);
 				if (row.getString(group).equals(k)) {
-					distr.add(k + "," + row.getDouble("Count [person]") + "," + row.getDouble("share"));
+					distr.add(k + "," + row.getDouble(COUNT_PERSON) + "," + row.getDouble(SHARE));
 					break;
 				}
 			}
@@ -448,16 +493,4 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			}
 		}
 	}
-
-
-//	private record TripData(
-//		double baseTravelTime,
-//		double policyTravelTime,
-//		double baseTravelDistance,
-//		double policyTravelDistance,
-//		double baseTravelDistanceEuclidean,
-//		double policyTravelDistanceEuclidean,
-//		double baseTravelSpeed,
-//		double policyTravelSpeed
-//	) {}
 }
