@@ -69,6 +69,8 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	@CommandLine.Option(names = "--pt-line-base-dir", description = "create pt line dashboard with base run dir as input")
 	private String baseDir;
 
+	private static final String FILE_TYPE = "_emissions.xml.gz";
+
 
 	public LausitzSimWrapperRunner(){
 //		public constructor needed for testing purposes.
@@ -114,28 +116,26 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 				sw.addDashboard(Dashboard.customize(new EmissionsDashboard(config.global().getCoordinateSystem())).context("emissions"));
 
 				LausitzScenario.setEmissionsConfigs(config);
-				ConfigUtils.writeConfig(config, configPath);
-
-				Config dummyConfig = new Config();
 
 				String networkPath = ApplicationUtils.matchInput("output_network.xml.gz", runDirectory).toString();
 				String vehiclesPath = ApplicationUtils.matchInput("output_vehicles.xml.gz", runDirectory).toString();
 				String transitVehiclesPath = ApplicationUtils.matchInput("output_transitVehicles.xml.gz", runDirectory).toString();
 
-				dummyConfig.network().setInputFile(networkPath);
-				dummyConfig.vehicles().setVehiclesFile(vehiclesPath);
-				dummyConfig.transit().setVehiclesFile(transitVehiclesPath);
+				config.network().setInputFile(networkPath);
+				config.vehicles().setVehiclesFile(vehiclesPath);
+				config.transit().setVehiclesFile(transitVehiclesPath);
 
-				Scenario scenario = ScenarioUtils.loadScenario(dummyConfig);
+				Scenario scenario = ScenarioUtils.loadScenario(config);
 
 //				adapt network and veh types for emissions analysis like in LausitzScenario base run class
 				PrepareNetwork.prepareEmissionsAttributes(scenario.getNetwork());
 				LausitzScenario.prepareVehicleTypesForEmissionAnalysis(scenario);
 
-//				overwrite outputs with adapted files
-				NetworkUtils.writeNetwork(scenario.getNetwork(), networkPath);
-				new MatsimVehicleWriter(scenario.getVehicles()).writeFile(vehiclesPath);
-				new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(transitVehiclesPath);
+//				write outputs with adapted files
+				ConfigUtils.writeConfig(config, configPath.split(".xml")[0] + "_emissions.xml");
+				NetworkUtils.writeNetwork(scenario.getNetwork(), networkPath.split(".xml")[0] + FILE_TYPE);
+				new MatsimVehicleWriter(scenario.getVehicles()).writeFile(vehiclesPath.split(".xml")[0] + FILE_TYPE);
+				new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(transitVehiclesPath.split(".xml")[0] + FILE_TYPE);
 			}
 
 			if (baseDir != null) {
