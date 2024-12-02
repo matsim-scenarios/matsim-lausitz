@@ -18,6 +18,9 @@ import java.util.List;
 public class PtLineDashboard implements Dashboard {
 	private final String basePath;
 	private static final String SHARE = "share";
+	private static final String ABSOLUTE = "Count [person]";
+	private static final String INCOME_GROUP = "incomeGroup";
+	private static final String DESCRIPTION = "... in base and policy case";
 
 	PtLineDashboard(String basePath) {
 		if (!basePath.endsWith("/")) {
@@ -40,25 +43,36 @@ public class PtLineDashboard implements Dashboard {
 			viz.height = 0.1;
 		});
 
-		layout.row("second")
+		layout.row("income")
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "Agents per income group";
 				viz.stacked = false;
 				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_income_groups.csv", args);
-				viz.x = "incomeGroup";
-				viz.xAxisName = "income group";
+				viz.x = INCOME_GROUP;
+				viz.xAxisName = INCOME_GROUP;
 				viz.yAxisName = SHARE;
 				viz.columns = List.of(SHARE);
+			})
+			.el(Bar.class, (viz, data) -> {
+				viz.title = "Agents per income group";
+				viz.stacked = false;
+				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_income_groups.csv", args);
+				viz.x = INCOME_GROUP;
+				viz.xAxisName = INCOME_GROUP;
+				viz.yAxisName = ABSOLUTE;
+				viz.columns = List.of(ABSOLUTE);
 			})
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "Mean score per income group";
 				viz.stacked = false;
 				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_mean_score_per_income_group.csv", args);
-				viz.x = "incomeGroup";
-				viz.xAxisName = "income group";
+				viz.x = INCOME_GROUP;
+				viz.xAxisName = INCOME_GROUP;
 				viz.yAxisName = "mean score";
 				viz.columns = List.of("mean_score_base", "mean_score_policy");
-			})
+			});
+
+		layout.row("age")
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "Agents per age group";
 				viz.stacked = false;
@@ -67,7 +81,16 @@ public class PtLineDashboard implements Dashboard {
 				viz.xAxisName = "age group";
 				viz.yAxisName = SHARE;
 				viz.columns = List.of(SHARE);
-		});
+			})
+			.el(Bar.class, (viz, data) -> {
+				viz.title = "Agents per age group";
+				viz.stacked = false;
+				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_age_groups.csv", args);
+				viz.x = "ageGroup";
+				viz.xAxisName = "age group";
+				viz.yAxisName = ABSOLUTE;
+				viz.columns = List.of(ABSOLUTE);
+			});
 
 		layout.row("third")
 			.el(Plotly.class, (viz, data) -> {
@@ -103,24 +126,28 @@ public class PtLineDashboard implements Dashboard {
 				viz.addAggregation("home locations", "person", "home_x", "home_y");
 			});
 
-			layout.row("fourth")
-				.el(Table.class, (viz, data) -> {
-					viz.title = "Executed scores";
-					viz.description = "... in base and policy case";
-					viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_executed_score.csv");
-					viz.showAllRows = true;
-				})
-				.el(Table.class, (viz, data) -> {
-					viz.title = "Travel times";
-					viz.description = "... in base and policy case";
-					viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_trav_time.csv");
-					viz.showAllRows = true;
-				})
-				.el(Table.class, (viz, data) -> {
-					viz.title = "Travel distances";
-					viz.description = "... in base and policy case";
-					viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_traveled_distance.csv");
-					viz.showAllRows = true;
-				});
+		createTableLayouts(layout);
+	}
+
+	private static void createTableLayouts(Layout layout) {
+		layout.row("fourth")
+			.el(Table.class, (viz, data) -> {
+				viz.title = "Executed scores";
+				viz.description = DESCRIPTION;
+				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_executed_score.csv");
+				viz.showAllRows = true;
+			})
+			.el(Table.class, (viz, data) -> {
+				viz.title = "Travel times";
+				viz.description = DESCRIPTION;
+				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_trav_time.csv");
+				viz.showAllRows = true;
+			})
+			.el(Table.class, (viz, data) -> {
+				viz.title = "Travel distances";
+				viz.description = DESCRIPTION;
+				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_traveled_distance.csv");
+				viz.showAllRows = true;
+			});
 	}
 }
