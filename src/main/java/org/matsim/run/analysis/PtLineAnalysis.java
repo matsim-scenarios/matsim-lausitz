@@ -55,7 +55,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	private OutputOptions output = OutputOptions.ofCommand(PtLineAnalysis.class);
 	@CommandLine.Option(names = "--income-groups", split = ",", description = "List of income for binning", defaultValue = "0,500,900,1500,2000,3000,4000,5000,6000,7000")
 	private List<Integer> incomeGroups;
-	@CommandLine.Option(names = "--age-groups", split = ",", description = "List of income for binning", defaultValue = "0,18,30,50,70")
+	@CommandLine.Option(names = "--age-groups", split = ",", description = "List of age for binning", defaultValue = "0,18,30,50,70")
 	private List<Integer> ageGroups;
 	@CommandLine.Option(names = "--base-path", description = "Path to run directory of base case.", required = true)
 	private Path basePath;
@@ -176,8 +176,9 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		for (int i = 0; i < trips.rowCount(); i++) {
 			Row row = trips.row(i);
 
-			Double tripStart = (double) LocalTime.parse(row.getString("dep_time")).toSecondOfDay();
-			Double travelTime = (double) LocalTime.parse(row.getString(TRAV_TIME)).toSecondOfDay();
+			Double tripStart = parseTimeManually(row.getString("dep_time"));
+//			waiting time already included in travel time
+			Double travelTime = parseTimeManually(row.getString(TRAV_TIME));
 
 			List<Double> enterTimes = ptPersons.get(row.getString(PERSON));
 
@@ -327,7 +328,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	private void writeHomeLocations(Table persons) throws IOException {
 		//		y think about adding first act coords here or even act before / after pt trip
 		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("pt_persons_home_locations.csv")), getCsvFormat())) {
-			printer.printRecord("person", "home_x", "home_y");
+			printer.printRecord(PERSON, "home_x", "home_y");
 
 			for (int i = 0; i < persons.rowCount(); i++) {
 				Row row = persons.row(i);
@@ -451,12 +452,17 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		List<String> distr = new ArrayList<>();
 
 		for (String k : labels.keySet()) {
+			boolean labelFound = false;
 			for (int i = 0; i < aggr.rowCount(); i++) {
 				Row row = aggr.row(i);
 				if (row.getString(group).equals(k)) {
 					distr.add(k + "," + row.getDouble(COUNT_PERSON) + "," + row.getDouble(SHARE));
+					labelFound = true;
 					break;
 				}
+			}
+			if (!labelFound) {
+				distr.add(k + "," + 0 + "," + 0);
 			}
 		}
 
@@ -478,6 +484,24 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			regex = "\\+";
 		}
 		return Integer.parseInt(s.split(regex)[0]);
+	}
+
+	private double parseTimeManually(String time) {
+		String[] parts = time.split(":");
+		if (parts.length != 3) {
+			throw new IllegalArgumentException("Invalid time format: " + time);
+		}
+
+		double hours = Double.parseDouble(parts[0]);
+		double minutes = Double.parseDouble(parts[1]);
+		double seconds = Double.parseDouble(parts[2]);
+
+		// Validate minutes and seconds
+		if (minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59) {
+			throw new IllegalArgumentException("Invalid minutes or seconds in: " + time);
+		}
+
+		return hours * 3600 + minutes * 60 + seconds;
 	}
 
 
