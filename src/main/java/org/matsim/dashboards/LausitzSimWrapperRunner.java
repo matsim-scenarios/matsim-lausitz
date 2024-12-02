@@ -43,6 +43,7 @@ import picocli.CommandLine;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -69,11 +70,15 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	@CommandLine.Option(names = "--pt-line-base-dir", description = "create pt line dashboard with base run dir as input")
 	private String baseDir;
 
-	private static final String FILE_TYPE = "_emissions.xml.gz";
+	private static final String FILE_TYPE = "_before_emissions.xml";
 
 
 	public LausitzSimWrapperRunner(){
 //		public constructor needed for testing purposes.
+	}
+
+	public static void main(String[] args) {
+		new LausitzSimWrapperRunner().execute(args);
 	}
 
 	@Override
@@ -120,10 +125,12 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 				String networkPath = ApplicationUtils.matchInput("output_network.xml.gz", runDirectory).toString();
 				String vehiclesPath = ApplicationUtils.matchInput("output_vehicles.xml.gz", runDirectory).toString();
 				String transitVehiclesPath = ApplicationUtils.matchInput("output_transitVehicles.xml.gz", runDirectory).toString();
+				String populationPath = ApplicationUtils.matchInput("output_plans.xml.gz", runDirectory).toString();
 
 				config.network().setInputFile(networkPath);
 				config.vehicles().setVehiclesFile(vehiclesPath);
 				config.transit().setVehiclesFile(transitVehiclesPath);
+				config.plans().setInputFile(populationPath);
 
 				Scenario scenario = ScenarioUtils.loadScenario(config);
 
@@ -131,11 +138,18 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 				PrepareNetwork.prepareEmissionsAttributes(scenario.getNetwork());
 				LausitzScenario.prepareVehicleTypesForEmissionAnalysis(scenario);
 
-//				write outputs with adapted files
-				ConfigUtils.writeConfig(config, configPath.split(".xml")[0] + "_emissions.xml");
-				NetworkUtils.writeNetwork(scenario.getNetwork(), networkPath.split(".xml")[0] + FILE_TYPE);
-				new MatsimVehicleWriter(scenario.getVehicles()).writeFile(vehiclesPath.split(".xml")[0] + FILE_TYPE);
-				new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(transitVehiclesPath.split(".xml")[0] + FILE_TYPE);
+//				write outputs with adapted files.
+//				original output files need to be overwritten as AirPollutionAnalysis searches for "config.xml".
+//				copy old files to separate files
+				Files.copy(Path.of(configPath), getUniqueTargetPath(Path.of(configPath.split(".xml")[0] + FILE_TYPE)));
+				Files.copy(Path.of(networkPath), getUniqueTargetPath(Path.of(networkPath.split(".xml")[0] + FILE_TYPE + ".gz")));
+				Files.copy(Path.of(vehiclesPath), getUniqueTargetPath(Path.of(vehiclesPath.split(".xml")[0] + FILE_TYPE + ".gz")));
+				Files.copy(Path.of(transitVehiclesPath), getUniqueTargetPath(Path.of(transitVehiclesPath.split(".xml")[0] + FILE_TYPE + ".gz")));
+
+				ConfigUtils.writeConfig(config, configPath);
+				NetworkUtils.writeNetwork(scenario.getNetwork(), networkPath);
+				new MatsimVehicleWriter(scenario.getVehicles()).writeFile(vehiclesPath);
+				new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(transitVehiclesPath);
 			}
 
 			if (baseDir != null) {
@@ -153,9 +167,22 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 		return 0;
 	}
 
-	public static void main(String[] args) {
-		new LausitzSimWrapperRunner().execute(args);
+	private static Path getUniqueTargetPath(Path targetPath) {
+		int counter = 1;
+		Path uniquePath = targetPath;
 
+		// Add a suffix if the file already exists
+		while (Files.exists(uniquePath)) {
+			String originalPath = targetPath.toString();
+			int dotIndex = originalPath.lastIndexOf(".");
+			if (dotIndex == -1) {
+				uniquePath = Path.of(originalPath + "_" + counter);
+			} else {
+				uniquePath = Path.of(originalPath.substring(0, dotIndex) + "_" + counter + originalPath.substring(dotIndex));
+			}
+			counter++;
+		}
+
+		return uniquePath;
 	}
-
 }
