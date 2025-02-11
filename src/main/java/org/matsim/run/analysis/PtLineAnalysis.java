@@ -155,7 +155,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			.joinOn(INCOME_GROUP).inner(basePersonsIncomeGroup.summarize(SCORE + BASE_SUFFIX, mean).by(INCOME_GROUP));
 
 //		write scores per income group
-		writeScorePerIncomeGroupDistr(scoresPerIncomeGroup);
+		writeScorePerIncomeGroupDistr(scoresPerIncomeGroup, incomeLabels);
 
 		Table trips = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(tripsPath))
 			.columnTypesPartial(columnTypes)
@@ -238,16 +238,16 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		DecimalFormat f = new DecimalFormat("0.00", new DecimalFormatSymbols(Locale.ENGLISH));
 
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("mean_travel_stats.csv").toString()), getCsvFormat())) {
-			printer.printRecord("\"mean travel time policy case\"", f.format(meanTravelTimePolicy));
-			printer.printRecord("\"mean travel time base case\"", f.format(meanTravelTimeBase));
-			printer.printRecord("\"mean travel distance policy case\"", f.format(meanTravelDistancePolicy));
-			printer.printRecord("\"mean travel distance base case\"", f.format(meanTravelDistanceBase));
-			printer.printRecord("\"mean trip velocity policy case\"", f.format(meanVelocityPolicy));
-			printer.printRecord("\"mean trip velocity base case\"", f.format(meanVelocityBase));
-			printer.printRecord("\"mean euclidean distance policy case\"", f.format(meanEuclideanDistancePolicy));
-			printer.printRecord("\"mean euclidean distance base case\"", f.format(meanEuclideanDistanceBase));
-			printer.printRecord("\"mean score policy case\"", f.format(meanScorePolicy));
-			printer.printRecord("\"mean score base case\"", f.format(meanScoreBase));
+			printer.printRecord("\"mean travel time policy case [s]\"", f.format(meanTravelTimePolicy));
+			printer.printRecord("\"mean travel time base case [s]\"", f.format(meanTravelTimeBase));
+			printer.printRecord("\"mean travel distance policy case [m]\"", f.format(meanTravelDistancePolicy));
+			printer.printRecord("\"mean travel distance base case [m]\"", f.format(meanTravelDistanceBase));
+			printer.printRecord("\"mean trip velocity policy case [m/s]\"", f.format(meanVelocityPolicy));
+			printer.printRecord("\"mean trip velocity base case [m/s]\"", f.format(meanVelocityBase));
+			printer.printRecord("\"mean euclidean distance policy case [m]\"", f.format(meanEuclideanDistancePolicy));
+			printer.printRecord("\"mean euclidean distance base case [m]\"", f.format(meanEuclideanDistanceBase));
+			printer.printRecord("\"mean score policy case [util]\"", f.format(meanScorePolicy));
+			printer.printRecord("\"mean score base case [util]\"", f.format(meanScoreBase));
 		}
 	}
 
@@ -285,15 +285,32 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writeScorePerIncomeGroupDistr(Table scoresPerIncomeGroup) {
+	private void writeScorePerIncomeGroupDistr(Table scoresPerIncomeGroup, Map<String, Range<Integer>> labels) {
 
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_mean_score_per_income_group.csv").toString()), getCsvFormat())) {
 			printer.printRecord(INCOME_GROUP, "mean_score_base", "mean_score_policy");
 
-			for (int i = 0; i < scoresPerIncomeGroup.rowCount(); i++) {
-				Row row = scoresPerIncomeGroup.row(i);
+			List<String> distr = new ArrayList<>();
 
-				printer.printRecord(row.getString(INCOME_GROUP), row.getDouble(2), row.getDouble(1));
+			for (String k : labels.keySet()) {
+				boolean labelFound = false;
+				for (int i = 0; i < scoresPerIncomeGroup.rowCount(); i++) {
+					Row row = scoresPerIncomeGroup.row(i);
+					if (row.getString(INCOME_GROUP).equals(k)) {
+						distr.add(k + "," + row.getDouble(2) + "," + row.getDouble(1));
+						labelFound = true;
+						break;
+					}
+				}
+				if (!labelFound) {
+					distr.add(k + "," + 0 + "," + 0);
+				}
+			}
+
+			distr.sort(Comparator.comparingInt(PtLineAnalysis::getLowerBound));
+
+			for (String s : distr) {
+				printer.printRecord(s);
 			}
 
 		} catch (IOException e) {
