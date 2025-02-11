@@ -382,7 +382,10 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		labels.put(ageGroups.getLast() + "+", Range.of(ageGroups.getLast(), 120));
 		ageGroups.add(Integer.MAX_VALUE);
 
-		persons.addColumns(StringColumn.create(AGE_GROUP));
+//		only add ageGroup column if not present
+		Optional.of(AGE_GROUP)
+			.filter(col -> !persons.columnNames().contains(col))
+			.ifPresent(col -> persons.addColumns(StringColumn.create(col)));
 
 		for (int i = 0; i < persons.rowCount(); i++) {
 			Row row = persons.row(i);
