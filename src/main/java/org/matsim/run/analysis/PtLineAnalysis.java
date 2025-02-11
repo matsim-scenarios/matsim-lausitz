@@ -110,6 +110,12 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		incomeLabels.put(incomeGroups.getLast() + "+", Range.of(incomeGroups.getLast(), 9999999));
 		incomeGroups.add(Integer.MAX_VALUE);
 
+//		filter for real agents only, no freight agents!
+		Table freightPersons = persons.where(persons.textColumn(PERSON).containsString("commercialPersonTraffic")
+			.or(persons.textColumn(PERSON).containsString("freight"))
+			.or(persons.textColumn(PERSON).containsString("goodsTraffic")));
+		persons = persons.where(persons.textColumn(PERSON).isNotIn(freightPersons.textColumn(PERSON)));
+
 		//		add income group column to persons table for further analysis
 		persons = addIncomeGroupColumnToTable(persons, incomeLabels);
 
