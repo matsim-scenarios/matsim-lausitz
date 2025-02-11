@@ -42,7 +42,7 @@ import static tech.tablesaw.aggregate.AggregateFunctions.*;
 @CommandSpec(requireRunDirectory = true,
 	produces = {"pt_persons.csv", "pt_persons_home_locations.csv", "pt_persons_income_groups.csv", "pt_persons_age_groups.csv",
 		"mean_travel_stats.csv", "pt_persons_trav_time.csv", "pt_persons_traveled_distance.csv", "pt_persons_base_modal_share.csv",
-		"pt_persons_mean_score_per_income_group.csv", "pt_persons_executed_score.csv"
+		"pt_persons_mean_score_per_income_group.csv", "pt_persons_executed_score.csv", "all_persons_income_groups.csv", "all_persons_age_groups.csv"
 	}
 )
 
@@ -106,6 +106,19 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(personsPath)).build());
 
+		Map<String, Range<Integer>> incomeLabels = getLabels(incomeGroups);
+		incomeLabels.put(incomeGroups.getLast() + "+", Range.of(incomeGroups.getLast(), 9999999));
+		incomeGroups.add(Integer.MAX_VALUE);
+
+		//		add income group column to persons table for further analysis
+		persons = addIncomeGroupColumnToTable(persons, incomeLabels);
+
+//		write general income and age distr
+		writeIncomeDistr(persons, incomeLabels, "all_persons_income_groups.csv");
+		writeAgeDistr(persons, "all_persons_age_groups.csv");
+
+
+
 		Map<String, ColumnType> columnTypes = new HashMap<>(Map.of(PERSON, ColumnType.TEXT,
 			TRAV_TIME, ColumnType.STRING, "dep_time", ColumnType.STRING, MAIN_MODE, ColumnType.STRING,
 			TRAV_DIST, ColumnType.DOUBLE, EUCL_DIST, ColumnType.DOUBLE, TRIP_ID, ColumnType.STRING));
@@ -128,19 +141,11 @@ public class PtLineAnalysis implements MATSimAppCommand {
 //		print csv file with home coords of new pt line agents
 		writeHomeLocations(persons);
 
-		Map<String, Range<Integer>> incomeLabels = getLabels(incomeGroups);
-		incomeLabels.put(incomeGroups.getLast() + "+", Range.of(incomeGroups.getLast(), 9999999));
-		incomeGroups.add(Integer.MAX_VALUE);
-
-
-//		add income group column to persons table for further analysis
-		persons = addIncomeGroupColumnToTable(persons, incomeLabels);
-
 //		write income distr of new pt line agents
-		writeIncomeDistr(persons, incomeLabels);
+		writeIncomeDistr(persons, incomeLabels, null);
 
 //		write age distr of new pt line agents
-		writeAgeDistr(persons);
+		writeAgeDistr(persons, null);
 
 		for (int i = 0; i < basePersons.columnCount(); i++) {
 			Column column = basePersons.column(i);
@@ -356,11 +361,13 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writeIncomeDistr(Table persons, Map<String, Range<Integer>> labels) {
+	private void writeIncomeDistr(Table persons, Map<String, Range<Integer>> labels, String outputString) {
 		List<String> incomeDistr = getDistr(persons, INCOME_GROUP, labels);
 
+		String file = (outputString != null) ? outputString : "pt_persons_income_groups.csv";
+
 //		print income distr
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_income_groups.csv").toString()), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(file).toString()), getCsvFormat())) {
 			printer.printRecord(INCOME_GROUP, COUNT_PERSON, SHARE);
 			for (String s : incomeDistr) {
 				printer.printRecord(s);
@@ -370,7 +377,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writeAgeDistr(Table persons) {
+	private void writeAgeDistr(Table persons, String outputString) {
 		Map<String, Range<Integer>> labels = getLabels(ageGroups);
 		labels.put(ageGroups.getLast() + "+", Range.of(ageGroups.getLast(), 120));
 		ageGroups.add(Integer.MAX_VALUE);
@@ -399,8 +406,11 @@ public class PtLineAnalysis implements MATSimAppCommand {
 
 		List<String> ageDistr = getDistr(persons, AGE_GROUP, labels);
 
+		String file = (outputString != null) ? outputString : "pt_persons_age_groups.csv";
+
+
 //		print age distr
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_age_groups.csv").toString()), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(file).toString()), getCsvFormat())) {
 			printer.printRecord(AGE_GROUP, COUNT_PERSON, SHARE);
 			for (String s : ageDistr) {
 				printer.printRecord(s);

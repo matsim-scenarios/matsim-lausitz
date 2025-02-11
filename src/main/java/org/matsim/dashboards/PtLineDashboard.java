@@ -20,6 +20,7 @@ public class PtLineDashboard implements Dashboard {
 	private static final String SHARE = "share";
 	private static final String ABSOLUTE = "Count [person]";
 	private static final String INCOME_GROUP = "incomeGroup";
+	private static final String AGE_GROUP = "ageGroup";
 	private static final String DESCRIPTION = "... in base and policy case";
 
 	PtLineDashboard(String basePath) {
@@ -63,34 +64,25 @@ public class PtLineDashboard implements Dashboard {
 				viz.columns = List.of(ABSOLUTE);
 			})
 			.el(Bar.class, (viz, data) -> {
+				viz.title = "General income distribution";
+				viz.stacked = false;
+				viz.dataset = data.compute(PtLineAnalysis.class, "all_persons_income_groups.csv", args);
+				viz.x = INCOME_GROUP;
+				viz.xAxisName = INCOME_GROUP;
+				viz.yAxisName = ABSOLUTE;
+				viz.columns = List.of(ABSOLUTE);
+			});
+		layout.row("score")
+			.el(Bar.class, (viz, data) -> {
 				viz.title = "Mean score per income group";
 				viz.stacked = false;
 				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_mean_score_per_income_group.csv", args);
 				viz.x = INCOME_GROUP;
 				viz.xAxisName = INCOME_GROUP;
 				viz.yAxisName = "mean score";
-				viz.columns = List.of("mean_score_base", "mean_score_policy");
-			});
+				viz.columns = List.of("mean_score_base", "mean_score_policy");});
 
-		layout.row("age")
-			.el(Bar.class, (viz, data) -> {
-				viz.title = "Agents per age group";
-				viz.stacked = false;
-				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_age_groups.csv", args);
-				viz.x = "ageGroup";
-				viz.xAxisName = "age group";
-				viz.yAxisName = SHARE;
-				viz.columns = List.of(SHARE);
-			})
-			.el(Bar.class, (viz, data) -> {
-				viz.title = "Agents per age group";
-				viz.stacked = false;
-				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_age_groups.csv", args);
-				viz.x = "ageGroup";
-				viz.xAxisName = "age group";
-				viz.yAxisName = ABSOLUTE;
-				viz.columns = List.of(ABSOLUTE);
-			});
+		createAgePlots(layout, args);
 
 		layout.row("third")
 			.el(Plotly.class, (viz, data) -> {
@@ -127,6 +119,37 @@ public class PtLineDashboard implements Dashboard {
 			});
 
 		createTableLayouts(layout);
+	}
+
+	private static void createAgePlots(Layout layout, String[] args) {
+		layout.row("age")
+			.el(Bar.class, (viz, data) -> {
+				viz.title = "Agents per age group";
+				viz.stacked = false;
+				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_age_groups.csv", args);
+				viz.x = AGE_GROUP;
+				viz.xAxisName = AGE_GROUP;
+				viz.yAxisName = SHARE;
+				viz.columns = List.of(SHARE);
+			})
+			.el(Bar.class, (viz, data) -> {
+				viz.title = "Agents per age group";
+				viz.stacked = false;
+				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_age_groups.csv", args);
+				viz.x = AGE_GROUP;
+				viz.xAxisName = AGE_GROUP;
+				viz.yAxisName = ABSOLUTE;
+				viz.columns = List.of(ABSOLUTE);
+			})
+			.el(Bar.class, (viz, data) -> {
+				viz.title = "General age distribution";
+				viz.stacked = false;
+				viz.dataset = data.compute(PtLineAnalysis.class, "all_persons_age_groups.csv", args);
+				viz.x = AGE_GROUP;
+				viz.xAxisName = AGE_GROUP;
+				viz.yAxisName = ABSOLUTE;
+				viz.columns = List.of(ABSOLUTE);
+			});
 	}
 
 	private static void createTableLayouts(Layout layout) {
