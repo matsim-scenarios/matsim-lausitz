@@ -238,6 +238,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		DecimalFormat f = new DecimalFormat("0.00", new DecimalFormatSymbols(Locale.ENGLISH));
 
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("mean_travel_stats.csv").toString()), getCsvFormat())) {
+			printer.printRecord("\"pt line users (10pct)\"", f.format(persons.rowCount()));
+			printer.printRecord("\"pt line trips (10pct)\"", f.format(trips.rowCount()));
 			printer.printRecord("\"mean travel time policy case [s]\"", f.format(meanTravelTimePolicy));
 			printer.printRecord("\"mean travel time base case [s]\"", f.format(meanTravelTimeBase));
 			printer.printRecord("\"mean travel distance policy case [m]\"", f.format(meanTravelDistancePolicy));
