@@ -26,6 +26,7 @@ import org.matsim.api.core.v01.Scenario;
 import org.matsim.application.ApplicationUtils;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.ShpOptions;
+import org.matsim.contrib.drt.extension.dashboards.DrtDashboardProvider;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
@@ -69,6 +70,8 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	private boolean emissions;
 	@CommandLine.Option(names = "--pt-line-base-dir", description = "create pt line dashboard with base run dir as input")
 	private String baseDir;
+	@CommandLine.Option(names = "--drt", defaultValue = "false", description = "create emission dashboard")
+	private boolean drt;
 
 	private static final String FILE_TYPE = "_before_emissions.xml";
 
@@ -150,6 +153,10 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 				NetworkUtils.writeNetwork(scenario.getNetwork(), networkPath);
 				new MatsimVehicleWriter(scenario.getVehicles()).writeFile(vehiclesPath);
 				new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(transitVehiclesPath);
+			}
+
+			if (drt) {
+				new DrtDashboardProvider().getDashboards(config, sw).forEach(sw::addDashboard);
 			}
 
 			if (baseDir != null) {

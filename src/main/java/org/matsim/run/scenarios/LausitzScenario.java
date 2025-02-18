@@ -6,6 +6,7 @@ import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.application.MATSimApplication;
 import org.matsim.application.analysis.CheckPopulation;
+import org.matsim.application.analysis.pt.PublicTransitAnalysis;
 import org.matsim.application.analysis.traffic.LinkStats;
 import org.matsim.application.options.SampleOptions;
 import org.matsim.application.prepare.CreateLandUseShp;
@@ -60,7 +61,7 @@ import java.util.Set;
 		PrepareDrtScenarioAgents.class
 })
 @MATSimApplication.Analysis({
-		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class, DistanceMatrix.class
+		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class, DistanceMatrix.class, PublicTransitAnalysis.class
 })
 public class LausitzScenario extends MATSimApplication {
 
