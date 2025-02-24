@@ -87,7 +87,7 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 
-		if (!noise && !trips && !emissions && baseDir == null){
+		if (!noise && !trips && !emissions && !drt && baseDir == null){
 			throw new IllegalArgumentException("you have not configured any dashboard to be created! Please use command line parameters!");
 		}
 
