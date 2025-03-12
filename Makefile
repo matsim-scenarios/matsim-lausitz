@@ -147,6 +147,8 @@ input/$V/prepare-100pct.plans.xml.gz:
 	 --max-typical-duration 0\
 	 --population $(shared)/data/matsim-input-files/senozon/20230111_teilmodell_lausitz/population.xml.gz\
 	 --attributes  $(shared)/data/matsim-input-files/senozon/20230111_teilmodell_lausitz/additionalPersonAttributes.xml.gz
+# (--max-typical-duration 0 means that at this point no typical durations are appended to the activity types ... however, this is done later, see
+# below.  kai, feb'25)
 
 	# resolve senozon aggregated grid coords (activities): distribute them based on landuse.shp
 	$(sc) prepare resolve-grid-coords\
