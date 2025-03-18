@@ -59,7 +59,8 @@ public class GeneralOdAnalysis implements MATSimAppCommand {
 				List<TripStructureUtils.Trip> trips = TripStructureUtils.getTrips(selectedPlan);
 				for (TripStructureUtils.Trip trip : trips) {
 					String mode = modeIdentifier.identifyMainMode(trip.getTripElements());
-					if (mode.equals("freight")){
+					// there is currently no TransportMode.freight or TransportMode.longDistanceFreight or TransportMode.truck8t ...
+					if (mode.equals("longDistanceFreight") || mode.equals("truck8t") || mode.equals("truck18t") || mode.equals("truck40t")){
 						continue;
 					}
 					Coord fromCoord = trip.getOriginActivity().getCoord();
