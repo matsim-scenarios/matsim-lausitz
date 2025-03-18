@@ -3,6 +3,7 @@ package org.matsim.run.analysis;
 import org.apache.commons.csv.CSVPrinter;
 import org.locationtech.jts.geom.Geometry;
 import org.matsim.api.core.v01.Coord;
+import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Plan;
 import org.matsim.api.core.v01.population.Population;
@@ -48,14 +49,19 @@ public class GeneralOdAnalysis implements MATSimAppCommand {
 	public Integer call() throws Exception {
 		MainModeIdentifier modeIdentifier = new DefaultAnalysisMainModeIdentifier();
 		Population population = PopulationUtils.readPopulation(input.toString());
-		Geometry serviceArea = shp.getGeometry();
+
+		Geometry serviceArea = shp.isDefined() ? shp.getGeometry() : null;
 
 		try (CSVPrinter printer = csv.createPrinter(output)) {
-			printer.printRecord("from_x", "from_y", "to_x", "to_y", "departure_time");
+			printer.printRecord("from_x", "from_y", "to_x", "to_y", "departure_time", "main_mode");
 			for (Person person : population.getPersons().values()) {
 				Plan selectedPlan = person.getSelectedPlan();
 				List<TripStructureUtils.Trip> trips = TripStructureUtils.getTrips(selectedPlan);
 				for (TripStructureUtils.Trip trip : trips) {
+					String mode = modeIdentifier.identifyMainMode(trip.getTripElements());
+					if (mode.equals("freight")){
+						continue;
+					}
 					Coord fromCoord = trip.getOriginActivity().getCoord();
 					Coord toCoord = trip.getDestinationActivity().getCoord();
 					double departureTime = trip.getOriginActivity().getEndTime().orElse(-1.0);
@@ -67,7 +73,8 @@ public class GeneralOdAnalysis implements MATSimAppCommand {
 								Double.toString(fromCoord.getY()),
 								Double.toString(toCoord.getX()),
 								Double.toString(toCoord.getY()),
-								Double.toString(departureTime)
+								Double.toString(departureTime),
+								mode
 							);
 						}
 					}
