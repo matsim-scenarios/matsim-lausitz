@@ -169,6 +169,12 @@ public class DrtOptions {
 
 			scoringConfigGroup.addActivityParams(drtDummyScoringParams);
 		}
+
+//		add drt to mode choice
+		List<String> modes = new ArrayList<>(List.of(config.subtourModeChoice().getModes()));
+		modes.add(TransportMode.drt);
+
+		config.subtourModeChoice().setModes(modes.toArray(new String[0]));
 	}
 
 	/**
