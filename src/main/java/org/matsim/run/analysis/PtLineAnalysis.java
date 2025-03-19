@@ -427,6 +427,9 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		} catch (IOException e) {
 			throw new IllegalArgumentException();
 		}
+//		remove max integer from age groups because method is used twice and thus list would contain value twice
+//		we need a List, because we need to use the .getLast() methods above
+		ageGroups.remove(ageGroups.getLast());
 	}
 
 	private Double calcMean(Column column) {
