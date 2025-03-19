@@ -3,7 +3,7 @@ package org.matsim.run.analysis;
 import org.apache.commons.csv.CSVPrinter;
 import org.locationtech.jts.geom.Geometry;
 import org.matsim.api.core.v01.Coord;
-import org.matsim.api.core.v01.TransportMode;
+import org.matsim.api.core.v01.population.Activity;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Plan;
 import org.matsim.api.core.v01.population.Population;
@@ -65,7 +65,8 @@ public class GeneralOdAnalysis implements MATSimAppCommand {
 					}
 					Coord fromCoord = trip.getOriginActivity().getCoord();
 					Coord toCoord = trip.getDestinationActivity().getCoord();
-					double departureTime = trip.getOriginActivity().getEndTime().orElse(-1.0);
+					Activity originActivity = trip.getOriginActivity();
+					double departureTime = originActivity.getEndTime().orElse(-1);
 
 					if (CoordUtils.calcEuclideanDistance(fromCoord, toCoord) > minDistance) {
 						if (serviceArea == null || MGC.coord2Point(fromCoord).within(serviceArea) || MGC.coord2Point(toCoord).within(serviceArea)) {
