@@ -50,10 +50,10 @@ public class DrtOptions {
 	private static final Logger log = LogManager.getLogger(DrtOptions.class);
 	public static final String DRT_DUMMY_ACT_TYPE = "drt-split-trip";
 
-	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/nord-bautzen-waiting-times_utm32N.shp")
+	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/hoyerswerda-waiting-times_utm32N.shp")
 	private String drtAreaShp;
 
-	@CommandLine.Option(names = "--intermodal-shp", description = "Path to shp file for adding intermodal tags for drt to pt intermodality.", defaultValue = "./intermodal-area/pt-intermodal-areas-ruhland.shp")
+	@CommandLine.Option(names = "--intermodal-shp", description = "Path to shp file for adding intermodal tags for drt to pt intermodality.", defaultValue = "./intermodal-area/pt-intermodal-areas-ruhland-spremberg.shp")
 	private String intermodalAreaShp;
 
 	@CommandLine.Option(names = "--typ-wt", description = "typical waiting time", defaultValue = "300")
