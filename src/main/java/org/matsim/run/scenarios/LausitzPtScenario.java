@@ -8,6 +8,7 @@ import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.network.Node;
 import org.matsim.application.MATSimApplication;
+import org.matsim.contrib.emissions.EmissionUtils;
 import org.matsim.core.config.Config;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.network.NetworkUtils;
@@ -25,8 +26,6 @@ import java.util.*;
  * All necessary configs will be made in this class.
  */
 public class LausitzPtScenario extends LausitzScenario {
-
-	private final LausitzScenario baseScenario = new LausitzScenario(sample, emissions);
 
 	public LausitzPtScenario(@Nullable Config config) {
 		super(config);
@@ -47,8 +46,8 @@ public class LausitzPtScenario extends LausitzScenario {
 	@Nullable
 	@Override
 	public Config prepareConfig(Config config) {
-		//		apply all config changes from base scenario class
-		baseScenario.prepareConfig(config);
+//		//		apply all config changes from base scenario class
+		super.prepareConfig(config);
 
 		return config;
 	}
@@ -56,7 +55,7 @@ public class LausitzPtScenario extends LausitzScenario {
 	@Override
 	public void prepareScenario(Scenario scenario) {
 		//		apply all scenario changes from base scenario class
-		baseScenario.prepareScenario(scenario);
+		super.prepareScenario(scenario);
 
 //		pt stops are basically nodes, BUT are assigned to links
 //		each pt stop is assigned a circle link to and from the same node.
@@ -111,6 +110,8 @@ public class LausitzPtScenario extends LausitzScenario {
 		int i = 0;
 		for (List<Link> linkList : List.of(List.of(startLink1, link1, link2, link3, link4, link5), List.of(startLink2, link6, link7, link8, link9, link10))) {
 			transitInfoList.add(configureTransitStops(linkList, scenario.getNetwork(), schedule, fac, i, travelTimes));
+//			set dummy hbefaRoadType for new pt line links, as pt is not considered for AirPollution analysis anyways -sm0325
+			linkList.forEach(l -> EmissionUtils.setHbefaRoadType(l, "URB/Local/60"));
 			i++;
 		}
 
@@ -149,7 +150,7 @@ public class LausitzPtScenario extends LausitzScenario {
 	@Override
 	public void prepareControler(Controler controler) {
 		//		apply all controller changes from base scenario class
-		baseScenario.prepareControler(controler);
+		super.prepareControler(controler);
 //		TODO: add potential new Listeners here
 //		maybe a special controler for the new pt line would be handy?!
 	}

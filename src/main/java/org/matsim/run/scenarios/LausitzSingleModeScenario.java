@@ -24,8 +24,6 @@ import java.util.Collection;
 public class LausitzSingleModeScenario extends LausitzScenario {
 	Logger log = LogManager.getLogger(LausitzSingleModeScenario.class);
 
-	private final LausitzScenario baseScenario = new LausitzScenario(sample, emissions);
-
 	@CommandLine.Option(names = "--transport-mode", description = "Transport mode to which all legs should be changed.", defaultValue = TransportMode.car)
 	private String mode;
 
@@ -45,7 +43,7 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 	@Override
 	public Config prepareConfig(Config config) {
 		//		apply all config changes from base scenario class
-		baseScenario.prepareConfig(config);
+		super.prepareConfig(config);
 
 		config.subtourModeChoice().setModes(new String[0]);
 
@@ -63,7 +61,7 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 	@Override
 	public void prepareScenario(Scenario scenario) {
 		//		apply all scenario changes from base scenario class
-		baseScenario.prepareScenario(scenario);
+		super.prepareScenario(scenario);
 
 		TripsToLegsAlgorithm trips2Legs = new TripsToLegsAlgorithm(new RoutingModeMainModeIdentifier());
 
@@ -92,6 +90,6 @@ public class LausitzSingleModeScenario extends LausitzScenario {
 	@Override
 	public void prepareControler(Controler controler) {
 		//		apply all controller changes from base scenario class
-		baseScenario.prepareControler(controler);
+		super.prepareControler(controler);
 	}
 }

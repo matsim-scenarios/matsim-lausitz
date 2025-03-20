@@ -31,8 +31,6 @@ public final class LausitzDrtScenario extends LausitzScenario {
 	@CommandLine.ArgGroup(heading = "%nDrt options%n", exclusive = false, multiplicity = "0..1")
 	private final DrtOptions drtOpt = new DrtOptions();
 
-	private final LausitzScenario baseScenario = new LausitzScenario(sample, emissions);
-
 //	this constructor is needed when this class is to be called from external classes with a given Config (e.g. for testing).
 	public LausitzDrtScenario(Config config) {
 		super(config);
@@ -50,7 +48,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 	@Override
 	public Config prepareConfig(Config config) {
 //		apply all config changes from base scenario class
-		baseScenario.prepareConfig(config);
+		super.prepareConfig(config);
 
 //		apply all necessary config changes for drt simulation
 		drtOpt.configureDrtConfig(config);
@@ -61,7 +59,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 	@Override
 	public void prepareScenario(Scenario scenario) {
 //		apply all scenario changes from base scenario class
-		baseScenario.prepareScenario(scenario);
+		super.prepareScenario(scenario);
 
 //		apply all necessary scenario changes for drt simulation
 		drtOpt.configureDrtScenario(scenario);
@@ -72,7 +70,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 		Config config = controler.getConfig();
 
 //		apply all controller changes from base scenario class
-		baseScenario.prepareControler(controler);
+		super.prepareControler(controler);
 
 		controler.addOverridingModule(new DvrpModule());
 		controler.addOverridingModule(new MultiModeDrtModule());
