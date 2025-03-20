@@ -25,8 +25,6 @@ import java.util.stream.Collectors;
 public class LausitzSpeedReductionScenario extends LausitzScenario {
 	Logger log = LogManager.getLogger(LausitzSpeedReductionScenario.class);
 
-	private final LausitzScenario baseScenario = new LausitzScenario(sample, emissions);
-
 	@CommandLine.Option(names = "--slow-speed-shp", description = "Path to shp file for adaption of link speeds.", defaultValue = "../shp/lausitz.shp")
 	private String slowSpeedAreaShp;
 	@CommandLine.Option(names = "--slow-speed-relative-change", description = "provide a value that is bigger than 0.0 and smaller than 1.0." +
@@ -49,14 +47,14 @@ public class LausitzSpeedReductionScenario extends LausitzScenario {
 	@Override
 	public Config prepareConfig(Config config) {
 		//		apply all config changes from base scenario class
-		baseScenario.prepareConfig(config);
+		super.prepareConfig(config);
 		return config;
 	}
 
 	@Override
 	public void prepareScenario(Scenario scenario) {
 		//		apply all scenario changes from base scenario class
-		baseScenario.prepareScenario(scenario);
+		super.prepareScenario(scenario);
 
 		List<PreparedGeometry> geometries = ShpGeometryUtils.loadPreparedGeometries(IOUtils.extendUrl(scenario.getConfig().getContext(), slowSpeedAreaShp));
 
@@ -83,6 +81,6 @@ public class LausitzSpeedReductionScenario extends LausitzScenario {
 	@Override
 	public void prepareControler(Controler controler) {
 		//		apply all controller changes from base scenario class
-		baseScenario.prepareControler(controler);
+		super.prepareControler(controler);
 	}
 }
