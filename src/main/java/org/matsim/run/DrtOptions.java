@@ -56,7 +56,7 @@ public class DrtOptions {
 	@CommandLine.Option(names = "--intermodal-shp", description = "Path to shp file for adding intermodal tags for drt to pt intermodality.", defaultValue = "./intermodal-area/pt-intermodal-areas-ruhland-spremberg.shp")
 	private String intermodalAreaShp;
 
-	@CommandLine.Option(names = "--typ-wt", description = "typical waiting time", defaultValue = "300")
+	@CommandLine.Option(names = "--typ-wt", description = "typical waiting time (base)", defaultValue = "900")
 	protected double typicalWaitTime;
 
 	@CommandLine.Option(names = "--wt-std", description = "waiting time standard deviation", defaultValue = "0.3")
