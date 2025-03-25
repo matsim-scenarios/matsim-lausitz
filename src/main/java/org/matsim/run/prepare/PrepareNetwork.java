@@ -96,6 +96,8 @@ public class PrepareNetwork implements MATSimAppCommand {
 
 	/**
 	 * add drt as allowed mode on links within given shape.
+	 * Chengqi: TODO we have disconnected service areas, how do we deal with the roads connecting the different service areas???
+	 * This should not be a big problem with DRT estimator, but eventually, there will be problems when performing post-simulations!!!
 	 */
 	public static void prepareDrtNetwork(Network network, String drtAreaShp) {
 		//		add drt as allowed mode for whole Lausitz region

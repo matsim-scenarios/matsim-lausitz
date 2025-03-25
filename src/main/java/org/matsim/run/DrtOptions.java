@@ -190,6 +190,7 @@ public class DrtOptions {
 
 //		prepare network for drt
 //		preparation needs to be done with lausitz shp not service area shp
+		// Chengqi 25.03: I don't like this!!!
 		PrepareNetwork.prepareDrtNetwork(scenario.getNetwork(), IOUtils.extendUrl(scenario.getConfig().getContext(), "../shp/lausitz.shp").toString());
 		//		add drt veh type if not already existing
 		Id<VehicleType> drtTypeId = Id.create(TransportMode.drt, VehicleType.class);
