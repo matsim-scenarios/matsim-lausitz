@@ -23,12 +23,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Modified based on the ChainedPtFareHandler from matsim-lib
+ * Modified based on the ChainedPtFareHandler from matsim-lib.
  */
 public class ChainedPtAndDrtFareHandler implements PtFareHandler {
 	@Inject
 	private EventsManager events;
-	private final static String DRT_INTERACTION = ScoringConfigGroup.createStageActivityType(TransportMode.drt);
+	private static final String DRT_INTERACTION = ScoringConfigGroup.createStageActivityType(TransportMode.drt);
 
 	private final Map<Id<Person>, Coord> personDepartureCoordMap = new HashMap<>();
 	private final Map<Id<Person>, Coord> personArrivalCoordMap = new HashMap<>();
@@ -42,9 +42,11 @@ public class ChainedPtAndDrtFareHandler implements PtFareHandler {
 		String eventType = event.getActType();
 
 		if (eventType.equals(PtConstants.TRANSIT_ACTIVITY_TYPE) || eventType.equals(DRT_INTERACTION)) {
-			personDepartureCoordMap.computeIfAbsent(event.getPersonId(), c -> event.getCoord()); // The departure place is fixed to the place of
+			personDepartureCoordMap.computeIfAbsent(event.getPersonId(), c -> event.getCoord());
+			// The departure place is fixed to the place of
 			// first pt interaction an agent has in the whole leg
-			personArrivalCoordMap.put(event.getPersonId(), event.getCoord()); // The arrival stop will keep updating until the agent start a real
+			personArrivalCoordMap.put(event.getPersonId(), event.getCoord());
+			// The arrival stop will keep updating until the agent start a real
 			// activity (i.e. finish the leg)
 			if (eventType.equals(DRT_INTERACTION)) {
 				personInvolvedInDrtTrip.add(event.getPersonId());

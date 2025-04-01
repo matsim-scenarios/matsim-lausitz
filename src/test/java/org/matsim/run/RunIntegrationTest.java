@@ -289,8 +289,8 @@ class RunIntegrationTest {
 		// a random time between 6:00-9:00
 		fromAct.setEndTime(21600 + random.nextInt(10800));
 		Leg leg = populationFactory.createLeg(TransportMode.drt);
-		// a location in Wittichenau
-		Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(864808.3,5705774.7));
+		// a random location within vvo zone, close to Spohla and Maukendorf
+		Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(867912.23,5708354.43));
 
 		plan.addActivity(fromAct);
 		plan.addLeg(leg);
