@@ -20,10 +20,10 @@ import java.util.Map;
 
 import static org.matsim.contrib.drt.fare.DrtFareHandler.PERSON_MONEY_EVENT_PURPOSE_DRT_FARE;
 
-@Deprecated
 /**
  *  The ChainedPtAndDrtFareHandler is a more elegant solution. Please use that instead!
  */
+@Deprecated
 public class LausitzDrtFareHandler implements DrtRequestSubmittedEventHandler, PassengerDroppedOffEventHandler {
 	@Inject
 	private EventsManager events;
@@ -39,7 +39,7 @@ public class LausitzDrtFareHandler implements DrtRequestSubmittedEventHandler, P
 	}
 
 	/**
-	 * For testing / stand-alone runs (i.e., without injection)
+	 * For testing / stand-alone runs (i.e., without injection).
 	 */
 	LausitzDrtFareHandler(FareZoneBasedPtFareCalculator zoneBasedPtFareCalculator, DistanceBasedPtFareCalculator distanceBasedPtFareCalculator,
 						  Network network, EventsManager events) {

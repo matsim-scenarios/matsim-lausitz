@@ -16,7 +16,6 @@ import org.matsim.contrib.dvrp.passenger.PassengerRequestValidator;
 import org.matsim.contrib.dvrp.run.AbstractDvrpModeQSimModule;
 import org.matsim.contrib.dvrp.run.DvrpModule;
 import org.matsim.contrib.dvrp.run.DvrpQSimComponents;
-import org.matsim.contrib.vsp.pt.fare.ChainedPtFareHandler;
 import org.matsim.contrib.vsp.pt.fare.PtFareHandler;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
