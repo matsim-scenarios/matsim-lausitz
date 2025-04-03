@@ -8,16 +8,27 @@ import org.apache.commons.lang3.Range;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.locationtech.jts.geom.Geometry;
+import org.matsim.api.core.v01.Coord;
+import org.matsim.api.core.v01.TransportMode;
+import org.matsim.api.core.v01.events.PersonDepartureEvent;
 import org.matsim.api.core.v01.events.PersonEntersVehicleEvent;
+import org.matsim.api.core.v01.events.handler.PersonDepartureEventHandler;
 import org.matsim.api.core.v01.events.handler.PersonEntersVehicleEventHandler;
 import org.matsim.application.CommandSpec;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CsvOptions;
 import org.matsim.application.options.InputOptions;
 import org.matsim.application.options.OutputOptions;
+import org.matsim.application.options.ShpOptions;
+import org.matsim.contrib.drt.run.DrtConfigGroup;
+import org.matsim.contrib.drt.run.MultiModeDrtConfigGroup;
 import org.matsim.core.api.experimental.events.EventsManager;
+import org.matsim.core.config.Config;
+import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.events.EventsUtils;
 import org.matsim.core.events.MatsimEventsReader;
+import org.matsim.core.utils.geometry.geotools.MGC;
 import org.matsim.core.utils.io.IOUtils;
 import picocli.CommandLine;
 import tech.tablesaw.api.*;
@@ -33,26 +44,24 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.matsim.application.ApplicationUtils.globFile;
 import static tech.tablesaw.aggregate.AggregateFunctions.count;
 import static tech.tablesaw.aggregate.AggregateFunctions.mean;
 
-@CommandLine.Command(name = "pt-line", description = "Analyze and compare agents who use new pt connection from " +
+@CommandLine.Command(name = "drt", description = "Analyze and compare agents who use new drt service from " +
 	" policy case and the respective trips in the base case..")
 @CommandSpec(requireRunDirectory = true,
-	produces = {"pt_persons.csv", "pt_persons_home_locations.csv", "pt_persons_income_groups.csv", "pt_persons_age_groups.csv",
-		"mean_travel_stats.csv", "pt_persons_trav_time.csv", "pt_persons_traveled_distance.csv", "pt_persons_base_modal_share.csv",
-		"pt_persons_mean_score_per_income_group.csv", "pt_persons_executed_score.csv", "all_persons_income_groups.csv", "all_persons_age_groups.csv"
+	produces = {"drt_persons.csv", "drt_persons_home_locations.csv", "drt_persons_income_groups.csv", "drt_persons_age_groups.csv",
+		"mean_travel_stats.csv", "drt_persons_trav_time.csv", "drt_persons_traveled_distance.csv", "drt_persons_base_modal_share.csv",
+		"drt_persons_mean_score_per_income_group.csv", "drt_persons_executed_score.csv", "all_persons_income_groups.csv", "all_persons_age_groups.csv",
+		"trips_in_drt_service_area.csv.gz", "mode_share.csv", "mode_share_per_dist.csv"
 	}
 )
 
 public class DrtAnalysis implements MATSimAppCommand {
 	private static final Logger log = LogManager.getLogger(DrtAnalysis.class);
-
-//	TODO: rename all output files to "drt_XX"
-//	TODO: rename everything which is pt related in general
-//	TODO: filter for drt: either per main_mode (may be to hard a restriction) or per drt contained in modes column + drt split act as start or end
 
 	@CommandLine.Mixin
 	private final InputOptions input = InputOptions.ofCommand(DrtAnalysis.class);
@@ -64,8 +73,10 @@ public class DrtAnalysis implements MATSimAppCommand {
 	private List<Integer> ageGroups;
 	@CommandLine.Option(names = "--base-path", description = "Path to run directory of base case.", required = true)
 	private Path basePath;
+	@CommandLine.Option(names = "--dist-groups", split = ",", description = "List of distances for binning", defaultValue = "0,1000,2000,5000,10000,20000")
+	private List<Long> distGroups;
 
-	private final Map<String, List<Double>> ptPersons = new HashMap<>();
+	private final Map<String, List<Double>> drtPersons = new HashMap<>();
 
 	private static final String INCOME_GROUP = "incomeGroup";
 	private static final String PERSON = "person";
@@ -80,6 +91,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 	private static final String TRIP_ID = "trip_id";
 	private static final String BASE_SUFFIX = "_base";
 	private static final String COUNT_PERSON = "Count [person]";
+	private static final String DIST_GROUP = "dist_group";
 
 	public static void main(String[] args) {
 		new DrtAnalysis().execute(args);
@@ -90,19 +102,21 @@ public class DrtAnalysis implements MATSimAppCommand {
 		String eventsFile = globFile(input.getRunDirectory(), "*output_events.xml.gz").toString();
 
 		EventsManager manager = EventsUtils.createEventsManager();
-		manager.addHandler(new NewPtLineEventHandler());
+		manager.addHandler(new DrtPersonEventHandler());
 		manager.initProcessing();
 
 		MatsimEventsReader reader = new MatsimEventsReader(manager);
 		reader.readFile(eventsFile);
 		manager.finishProcessing();
 
-//		write persons, who use new pt line and their entry time to csv file
-		writePtPersons();
+//		write persons, who use new drt service and their entry time to csv file
+		writeDrtPersons();
 
 //		all necessary file input paths are defined here
 		String personsPath = globFile(input.getRunDirectory(), "*output_persons.csv.gz").toString();
 		String tripsPath = globFile(input.getRunDirectory(), "*output_trips.csv.gz").toString();
+		String drtLegsPath = globFile(input.getRunDirectory(), "*output_drt_legs_drt.csv").toString();
+		String configPath = globFile(input.getRunDirectory(), "*output_config.xml").toString();
 		String basePersonsPath = globFile(basePath, "*output_persons.csv.gz").toString();
 		String baseTripsPath = globFile(basePath, "*output_trips.csv.gz").toString();
 
@@ -134,9 +148,9 @@ public class DrtAnalysis implements MATSimAppCommand {
 			TRAV_TIME, ColumnType.STRING, "dep_time", ColumnType.STRING, MAIN_MODE, ColumnType.STRING,
 			TRAV_DIST, ColumnType.DOUBLE, EUCL_DIST, ColumnType.DOUBLE, TRIP_ID, ColumnType.STRING));
 
-//		filter for persons, which used the new pt line in pt policy case
+//		filter for persons, which used the new drt service only
 		TextColumn personColumn = persons.textColumn(PERSON);
-		persons = persons.where(personColumn.isIn(ptPersons.keySet()));
+		persons = persons.where(personColumn.isIn(drtPersons.keySet()));
 
 		//		read base persons and filter them
 		Table basePersons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(basePersonsPath))
@@ -145,17 +159,17 @@ public class DrtAnalysis implements MATSimAppCommand {
 			.separator(CsvOptions.detectDelimiter(basePersonsPath)).build());
 
 		TextColumn basePersonColumn = basePersons.textColumn(PERSON);
-		basePersons = basePersons.where(basePersonColumn.isIn(ptPersons.keySet()));
+		basePersons = basePersons.where(basePersonColumn.isIn(drtPersons.keySet()));
 
 		writeComparisonTable(persons, basePersons, SCORE, PERSON);
 
-//		print csv file with home coords of new pt line agents
+//		print csv file with home coords of drt agents
 		writeHomeLocations(persons);
 
-//		write income distr of new pt line agents
+//		write income distr of drt agents
 		writeIncomeDistr(persons, incomeLabels, null);
 
-//		write age distr of new pt line agents
+//		write age distr of drt agents
 		writeAgeDistr(persons, null);
 
 		for (int i = 0; i < basePersons.columnCount(); i++) {
@@ -183,9 +197,50 @@ public class DrtAnalysis implements MATSimAppCommand {
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(baseTripsPath)).build());
 
-//		filter for trips with new pt line only
+//		get shp of drt service area
+		Geometry geometry = null;
+		Config config = ConfigUtils.loadConfig(configPath);
+		for (DrtConfigGroup drtCfg : ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class).getModalElements()) {
+			if (drtCfg.getMode().equals(TransportMode.drt)) {
+				geometry = new ShpOptions(Path.of(drtCfg.drtServiceAreaShapeFile), null, null).getGeometry();
+				break;
+			}
+		}
+
+		IntList drtServiceAreaTripIds = new IntArrayList();
+
+//		filter for trips which start or end in service area
+		for (int i = 0; i < trips.rowCount(); i++) {
+			Row row = trips.row(i);
+
+			Coord startCoord = new Coord(row.getDouble("start_x"), row.getDouble("start_y"));
+			Coord endCoord = new Coord(row.getDouble("end_x"), row.getDouble("end_y"));
+
+			if (MGC.coord2Point(startCoord).within(geometry) || MGC.coord2Point(endCoord).within(geometry)) {
+				drtServiceAreaTripIds.add(i);
+			}
+		}
+
+		Table drtServiceAreaTrips = trips.where(Selection.with(drtServiceAreaTripIds.toIntArray()));
+
+//		calc and write mode shares
+		calcAndWriteModalShares(drtServiceAreaTrips);
+
+//		TODO: analysis on origin and destination drt zones/bubbles for each trip
+//		maybe we have to use legs here?
+//		tag each trip/leg with an origin and destination drt zone
+//		result should be a csv with columns origin;destination and maybe hours 1-24
+
+		Table drtLegs = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(drtLegsPath))
+			.columnTypesPartial(columnTypes)
+			.sample(false)
+			.separator(CsvOptions.detectDelimiter(tripsPath)).build());
+
+
+
+//		filter for trips with drt only
 		TextColumn personTripsColumn = trips.textColumn(PERSON);
-		trips = trips.where(personTripsColumn.isIn(ptPersons.keySet()));
+		trips = trips.where(personTripsColumn.isIn(drtPersons.keySet()));
 
 		IntList idx = new IntArrayList();
 
@@ -196,7 +251,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 //			waiting time already included in travel time
 			Double travelTime = parseTimeManually(row.getString(TRAV_TIME));
 
-			List<Double> enterTimes = ptPersons.get(row.getString(PERSON));
+			List<Double> enterTimes = drtPersons.get(row.getString(PERSON));
 
 			for (Double enterTime : enterTimes) {
 				if (Range.of(tripStart, tripStart + travelTime).contains(enterTime)) {
@@ -219,6 +274,8 @@ public class DrtAnalysis implements MATSimAppCommand {
 			return 2;
 		}
 
+//		TODO: look into and adapt the following methods
+
 //		calc and write mean stats for policy and base case
 		calcAndWriteMeanStats(trips, persons, baseTrips, basePersons);
 
@@ -229,6 +286,56 @@ public class DrtAnalysis implements MATSimAppCommand {
 //		write mode shares to csv
 		writeBaseModeShares(baseTrips);
 		return 0;
+	}
+
+	private void calcAndWriteModalShares(Table drtServiceAreaTrips) {
+//		write all trips in drt service area to csv
+		drtServiceAreaTrips.write().csv(output.getPath("trips_in_drt_service_area.csv.gz").toFile());
+
+		List<String> labels = new ArrayList<>();
+		for (int i = 0; i < distGroups.size() - 1; i++) {
+			labels.add(String.format("%d - %d", distGroups.get(i), distGroups.get(i + 1)));
+		}
+		labels.add(distGroups.getLast() + "+");
+		distGroups.add(Long.MAX_VALUE);
+
+		StringColumn distGroup = drtServiceAreaTrips.longColumn(TRAV_DIST)
+			.map(dist -> cut(dist, distGroups, labels), ColumnType.STRING::create).setName(DIST_GROUP);
+
+		drtServiceAreaTrips.addColumns(distGroup);
+
+		Table aggr = drtServiceAreaTrips.summarize(TRIP_ID, count).by(DIST_GROUP, MAIN_MODE);
+
+		DoubleColumn share = aggr.numberColumn(2).divide(aggr.numberColumn(2).sum()).setName(SHARE);
+		aggr.replaceColumn(2, share);
+
+		// Sort by dist_group and mode
+		Comparator<Row> cmp = Comparator.comparingInt(row -> labels.indexOf(row.getString(DIST_GROUP)));
+		aggr = aggr.sortOn(cmp.thenComparing(row -> row.getString(MAIN_MODE)));
+
+		aggr.write().csv(output.getPath("mode_share.csv").toFile());
+
+		// Norm each dist_group to 1
+		for (String label : labels) {
+			DoubleColumn distGroupShare = aggr.doubleColumn(SHARE);
+			Selection sel = aggr.stringColumn(DIST_GROUP).isEqualTo(label);
+
+			double total = distGroupShare.where(sel).sum();
+			if (total > 0)
+				distGroupShare.set(sel, distGroupShare.divide(total));
+		}
+		aggr.write().csv(output.getPath("mode_share_per_dist.csv").toFile());
+	}
+
+	private static String cut(long dist, List<Long> distGroups, List<String> labels) {
+
+		int idx = Collections.binarySearch(distGroups, dist);
+
+		if (idx >= 0)
+			return labels.get(idx);
+
+		int ins = -(idx + 1);
+		return labels.get(ins - 1);
 	}
 
 	private void calcAndWriteMeanStats(Table trips, Table persons, Table baseTrips, Table basePersons) throws IOException {
@@ -281,7 +388,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 				.setName(SHARE)
 		);
 
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_base_modal_share.csv").toString()), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("drt_persons_base_modal_share.csv").toString()), getCsvFormat())) {
 			printer.printRecord(MAIN_MODE, SHARE);
 			for (int i = 0; i < counts.rowCount(); i++) {
 				Row row = counts.row(i);
@@ -292,10 +399,10 @@ public class DrtAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writePtPersons() throws IOException {
-		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("pt_persons.csv")), getCsvFormat())) {
+	private void writeDrtPersons() throws IOException {
+		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("drt_persons.csv")), getCsvFormat())) {
 			printer.printRecord(PERSON, "time");
-			for (Map.Entry<String, List<Double>> e : ptPersons.entrySet()) {
+			for (Map.Entry<String, List<Double>> e : drtPersons.entrySet()) {
 				for (Double time : e.getValue()) {
 					printer.printRecord(e.getKey(), time);
 				}
@@ -305,7 +412,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 
 	private void writeScorePerIncomeGroupDistr(Table scoresPerIncomeGroup, Map<String, Range<Integer>> labels) {
 
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_mean_score_per_income_group.csv").toString()), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("drt_persons_mean_score_per_income_group.csv").toString()), getCsvFormat())) {
 			printer.printRecord(INCOME_GROUP, "mean_score_base", "mean_score_policy");
 
 			List<String> distr = new ArrayList<>();
@@ -337,7 +444,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 	}
 
 	private void writeComparisonTable(Table policy, Table base, String paramName, String id) {
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_" + paramName + ".csv").toString()), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("drt_persons_" + paramName + ".csv").toString()), getCsvFormat())) {
 			printer.printRecord(id, paramName + "_policy", paramName + BASE_SUFFIX);
 			for (int i = 0; i < policy.rowCount(); i++) {
 				Row row = policy.row(i);
@@ -362,7 +469,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 
 	private void writeHomeLocations(Table persons) throws IOException {
 		//		y think about adding first act coords here or even act before / after pt trip
-		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("pt_persons_home_locations.csv")), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("drt_persons_home_locations.csv")), getCsvFormat())) {
 			printer.printRecord(PERSON, "home_x", "home_y");
 
 			for (int i = 0; i < persons.rowCount(); i++) {
@@ -375,7 +482,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 	private void writeIncomeDistr(Table persons, Map<String, Range<Integer>> labels, String outputString) {
 		List<String> incomeDistr = getDistr(persons, INCOME_GROUP, labels);
 
-		String file = (outputString != null) ? outputString : "pt_persons_income_groups.csv";
+		String file = (outputString != null) ? outputString : "drt_persons_income_groups.csv";
 
 //		print income distr
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(file).toString()), getCsvFormat())) {
@@ -420,7 +527,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 
 		List<String> ageDistr = getDistr(persons, AGE_GROUP, labels);
 
-		String file = (outputString != null) ? outputString : "pt_persons_age_groups.csv";
+		String file = (outputString != null) ? outputString : "drt_persons_age_groups.csv";
 
 
 //		print age distr
@@ -548,15 +655,14 @@ public class DrtAnalysis implements MATSimAppCommand {
 	}
 
 
-	private final class NewPtLineEventHandler implements PersonEntersVehicleEventHandler {
-
+	private final class DrtPersonEventHandler implements PersonDepartureEventHandler {
 		@Override
-		public void handleEvent(PersonEntersVehicleEvent event) {
-			if (event.getVehicleId().toString().contains("RE-VSP1") && !event.getPersonId().toString().contains("pt_")) {
-				if (!ptPersons.containsKey(event.getPersonId().toString())) {
-					ptPersons.put(event.getPersonId().toString(), new ArrayList<>());
+		public void handleEvent(PersonDepartureEvent event) {
+			if (event.getLegMode().equals(TransportMode.drt)) {
+				if (!drtPersons.containsKey(event.getPersonId().toString())) {
+					drtPersons.put(event.getPersonId().toString(), new ArrayList<>());
 				}
-				ptPersons.get(event.getPersonId().toString()).add(event.getTime());
+				drtPersons.get(event.getPersonId().toString()).add(event.getTime());
 			}
 		}
 	}
