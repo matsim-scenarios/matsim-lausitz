@@ -40,11 +40,6 @@ public class ExtractDrtTrips implements MATSimAppCommand {
 		Population outputPlans = PopulationUtils.createPopulation(ConfigUtils.createConfig());
 		PopulationFactory populationFactory = outputPlans.getFactory();
 
-//		try (CSVParser parser = new CSVParser(Files.newBufferedReader(outputDrtLegsFile),
-//			CSVFormat.DEFAULT.withDelimiter(';').withFirstRecordAsHeader())) {
-//
-//		}
-
 		try (CSVParser parser = new CSVParser(Files.newBufferedReader(outputDrtLegsFile),
 			CSVFormat.Builder.create()
 				.setDelimiter(CsvOptions.detectDelimiter(outputDrtLegsFile.toString()))
