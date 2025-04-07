@@ -1,6 +1,7 @@
 package org.matsim.run.drt_post_simulation;
 
 import com.google.common.base.Preconditions;
+import com.google.inject.Singleton;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -15,6 +16,7 @@ import org.matsim.application.options.CsvOptions;
 import org.matsim.application.options.ShpOptions;
 import org.matsim.contrib.drt.optimizer.constraints.ConstraintSetChooser;
 import org.matsim.contrib.drt.optimizer.constraints.DefaultDrtOptimizationConstraintsSet;
+import org.matsim.contrib.drt.optimizer.constraints.DrtOptimizationConstraintsParams;
 import org.matsim.contrib.drt.optimizer.constraints.DrtOptimizationConstraintsSet;
 import org.matsim.contrib.drt.run.DrtConfigGroup;
 import org.matsim.contrib.drt.run.DrtControlerCreator;
@@ -33,6 +35,7 @@ import java.nio.file.Path;
 import java.util.*;
 
 import static org.matsim.contrib.drt.analysis.afterSimAnalysis.DrtVehicleStoppingTaskWriter.glob;
+import static org.matsim.contrib.drt.run.DrtConfigGroup.OperationalScheme.serviceAreaBased;
 
 public class RunDrtPostSimulation implements MATSimAppCommand {
 	@CommandLine.Option(names = "--config", description = "path to config file", required = true)
@@ -44,7 +47,7 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 	@CommandLine.Option(names = "--fleet-sizing", description = "a triplet: [from max interval]. ", arity = "1..*", defaultValue = "10 30 5")
 	private List<Integer> fleetSizing;
 
-	@CommandLine.Option(names = "--target-mean-wait-time", description = "target mean wait time by default, can be overwritten by the values in shp", defaultValue = "300")
+	@CommandLine.Option(names = "--target-mean-wait-time", description = "target mean wait time by default, can be overwritten by the values in shp", defaultValue = "600")
 	private int defaultTargetMeanWaitTime;
 
 	@CommandLine.Mixin
@@ -76,6 +79,15 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 
 			DrtConfigGroup drtCfg = DrtConfigGroup.getSingleModeDrtConfig(config);
 			drtCfg.vehiclesFile = "./vehicles/" + fleetSize + "-8_seater-drt-vehicles.xml";
+			drtCfg.drtServiceAreaShapeFile = shp.getShapeFile();
+			drtCfg.operationalScheme = serviceAreaBased;
+
+			// create various constraint set (i.e., different waiting time constraints)
+			DrtOptimizationConstraintsParams drtOptimizationConstraintsParams = drtCfg.addOrGetDrtOptimizationConstraintsParams();
+			Set<DrtOptimizationConstraintsSet> drtConstraintSets = createDrtConstraintSetsFromShp(shp.getShapeFile());
+			for (DrtOptimizationConstraintsSet drtConstraintSet : drtConstraintSets) {
+				drtOptimizationConstraintsParams.addParameterSet(drtConstraintSet);
+			}
 
 			Controler controler = DrtControlerCreator.createControler(config, false);
 			// Use shape-file-based constraints
@@ -83,7 +95,7 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 				@Override
 				public void install() {
 					bindModal(ConstraintSetChooser.class).toProvider(
-						() -> new ShpBasedConstraintChooser(shp.getShapeFile()));
+						() -> new ShpBasedConstraintChooser(shp.getShapeFile(), drtCfg)).in(Singleton.class);
 				}
 			});
 			controler.run();
@@ -139,9 +151,14 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 	 */
 	class ShpBasedConstraintChooser implements ConstraintSetChooser {
 		private final List<SimpleFeature> features;
+		private final Map<Double, DrtOptimizationConstraintsSet> constraintsMap;
 
-		ShpBasedConstraintChooser(String drtOperationalArea) {
+		ShpBasedConstraintChooser(String drtOperationalArea, DrtConfigGroup drtConfigGroup) {
 			this.features = new ShpOptions(drtOperationalArea, null, null).readFeatures();
+			this.constraintsMap = new HashMap<>();
+			for (DrtOptimizationConstraintsSet drtOptimizationConstraintsSet : drtConfigGroup.addOrGetDrtOptimizationConstraintsParams().getDrtOptimizationConstraintsSets()) {
+				constraintsMap.put(drtOptimizationConstraintsSet.maxWaitTime, drtOptimizationConstraintsSet);
+			}
 		}
 
 		@Override
@@ -151,26 +168,48 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 
 			Point fromPoint = MGC.coord2Point(accessActLink.getToNode().getCoord());
 			for (SimpleFeature feature : features) {
-				if (fromPoint.within((Geometry) feature.getDefaultGeometry())){
+				if (fromPoint.within((Geometry) feature.getDefaultGeometry())) {
 					double typicalWaitTimeInZone = Double.parseDouble(feature.getAttribute("typ_wt").toString());
 					if (typicalWaitTimeInZone * 1.5 < maxWaitTime) {
 						maxWaitTime = typicalWaitTimeInZone * 1.5;
 					}
 				}
 			}
-			return Optional.of(createDrtOptimizationConstraintsSet(maxWaitTime));
+			return Optional.of(constraintsMap.get(maxWaitTime));
 		}
+	}
 
-		private DrtOptimizationConstraintsSet createDrtOptimizationConstraintsSet(double maxWaitTime) {
-			DefaultDrtOptimizationConstraintsSet constraintsSet = new DefaultDrtOptimizationConstraintsSet();
-			constraintsSet.maxWaitTime = maxWaitTime;
-			constraintsSet.maxDetourAlpha = 1.5;
-			// 1.5 for maxDetourAlpha is an initial estimation, may need to be adjusted
-			constraintsSet.maxDetourBeta = 600;
-			// 600 for maxDetourBeta is an initial estimation, may need to be adjusted
-			constraintsSet.maxTravelTimeAlpha = 10.;
-			constraintsSet.maxTravelTimeBeta = 7200;
-			return constraintsSet;
+	private Set<DrtOptimizationConstraintsSet> createDrtConstraintSetsFromShp(String drtOperationalArea) {
+		Set<DrtOptimizationConstraintsSet> drtConstraintSets = new HashSet<>();
+		Set<Double> waitTimes = new HashSet<>();
+
+		// add default constraint set
+		drtConstraintSets.add(createDrtOptimizationConstraintsSet(defaultTargetMeanWaitTime * 1.5));
+		waitTimes.add(defaultTargetMeanWaitTime * 1.5);
+
+		List<SimpleFeature> features = new ShpOptions(drtOperationalArea, null, null).readFeatures();
+		for (SimpleFeature feature : features) {
+			double targetWaitTime = Double.parseDouble(feature.getAttribute("typ_wt").toString());
+			if (!waitTimes.contains(targetWaitTime * 1.5)){
+				drtConstraintSets.add(createDrtOptimizationConstraintsSet(targetWaitTime * 1.5));
+				waitTimes.add(targetWaitTime * 1.5);
+			}
 		}
+		return drtConstraintSets;
+	}
+
+	private DrtOptimizationConstraintsSet createDrtOptimizationConstraintsSet(double maxWaitTime) {
+		DefaultDrtOptimizationConstraintsSet constraintsSet = new DefaultDrtOptimizationConstraintsSet();
+		constraintsSet.maxWaitTime = maxWaitTime;
+		constraintsSet.maxDetourAlpha = 1.5;
+		// 1.5 for maxDetourAlpha is an initial estimation, may need to be adjusted
+		constraintsSet.maxDetourBeta = 600;
+		// 600 for maxDetourBeta is an initial estimation, may need to be adjusted
+		constraintsSet.maxTravelTimeAlpha = 10.;
+		constraintsSet.maxTravelTimeBeta = 7200;
+		constraintsSet.rejectRequestIfMaxWaitOrTravelTimeViolated = false;
+		constraintsSet.maxAllowedPickupDelay = 180;
+		constraintsSet.name = "constraint_with_max_wait_time_" + maxWaitTime;
+		return constraintsSet;
 	}
 }

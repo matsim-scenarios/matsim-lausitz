@@ -81,7 +81,7 @@ public class CreateFleetVehicles implements MATSimAppCommand {
     @CommandLine.Option(names = "--start-time", description = "service starting time", defaultValue = "0")
     private double startTime;
 
-    @CommandLine.Option(names = "--end-time", description = "service ending time", defaultValue = "86400")
+    @CommandLine.Option(names = "--end-time", description = "service ending time", defaultValue = "108000")
     private double endTime;
 
     @CommandLine.Option(names = "--depots", description = "Path to the depots location file", defaultValue = "")
@@ -114,7 +114,7 @@ public class CreateFleetVehicles implements MATSimAppCommand {
                     collect(Collectors.toList());
         }
 
-        if (!depotsPath.equals("")) {
+        if (!depotsPath.isEmpty()) {
             try (CSVParser parser = new CSVParser(Files.newBufferedReader(Path.of(depotsPath), StandardCharsets.UTF_8),
                     CSVFormat.DEFAULT.withDelimiter(',').withFirstRecordAsHeader())) {
                 links.clear();
@@ -130,7 +130,7 @@ public class CreateFleetVehicles implements MATSimAppCommand {
             List<DvrpVehicleSpecification> vehicleSpecifications = new ArrayList<>();
             for (int i = 0; i < fleetSize; i++) {
                 Id<Link> startLinkId;
-                if (depotsPath.equals("")) {
+                if (depotsPath.isEmpty()) {
                     startLinkId = links.get(random.nextInt(links.size())).getId();
                 } else {
                     startLinkId = links.get(i % links.size()).getId(); // Even distribution of the vehcles
