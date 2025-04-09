@@ -18,6 +18,9 @@ import java.nio.file.Path;
 
 import static org.matsim.contrib.drt.analysis.afterSimAnalysis.DrtVehicleStoppingTaskWriter.glob;
 
+/**
+ * Extract DRT trips from the main output folder.
+ */
 @CommandLine.Command(name = "extract-drt-trips", description = "Extract drt trips from output runs")
 public class ExtractDrtTrips implements MATSimAppCommand {
 	@CommandLine.Option(names = "--run-folder", description = "path to the output run folder", required = true)
@@ -32,7 +35,7 @@ public class ExtractDrtTrips implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
-		if (!Files.exists(output.getParent())){
+		if (!Files.exists(output.getParent())) {
 			Files.createDirectories(output.getParent());
 		}
 

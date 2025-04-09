@@ -37,6 +37,9 @@ import java.util.*;
 import static org.matsim.contrib.drt.analysis.afterSimAnalysis.DrtVehicleStoppingTaskWriter.glob;
 import static org.matsim.contrib.drt.run.DrtConfigGroup.OperationalScheme.serviceAreaBased;
 
+/**
+ * Run DRT post-simulation to acquire KPIs of DRT operations.
+ */
 public class RunDrtPostSimulation implements MATSimAppCommand {
 	@CommandLine.Option(names = "--config", description = "path to drt config file", required = true)
 	private String configPath;
@@ -176,40 +179,6 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 		return minTargetMeanWaitTime;
 	}
 
-	/**
-	 * Shape-file-based constraint chooser will set up different constraints sets for DRT requests based on its start location and the
-	 * specified typical waiting time in the shape file.
-	 */
-	class ShpBasedConstraintChooser implements ConstraintSetChooser {
-		private final List<SimpleFeature> features;
-		private final Map<Double, DrtOptimizationConstraintsSet> constraintsMap;
-
-		ShpBasedConstraintChooser(String drtOperationalArea, DrtConfigGroup drtConfigGroup) {
-			this.features = new ShpOptions(drtOperationalArea, null, null).readFeatures();
-			this.constraintsMap = new HashMap<>();
-			for (DrtOptimizationConstraintsSet drtOptimizationConstraintsSet : drtConfigGroup.addOrGetDrtOptimizationConstraintsParams().getDrtOptimizationConstraintsSets()) {
-				constraintsMap.put(drtOptimizationConstraintsSet.maxWaitTime, drtOptimizationConstraintsSet);
-			}
-		}
-
-		@Override
-		public Optional<DrtOptimizationConstraintsSet> chooseConstraintSet(double departureTime, Link accessActLink, Link egressActLink, Person person, Attributes tripAttributes) {
-			double maxWaitTime = defaultTargetMeanWaitTime * 1.5;
-			// the factor 1.5 is an initial estimation, may need to be adjusted
-
-			Point fromPoint = MGC.coord2Point(accessActLink.getToNode().getCoord());
-			for (SimpleFeature feature : features) {
-				if (fromPoint.within((Geometry) feature.getDefaultGeometry())) {
-					double typicalWaitTimeInZone = Double.parseDouble(feature.getAttribute("typ_wt").toString());
-					if (typicalWaitTimeInZone * 1.5 < maxWaitTime) {
-						maxWaitTime = typicalWaitTimeInZone * 1.5;
-					}
-				}
-			}
-			return Optional.of(constraintsMap.get(maxWaitTime));
-		}
-	}
-
 	private Set<DrtOptimizationConstraintsSet> createDrtConstraintSetsFromShp(String drtOperationalArea) {
 		Set<DrtOptimizationConstraintsSet> drtConstraintSets = new HashSet<>();
 		Set<Double> waitTimes = new HashSet<>();
@@ -242,5 +211,39 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 		constraintsSet.maxAllowedPickupDelay = 180;
 		constraintsSet.name = "constraint_with_max_wait_time_" + maxWaitTime;
 		return constraintsSet;
+	}
+
+	/**
+	 * Shape-file-based constraint chooser will set up different constraints sets for DRT requests based on its start location and the
+	 * specified typical waiting time in the shape file.
+	 */
+	class ShpBasedConstraintChooser implements ConstraintSetChooser {
+		private final List<SimpleFeature> features;
+		private final Map<Double, DrtOptimizationConstraintsSet> constraintsMap;
+
+		ShpBasedConstraintChooser(String drtOperationalArea, DrtConfigGroup drtConfigGroup) {
+			this.features = new ShpOptions(drtOperationalArea, null, null).readFeatures();
+			this.constraintsMap = new HashMap<>();
+			for (DrtOptimizationConstraintsSet drtOptimizationConstraintsSet : drtConfigGroup.addOrGetDrtOptimizationConstraintsParams().getDrtOptimizationConstraintsSets()) {
+				constraintsMap.put(drtOptimizationConstraintsSet.maxWaitTime, drtOptimizationConstraintsSet);
+			}
+		}
+
+		@Override
+		public Optional<DrtOptimizationConstraintsSet> chooseConstraintSet(double departureTime, Link accessActLink, Link egressActLink, Person person, Attributes tripAttributes) {
+			double maxWaitTime = defaultTargetMeanWaitTime * 1.5;
+			// the factor 1.5 is an initial estimation, may need to be adjusted
+
+			Point fromPoint = MGC.coord2Point(accessActLink.getToNode().getCoord());
+			for (SimpleFeature feature : features) {
+				if (fromPoint.within((Geometry) feature.getDefaultGeometry())) {
+					double typicalWaitTimeInZone = Double.parseDouble(feature.getAttribute("typ_wt").toString());
+					if (typicalWaitTimeInZone * 1.5 < maxWaitTime) {
+						maxWaitTime = typicalWaitTimeInZone * 1.5;
+					}
+				}
+			}
+			return Optional.of(constraintsMap.get(maxWaitTime));
+		}
 	}
 }
