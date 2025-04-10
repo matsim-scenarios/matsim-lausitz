@@ -263,6 +263,9 @@ class RunIntegrationTest {
 		for (int i = 0; i < 500; i++) {
 			Person person = populationFactory.createPerson(Id.createPersonId("dummy_person_" + i));
 			PersonUtils.setIncome(person, 1000.);
+			PersonUtils.setAge(person, 30);
+			person.getAttributes().putAttribute("home_x", 863538.13);
+			person.getAttributes().putAttribute("home_y", 5711028.24);
 			Plan plan = populationFactory.createPlan();
 			// a random location in the Hoyerswerda town center
 			Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(863949.91, 5711547.75));
@@ -283,6 +286,9 @@ class RunIntegrationTest {
 
 		Person drtOnly = populationFactory.createPerson(Id.createPersonId("drtOnly"));
 		PersonUtils.setIncome(drtOnly, 1000.);
+		PersonUtils.setAge(drtOnly, 30);
+		drtOnly.getAttributes().putAttribute("home_x", 863538.13);
+		drtOnly.getAttributes().putAttribute("home_y", 5711028.24);
 		Plan plan = populationFactory.createPlan();
 		// a random location in the Hoyerswerda town center
 		Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(863949.91, 5711547.75));
