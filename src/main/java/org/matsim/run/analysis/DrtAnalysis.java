@@ -21,6 +21,7 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.utils.geometry.geotools.MGC;
 import org.matsim.core.utils.io.IOUtils;
+import org.matsim.run.DrtOptions;
 import picocli.CommandLine;
 import tech.tablesaw.api.*;
 import tech.tablesaw.columns.Column;
@@ -178,8 +179,8 @@ public class DrtAnalysis implements MATSimAppCommand {
 			.separator(CsvOptions.detectDelimiter(baseTripsPath)).build());
 
 //		get shp of drt service area
-		ShpOptions drtServiceArea = null;
 		Config config = ConfigUtils.loadConfig(configPath);
+		ShpOptions drtServiceArea = new ShpOptions(Path.of(new DrtOptions().getDrtServiceAreaShpPathFromConfig(config)), null, null);
 		for (DrtConfigGroup drtCfg : ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class).getModalElements()) {
 			if (drtCfg.getMode().equals(TransportMode.drt)) {
 				drtServiceArea = new ShpOptions(Path.of(

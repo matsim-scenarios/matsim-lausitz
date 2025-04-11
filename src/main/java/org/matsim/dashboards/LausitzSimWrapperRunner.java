@@ -31,6 +31,7 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.scenario.ScenarioUtils;
+import org.matsim.run.DrtOptions;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.scenarios.LausitzScenario;
 import org.matsim.simwrapper.Dashboard;
@@ -68,9 +69,11 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	private boolean trips;
 	@CommandLine.Option(names = "--emissions", defaultValue = "false", description = "create emission dashboard")
 	private boolean emissions;
-	@CommandLine.Option(names = "--pt-line-base-dir", description = "create pt line dashboard with base run dir as input")
+	@CommandLine.Option(names = "--base-dir", description = "dir of base run for pt-line and drt dashbord. required if you want one of those dashboards.")
 	private String baseDir;
-	@CommandLine.Option(names = "--drt", defaultValue = "false", description = "create emission dashboard")
+	@CommandLine.Option(names = "--pt-line", defaultValue = "false", description = "create lausitz pt line dashboard")
+	private boolean ptLine;
+	@CommandLine.Option(names = "--drt", defaultValue = "false", description = "create lausitz drt dashboard")
 	private boolean drt;
 
 	private static final String FILE_TYPE = "_before_emissions.xml";
@@ -87,7 +90,7 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 
-		if (!noise && !trips && !emissions && !drt && baseDir == null){
+		if (!noise && !trips && !emissions && !drt && !ptLine){
 			throw new IllegalArgumentException("you have not configured any dashboard to be created! Please use command line parameters!");
 		}
 
@@ -157,9 +160,10 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 
 			if (drt) {
 				new DrtDashboardProvider().getDashboards(config, sw).forEach(sw::addDashboard);
+				sw.addDashboard(new LausitzDrtDashboard(baseDir, config.global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
 			}
 
-			if (baseDir != null) {
+			if (ptLine) {
 				sw.addDashboard(new PtLineDashboard(baseDir));
 			}
 
