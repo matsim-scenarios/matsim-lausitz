@@ -274,21 +274,45 @@ public class DrtAnalysis implements MATSimAppCommand {
 			Coord from = new Coord(row.getDouble("fromX"), row.getDouble("fromY"));
 			Coord to = new Coord(row.getDouble("toX"), row.getDouble("toY"));
 
-//			we need the booleans because we have zones that overlap each other.
-//			this leads to overwriting of zoneIds.
-			boolean origFound = false;
-			boolean destFound = false;
+			double origSurface = 0.;
+			double destSurface = 0.;
 			for (SimpleFeature feature : drtServiceArea.readFeatures()) {
-				if (!origFound && MGC.coord2Point(from).within((Geometry) feature.getDefaultGeometry())) {
-					String id = feature.getAttribute("id").toString();
-					originZoneId.set(i, id);
-					origFound = true;
+				if (origSurface == 0.) {
+					if (MGC.coord2Point(from).within((Geometry) feature.getDefaultGeometry())) {
+						String id = feature.getAttribute("id").toString();
+						originZoneId.set(i, id);
+						origSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
+					}
+				} else {
+//					approximation: if sqm of area is smaller than the matching area before:
+//					this is probably the more accurate zone as the bigger ones typically enclose the smaller ones completely
+					double area = ((Geometry) feature.getDefaultGeometry()).getArea();
+
+					if (MGC.coord2Point(from).within((Geometry) feature.getDefaultGeometry()) &&
+						area < origSurface) {
+//						overwrite originZoneId
+						String id = feature.getAttribute("id").toString();
+						originZoneId.set(i, id);
+						origSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
+					}
 				}
 
-				if (!destFound && MGC.coord2Point(to).within((Geometry) feature.getDefaultGeometry())) {
-					String id = feature.getAttribute("id").toString();
-					destinationZoneId.set(i, id);
-					destFound = true;
+				if (destSurface == 0.) {
+					if (MGC.coord2Point(to).within((Geometry) feature.getDefaultGeometry())) {
+						String id = feature.getAttribute("id").toString();
+						destinationZoneId.set(i, id);
+						destSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
+					}
+				} else {
+//					approximation: if sqm of area is smaller than the matching area before:
+//					this is probably the more accurate zone as the bigger ones typically enclose the smaller ones completely
+					if (MGC.coord2Point(to).within((Geometry) feature.getDefaultGeometry()) &&
+						((Geometry) feature.getDefaultGeometry()).getArea() < destSurface) {
+//						overwrite destinationZoneId
+						String id = feature.getAttribute("id").toString();
+						destinationZoneId.set(i, id);
+						destSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
+					}
 				}
 			}
 		}
