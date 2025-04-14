@@ -1,6 +1,6 @@
 package org.matsim.dashboards;
 
-import org.matsim.run.analysis.DrtAnalysis;
+import org.matsim.run.analysis.LausitzDrtAnalysis;
 import org.matsim.run.scenarios.LausitzScenario;
 import org.matsim.simwrapper.Dashboard;
 import org.matsim.simwrapper.Header;
@@ -47,7 +47,7 @@ public class LausitzDrtDashboard implements Dashboard {
 
 		layout.row("first")
 			.el(Tile.class, (viz, data) -> {
-			viz.dataset = data.compute(DrtAnalysis.class, "mean_travel_stats.csv", args);
+			viz.dataset = data.compute(LausitzDrtAnalysis.class, "mean_travel_stats.csv", args);
 			viz.height = 0.1;
 		});
 
@@ -55,7 +55,7 @@ public class LausitzDrtDashboard implements Dashboard {
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "Agents per income group";
 				viz.stacked = false;
-				viz.dataset = data.compute(DrtAnalysis.class, "drt_persons_income_groups.csv", args);
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "drt_persons_income_groups.csv", args);
 				viz.x = INCOME_GROUP;
 				viz.xAxisName = INCOME_GROUP;
 				viz.yAxisName = SHARE;
@@ -64,7 +64,7 @@ public class LausitzDrtDashboard implements Dashboard {
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "Agents per income group";
 				viz.stacked = false;
-				viz.dataset = data.compute(DrtAnalysis.class, "drt_persons_income_groups.csv", args);
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "drt_persons_income_groups.csv", args);
 				viz.x = INCOME_GROUP;
 				viz.xAxisName = INCOME_GROUP;
 				viz.yAxisName = ABSOLUTE;
@@ -73,7 +73,7 @@ public class LausitzDrtDashboard implements Dashboard {
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "General income distribution";
 				viz.stacked = false;
-				viz.dataset = data.compute(DrtAnalysis.class, "all_persons_income_groups.csv", args);
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "all_persons_income_groups.csv", args);
 				viz.x = INCOME_GROUP;
 				viz.xAxisName = INCOME_GROUP;
 				viz.yAxisName = ABSOLUTE;
@@ -83,7 +83,7 @@ public class LausitzDrtDashboard implements Dashboard {
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "Mean score per income group";
 				viz.stacked = false;
-				viz.dataset = data.compute(DrtAnalysis.class, "drt_persons_mean_score_per_income_group.csv", args);
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "drt_persons_mean_score_per_income_group.csv", args);
 				viz.x = INCOME_GROUP;
 				viz.xAxisName = INCOME_GROUP;
 				viz.yAxisName = "mean score";
@@ -100,7 +100,7 @@ public class LausitzDrtDashboard implements Dashboard {
 					.barMode(tech.tablesaw.plotly.components.Layout.BarMode.STACK)
 					.build();
 
-				Plotly.DataSet ds = viz.addDataset(data.compute(DrtAnalysis.class, "drt_persons_base_modal_share.csv", args))
+				Plotly.DataSet ds = viz.addDataset(data.compute(LausitzDrtAnalysis.class, "drt_persons_base_modal_share.csv", args))
 					.constant(SOURCE, "Base Case Mode")
 					.aggregate(List.of(MAIN_MODE), SHARE, Plotly.AggrFunc.SUM);
 
@@ -120,7 +120,7 @@ public class LausitzDrtDashboard implements Dashboard {
 				viz.height = 7.5;
 				viz.width = 2.0;
 
-				viz.file = data.compute(DrtAnalysis.class, "drt_persons_home_locations.csv");
+				viz.file = data.compute(LausitzDrtAnalysis.class, "drt_persons_home_locations.csv");
 				viz.projection = LausitzScenario.CRS;
 				viz.addAggregation("home locations", "person", "home_x", "home_y");
 			});
@@ -133,7 +133,7 @@ public class LausitzDrtDashboard implements Dashboard {
 					.barMode(tech.tablesaw.plotly.components.Layout.BarMode.STACK)
 					.build();
 
-				Plotly.DataSet ds = viz.addDataset(data.compute(DrtAnalysis.class, "mode_share.csv", args))
+				Plotly.DataSet ds = viz.addDataset(data.compute(LausitzDrtAnalysis.class, "mode_share.csv", args))
 					.constant(SOURCE, "Simulated")
 					.aggregate(List.of(MAIN_MODE), SHARE, Plotly.AggrFunc.SUM);
 
@@ -154,7 +154,7 @@ public class LausitzDrtDashboard implements Dashboard {
 					.barMode(tech.tablesaw.plotly.components.Layout.BarMode.STACK)
 					.build();
 
-				Plotly.DataSet sim = viz.addDataset(data.compute(DrtAnalysis.class, "mode_share_per_dist.csv"))
+				Plotly.DataSet sim = viz.addDataset(data.compute(LausitzDrtAnalysis.class, "mode_share_per_dist.csv"))
 					.constant(SOURCE, "Sim");
 
 				viz.addTrace(BarTrace.builder(Plotly.OBJ_INPUT, Plotly.INPUT).build(),
@@ -165,14 +165,13 @@ public class LausitzDrtDashboard implements Dashboard {
 				);
 			});
 
-//		TODO: how to assure that the matsim-libs drt analysis is run when a drt scenario is run. Do we have to add a binding for DrtDashboardProvider?
 		layout.row("od-map")
 				.el(AggregateOD.class, (viz, data) -> {
 					viz.title = "OD flows between DRT areas by DRT";
-//					the following implicitely requires the matsim-libs drt analysis to be run, which should be ok, it is added via the runscript.
-					viz.shpFile = "analysis/drt/serviceArea.shp";
-					viz.dbfFile = "analysis/drt/serviceArea.dbf";
-					viz.csvFile = data.compute(DrtAnalysis.class, "drt_legs_zones_od.csv");
+					viz.shpFile = data.compute(LausitzDrtAnalysis.class, "serviceArea.shp");
+//					file naming is a workaround, see LausitzDrtAnalysis.class
+					viz.dbfFile = data.compute(LausitzDrtAnalysis.class, "serviceArea1.dbf");
+					viz.csvFile = data.compute(LausitzDrtAnalysis.class, "drt_legs_zones_od.csv");
 					viz.projection = crs;
 					viz.scaleFactor = scaleFactor * 100;
 					viz.idColumn = "id";
@@ -187,7 +186,7 @@ public class LausitzDrtDashboard implements Dashboard {
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "Agents per age group";
 				viz.stacked = false;
-				viz.dataset = data.compute(DrtAnalysis.class, "drt_persons_age_groups.csv", args);
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "drt_persons_age_groups.csv", args);
 				viz.x = AGE_GROUP;
 				viz.xAxisName = AGE_GROUP;
 				viz.yAxisName = SHARE;
@@ -196,7 +195,7 @@ public class LausitzDrtDashboard implements Dashboard {
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "Agents per age group";
 				viz.stacked = false;
-				viz.dataset = data.compute(DrtAnalysis.class, "drt_persons_age_groups.csv", args);
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "drt_persons_age_groups.csv", args);
 				viz.x = AGE_GROUP;
 				viz.xAxisName = AGE_GROUP;
 				viz.yAxisName = ABSOLUTE;
@@ -205,7 +204,7 @@ public class LausitzDrtDashboard implements Dashboard {
 			.el(Bar.class, (viz, data) -> {
 				viz.title = "General age distribution";
 				viz.stacked = false;
-				viz.dataset = data.compute(DrtAnalysis.class, "all_persons_age_groups.csv", args);
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "all_persons_age_groups.csv", args);
 				viz.x = AGE_GROUP;
 				viz.xAxisName = AGE_GROUP;
 				viz.yAxisName = ABSOLUTE;
@@ -218,19 +217,19 @@ public class LausitzDrtDashboard implements Dashboard {
 			.el(Table.class, (viz, data) -> {
 				viz.title = "Executed scores";
 				viz.description = DESCRIPTION;
-				viz.dataset = data.compute(DrtAnalysis.class, "drt_persons_executed_score.csv");
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "drt_persons_executed_score.csv");
 				viz.showAllRows = true;
 			})
 			.el(Table.class, (viz, data) -> {
 				viz.title = "Travel times";
 				viz.description = DESCRIPTION;
-				viz.dataset = data.compute(DrtAnalysis.class, "drt_persons_trav_time.csv");
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "drt_persons_trav_time.csv");
 				viz.showAllRows = true;
 			})
 			.el(Table.class, (viz, data) -> {
 				viz.title = "Travel distances";
 				viz.description = DESCRIPTION;
-				viz.dataset = data.compute(DrtAnalysis.class, "drt_persons_traveled_distance.csv");
+				viz.dataset = data.compute(LausitzDrtAnalysis.class, "drt_persons_traveled_distance.csv");
 				viz.showAllRows = true;
 			});
 	}

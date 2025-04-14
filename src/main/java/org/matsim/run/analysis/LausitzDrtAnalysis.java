@@ -20,6 +20,7 @@ import org.matsim.contrib.drt.run.MultiModeDrtConfigGroup;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.utils.geometry.geotools.MGC;
+import org.matsim.core.utils.gis.GeoFileWriter;
 import org.matsim.core.utils.io.IOUtils;
 import org.matsim.run.DrtOptions;
 import picocli.CommandLine;
@@ -28,6 +29,7 @@ import tech.tablesaw.columns.Column;
 import tech.tablesaw.io.csv.CsvReadOptions;
 import tech.tablesaw.selection.Selection;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -40,17 +42,17 @@ import static tech.tablesaw.aggregate.AggregateFunctions.*;
 	produces = {"drt_persons.csv", "drt_persons_home_locations.csv", "drt_persons_income_groups.csv", "drt_persons_age_groups.csv",
 		"mean_travel_stats.csv", "drt_persons_trav_time.csv", "drt_persons_traveled_distance.csv", "drt_persons_base_modal_share.csv",
 		"drt_persons_mean_score_per_income_group.csv", "drt_persons_executed_score.csv", "all_persons_income_groups.csv", "all_persons_age_groups.csv",
-		"trips_in_drt_service_area.csv.gz", "mode_share.csv", "mode_share_per_dist.csv", "drt_legs_zones_od.csv"
+		"trips_in_drt_service_area.csv.gz", "mode_share.csv", "mode_share_per_dist.csv", "drt_legs_zones_od.csv", "serviceArea.shp", "serviceArea1.dbf"
 	}
 )
 
-public class DrtAnalysis implements MATSimAppCommand {
-	private static final Logger log = LogManager.getLogger(DrtAnalysis.class);
+public class LausitzDrtAnalysis implements MATSimAppCommand {
+	private static final Logger log = LogManager.getLogger(LausitzDrtAnalysis.class);
 
 	@CommandLine.Mixin
-	private final InputOptions input = InputOptions.ofCommand(DrtAnalysis.class);
+	private final InputOptions input = InputOptions.ofCommand(LausitzDrtAnalysis.class);
 	@CommandLine.Mixin
-	private OutputOptions output = OutputOptions.ofCommand(DrtAnalysis.class);
+	private OutputOptions output = OutputOptions.ofCommand(LausitzDrtAnalysis.class);
 	@CommandLine.Option(names = "--income-groups", split = ",", description = "List of income for binning", defaultValue = "0,500,900,1500,2000,3000,4000,5000,6000,7000")
 	private List<Integer> incomeGroups;
 	@CommandLine.Option(names = "--age-groups", split = ",", description = "List of age for binning", defaultValue = "0,18,30,50,70")
@@ -80,7 +82,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 	private static final String DEST_ZONE_ID = "destinationZoneId";
 
 	public static void main(String[] args) {
-		new DrtAnalysis().execute(args);
+		new LausitzDrtAnalysis().execute(args);
 	}
 
 	@Override
@@ -121,7 +123,6 @@ public class DrtAnalysis implements MATSimAppCommand {
 		Map<String, ColumnType> columnTypes = new HashMap<>(Map.of(PERSON, ColumnType.TEXT,
 			TRAV_TIME, ColumnType.STRING, "dep_time", ColumnType.STRING, MAIN_MODE, ColumnType.STRING,
 			TRAV_DIST, ColumnType.DOUBLE, EUCL_DIST, ColumnType.DOUBLE, TRIP_ID, ColumnType.STRING));
-
 
 		Table drtLegs = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(drtLegsPath))
 			.columnTypesPartial(Map.of(DEPARTURE_TIME, ColumnType.DOUBLE, "fromX", ColumnType.DOUBLE, "fromY", ColumnType.DOUBLE,
@@ -190,6 +191,11 @@ public class DrtAnalysis implements MATSimAppCommand {
 			}
 		}
 
+//		write service area to shp
+		GeoFileWriter.writeGeometries(drtServiceArea.readFeatures(), output.getPath("serviceArea.shp").toString());
+//		shp and dbf have the same file name and OutputOptions does not allow us to use an option twice, so we have to do this workaround by copying the dbf file
+		Files.copy(Path.of(output.getPath("serviceArea.shp").toString().replace(".shp", ".dbf")), output.getPath("serviceArea1.dbf"));
+
 		IntList drtServiceAreaTripIds = new IntArrayList();
 		Geometry geometry = drtServiceArea.getGeometry();
 
@@ -215,29 +221,7 @@ public class DrtAnalysis implements MATSimAppCommand {
 
 
 //		filter for trips with drt only
-		TextColumn personTripsColumn = trips.textColumn(PERSON);
-		trips = trips.where(personTripsColumn.isIn(drtLegs.textColumn(PERSON_ID)));
-
-		IntList idx = new IntArrayList();
-
-		for (int i = 0; i < trips.rowCount(); i++) {
-			Row row = trips.row(i);
-
-			Double tripStart = ptLineAnalysis.parseTimeManually(row.getString("dep_time"));
-//			waiting time already included in travel time
-			Double travelTime = ptLineAnalysis.parseTimeManually(row.getString(TRAV_TIME));
-
-			Table filtered = drtLegs.where(drtLegs.textColumn(PERSON_ID).containsString(row.getString(PERSON)));
-
-			for (int j = 0; j < filtered.rowCount(); j++) {
-				Row filteredRow = filtered.row(j);
-				if (Range.of(tripStart, tripStart + travelTime).contains(filteredRow.getDouble(DEPARTURE_TIME))) {
-					idx.add(i);
-					break;
-				}
-			}
-		}
-		trips = trips.where(Selection.with(idx.toIntArray()));
+		trips = filterTripsWithDrt(trips, drtLegs, ptLineAnalysis);
 
 //		filter trips of base case for comparison
 		StringColumn tripIdColumn = trips.stringColumn(TRIP_ID);
@@ -264,60 +248,34 @@ public class DrtAnalysis implements MATSimAppCommand {
 		return 0;
 	}
 
-	private void aggregateAndWriteDrtODRelations(Table drtLegs, ShpOptions drtServiceArea) {
-		StringColumn originZoneId = StringColumn.create(ORIG_ZONE_ID, new String[drtLegs.rowCount()]);
-		StringColumn destinationZoneId = StringColumn.create(DEST_ZONE_ID, new String[drtLegs.rowCount()]);
+	private Table filterTripsWithDrt(Table trips, Table drtLegs, PtLineAnalysis ptLineAnalysis) {
+		TextColumn personTripsColumn = trips.textColumn(PERSON);
+		trips = trips.where(personTripsColumn.isIn(drtLegs.textColumn(PERSON_ID)));
 
-//		add from and to zone id to drt legs
-		for (int i = 0; i < drtLegs.rowCount(); i++) {
-			Row row = drtLegs.row(i);
+		IntList idx = new IntArrayList();
 
-			Coord from = new Coord(row.getDouble("fromX"), row.getDouble("fromY"));
-			Coord to = new Coord(row.getDouble("toX"), row.getDouble("toY"));
+		for (int i = 0; i < trips.rowCount(); i++) {
+			Row row = trips.row(i);
 
-			double origSurface = 0.;
-			double destSurface = 0.;
-			for (SimpleFeature feature : drtServiceArea.readFeatures()) {
-				if (origSurface == 0.) {
-					if (MGC.coord2Point(from).within((Geometry) feature.getDefaultGeometry())) {
-						String id = feature.getAttribute("id").toString();
-						originZoneId.set(i, id);
-						origSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
-					}
-				} else {
-//					approximation: if sqm of area is smaller than the matching area before:
-//					this is probably the more accurate zone as the bigger ones typically enclose the smaller ones completely
-					double area = ((Geometry) feature.getDefaultGeometry()).getArea();
+			Double tripStart = ptLineAnalysis.parseTimeManually(row.getString("dep_time"));
+//			waiting time already included in travel time
+			Double travelTime = ptLineAnalysis.parseTimeManually(row.getString(TRAV_TIME));
 
-					if (MGC.coord2Point(from).within((Geometry) feature.getDefaultGeometry()) &&
-						area < origSurface) {
-//						overwrite originZoneId
-						String id = feature.getAttribute("id").toString();
-						originZoneId.set(i, id);
-						origSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
-					}
-				}
+			Table filtered = drtLegs.where(drtLegs.textColumn(PERSON_ID).containsString(row.getString(PERSON)));
 
-				if (destSurface == 0.) {
-					if (MGC.coord2Point(to).within((Geometry) feature.getDefaultGeometry())) {
-						String id = feature.getAttribute("id").toString();
-						destinationZoneId.set(i, id);
-						destSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
-					}
-				} else {
-//					approximation: if sqm of area is smaller than the matching area before:
-//					this is probably the more accurate zone as the bigger ones typically enclose the smaller ones completely
-					if (MGC.coord2Point(to).within((Geometry) feature.getDefaultGeometry()) &&
-						((Geometry) feature.getDefaultGeometry()).getArea() < destSurface) {
-//						overwrite destinationZoneId
-						String id = feature.getAttribute("id").toString();
-						destinationZoneId.set(i, id);
-						destSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
-					}
+			for (int j = 0; j < filtered.rowCount(); j++) {
+				Row filteredRow = filtered.row(j);
+				if (Range.of(tripStart, tripStart + travelTime).contains(filteredRow.getDouble(DEPARTURE_TIME))) {
+					idx.add(i);
+					break;
 				}
 			}
 		}
-		drtLegs.addColumns(originZoneId, destinationZoneId);
+		return trips.where(Selection.with(idx.toIntArray()));
+	}
+
+	private void aggregateAndWriteDrtODRelations(Table drtLegs, ShpOptions drtServiceArea) {
+		drtLegs = addOriginAndDestinationZoneIds(drtLegs, drtServiceArea);
 
 //		extract hours from departure time
 		DoubleColumn departureTimes = drtLegs.doubleColumn(DEPARTURE_TIME);
@@ -434,6 +392,63 @@ public class DrtAnalysis implements MATSimAppCommand {
 		}
 		aggregatedDrtServiceAreas.removeColumns(origDest);
 		aggregatedDrtServiceAreas.write().csv(output.getPath("drt_legs_zones_od.csv").toFile());
+	}
+
+	private static Table addOriginAndDestinationZoneIds(Table drtLegs, ShpOptions drtServiceArea) {
+		StringColumn originZoneId = StringColumn.create(ORIG_ZONE_ID, new String[drtLegs.rowCount()]);
+		StringColumn destinationZoneId = StringColumn.create(DEST_ZONE_ID, new String[drtLegs.rowCount()]);
+
+//		add from and to zone id to drt legs
+		for (int i = 0; i < drtLegs.rowCount(); i++) {
+			Row row = drtLegs.row(i);
+
+			Coord from = new Coord(row.getDouble("fromX"), row.getDouble("fromY"));
+			Coord to = new Coord(row.getDouble("toX"), row.getDouble("toY"));
+
+			double origSurface = 0.;
+			double destSurface = 0.;
+			for (SimpleFeature feature : drtServiceArea.readFeatures()) {
+				if (origSurface == 0.) {
+					if (MGC.coord2Point(from).within((Geometry) feature.getDefaultGeometry())) {
+						String id = feature.getAttribute("id").toString();
+						originZoneId.set(i, id);
+						origSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
+					}
+				} else {
+//					approximation: if sqm of area is smaller than the matching area before:
+//					this is probably the more accurate zone as the bigger ones typically enclose the smaller ones completely
+					double area = ((Geometry) feature.getDefaultGeometry()).getArea();
+
+					if (MGC.coord2Point(from).within((Geometry) feature.getDefaultGeometry()) &&
+						area < origSurface) {
+//						overwrite originZoneId
+						String id = feature.getAttribute("id").toString();
+						originZoneId.set(i, id);
+						origSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
+					}
+				}
+
+				if (destSurface == 0.) {
+					if (MGC.coord2Point(to).within((Geometry) feature.getDefaultGeometry())) {
+						String id = feature.getAttribute("id").toString();
+						destinationZoneId.set(i, id);
+						destSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
+					}
+				} else {
+//					approximation: if sqm of area is smaller than the matching area before:
+//					this is probably the more accurate zone as the bigger ones typically enclose the smaller ones completely
+					if (MGC.coord2Point(to).within((Geometry) feature.getDefaultGeometry()) &&
+						((Geometry) feature.getDefaultGeometry()).getArea() < destSurface) {
+//						overwrite destinationZoneId
+						String id = feature.getAttribute("id").toString();
+						destinationZoneId.set(i, id);
+						destSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
+					}
+				}
+			}
+		}
+		drtLegs.addColumns(originZoneId, destinationZoneId);
+		return drtLegs;
 	}
 
 	private void calcAndWriteModalShares(Table drtServiceAreaTrips) {

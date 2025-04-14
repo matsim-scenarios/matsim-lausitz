@@ -31,7 +31,6 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.scenario.ScenarioUtils;
-import org.matsim.run.DrtOptions;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.scenarios.LausitzScenario;
 import org.matsim.simwrapper.Dashboard;
