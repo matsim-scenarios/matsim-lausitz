@@ -76,9 +76,19 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	private static final String BASE_SUFFIX = "_base";
 	private static final String COUNT_PERSON = "Count [person]";
 
+	PtLineAnalysis(List<Integer> incomeGroups, List<Integer> ageGroups, OutputOptions output) {
+		this.incomeGroups = incomeGroups;
+		this.ageGroups = ageGroups;
+		this.output = output;
+	}
+
+	private PtLineAnalysis() {
+	}
+
 	public static void main(String[] args) {
 		new PtLineAnalysis().execute(args);
 	}
+
 
 	@Override
 	public Integer call() throws Exception {
@@ -120,8 +130,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		persons = addIncomeGroupColumnToTable(persons, incomeLabels);
 
 //		write general income and age distr
-		writeIncomeDistr(persons, incomeLabels, "all_persons_income_groups.csv");
-		writeAgeDistr(persons, "all_persons_age_groups.csv");
+		writeIncomeDistr(persons, incomeLabels, "all_persons_income_groups.csv", null);
+		writeAgeDistr(persons, "all_persons_age_groups.csv", null);
 
 
 
@@ -142,16 +152,16 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		TextColumn basePersonColumn = basePersons.textColumn(PERSON);
 		basePersons = basePersons.where(basePersonColumn.isIn(ptPersons.keySet()));
 
-		writeComparisonTable(persons, basePersons, SCORE, PERSON);
+		writeComparisonTable(persons, basePersons, SCORE, PERSON, "pt_persons_");
 
 //		print csv file with home coords of new pt line agents
-		writeHomeLocations(persons);
+		writeHomeLocations(persons, "pt_persons_");
 
 //		write income distr of new pt line agents
-		writeIncomeDistr(persons, incomeLabels, null);
+		writeIncomeDistr(persons, incomeLabels, null, "pt_persons_");
 
 //		write age distr of new pt line agents
-		writeAgeDistr(persons, null);
+		writeAgeDistr(persons, null, "pt_persons_");
 
 		for (int i = 0; i < basePersons.columnCount(); i++) {
 			Column column = basePersons.column(i);
@@ -166,7 +176,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			.joinOn(INCOME_GROUP).inner(basePersonsIncomeGroup.summarize(SCORE + BASE_SUFFIX, mean).by(INCOME_GROUP));
 
 //		write scores per income group
-		writeScorePerIncomeGroupDistr(scoresPerIncomeGroup, incomeLabels);
+		writeScorePerIncomeGroupDistr(scoresPerIncomeGroup, incomeLabels, "pt_persons_");
 
 		Table trips = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(tripsPath))
 			.columnTypesPartial(columnTypes)
@@ -215,18 +225,18 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 
 //		calc and write mean stats for policy and base case
-		calcAndWriteMeanStats(trips, persons, baseTrips, basePersons);
+		calcAndWriteMeanStats(trips, persons, baseTrips, basePersons, "pt line");
 
 //		write tables for comparison of travel time and distance
-		writeComparisonTable(trips, baseTrips, TRAV_TIME, TRIP_ID);
-		writeComparisonTable(trips, baseTrips, TRAV_DIST, TRIP_ID);
+		writeComparisonTable(trips, baseTrips, TRAV_TIME, TRIP_ID, "pt_persons_");
+		writeComparisonTable(trips, baseTrips, TRAV_DIST, TRIP_ID, "pt_persons_");
 
 //		write mode shares to csv
-		writeBaseModeShares(baseTrips);
+		writeBaseModeShares(baseTrips, "pt_persons_");
 		return 0;
 	}
 
-	private void calcAndWriteMeanStats(Table trips, Table persons, Table baseTrips, Table basePersons) throws IOException {
+	void calcAndWriteMeanStats(Table trips, Table persons, Table baseTrips, Table basePersons, String policy) throws IOException {
 		double meanTravelTimePolicy = calcMean(trips.column(TRAV_TIME));
 		double meanTravelDistancePolicy = calcMean(trips.column(TRAV_DIST));
 		double meanEuclideanDistancePolicy = calcMean(trips.column(EUCL_DIST));
@@ -249,8 +259,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		DecimalFormat f = new DecimalFormat("0.00", new DecimalFormatSymbols(Locale.ENGLISH));
 
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("mean_travel_stats.csv").toString()), getCsvFormat())) {
-			printer.printRecord("\"pt line users (10pct)\"", f.format(persons.rowCount()));
-			printer.printRecord("\"pt line trips (10pct)\"", f.format(trips.rowCount()));
+			printer.printRecord("\"" + policy + " users (10pct)\"", f.format(persons.rowCount()));
+			printer.printRecord("\"" + policy + " trips (10pct)\"", f.format(trips.rowCount()));
 			printer.printRecord("\"mean travel time policy case [s]\"", f.format(meanTravelTimePolicy));
 			printer.printRecord("\"mean travel time base case [s]\"", f.format(meanTravelTimeBase));
 			printer.printRecord("\"mean travel distance policy case [m]\"", f.format(meanTravelDistancePolicy));
@@ -264,7 +274,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writeBaseModeShares(Table baseTrips) {
+	void writeBaseModeShares(Table baseTrips, String prefix) {
 		//		calc shares for new pt line trips in base case
 		StringColumn mainModeColumn = baseTrips.stringColumn(MAIN_MODE);
 
@@ -276,7 +286,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 				.setName(SHARE)
 		);
 
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_base_modal_share.csv").toString()), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(prefix + "base_modal_share.csv").toString()), getCsvFormat())) {
 			printer.printRecord(MAIN_MODE, SHARE);
 			for (int i = 0; i < counts.rowCount(); i++) {
 				Row row = counts.row(i);
@@ -298,9 +308,9 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writeScorePerIncomeGroupDistr(Table scoresPerIncomeGroup, Map<String, Range<Integer>> labels) {
+	void writeScorePerIncomeGroupDistr(Table scoresPerIncomeGroup, Map<String, Range<Integer>> labels, String prefix) {
 
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_mean_score_per_income_group.csv").toString()), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(prefix + "mean_score_per_income_group.csv").toString()), getCsvFormat())) {
 			printer.printRecord(INCOME_GROUP, "mean_score_base", "mean_score_policy");
 
 			List<String> distr = new ArrayList<>();
@@ -331,8 +341,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writeComparisonTable(Table policy, Table base, String paramName, String id) {
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath("pt_persons_" + paramName + ".csv").toString()), getCsvFormat())) {
+	void writeComparisonTable(Table policy, Table base, String paramName, String id, String prefix) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(prefix + paramName + ".csv").toString()), getCsvFormat())) {
 			printer.printRecord(id, paramName + "_policy", paramName + BASE_SUFFIX);
 			for (int i = 0; i < policy.rowCount(); i++) {
 				Row row = policy.row(i);
@@ -355,9 +365,9 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writeHomeLocations(Table persons) throws IOException {
+	void writeHomeLocations(Table persons, String prefix) throws IOException {
 		//		y think about adding first act coords here or even act before / after pt trip
-		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("pt_persons_home_locations.csv")), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath(prefix + "home_locations.csv")), getCsvFormat())) {
 			printer.printRecord(PERSON, "home_x", "home_y");
 
 			for (int i = 0; i < persons.rowCount(); i++) {
@@ -367,10 +377,10 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writeIncomeDistr(Table persons, Map<String, Range<Integer>> labels, String outputString) {
+	void writeIncomeDistr(Table persons, Map<String, Range<Integer>> labels, String outputString, String prefix) {
 		List<String> incomeDistr = getDistr(persons, INCOME_GROUP, labels);
 
-		String file = (outputString != null) ? outputString : "pt_persons_income_groups.csv";
+		String file = (outputString != null) ? outputString : prefix + "income_groups.csv";
 
 //		print income distr
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(file).toString()), getCsvFormat())) {
@@ -383,7 +393,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 	}
 
-	private void writeAgeDistr(Table persons, String outputString) {
+	void writeAgeDistr(Table persons, String outputString, String prefix) {
 		Map<String, Range<Integer>> labels = getLabels(ageGroups);
 		labels.put(ageGroups.getLast() + "+", Range.of(ageGroups.getLast(), 120));
 		ageGroups.add(Integer.MAX_VALUE);
@@ -415,7 +425,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 
 		List<String> ageDistr = getDistr(persons, AGE_GROUP, labels);
 
-		String file = (outputString != null) ? outputString : "pt_persons_age_groups.csv";
+		String file = (outputString != null) ? outputString : prefix + "age_groups.csv";
 
 
 //		print age distr
@@ -449,7 +459,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		return total / column.size();
 	}
 
-	private Table addIncomeGroupColumnToTable(Table persons, Map<String, Range<Integer>> incomeLabels) {
+	Table addIncomeGroupColumnToTable(Table persons, Map<String, Range<Integer>> incomeLabels) {
 		persons.addColumns(StringColumn.create(INCOME_GROUP));
 
 		for (int i = 0; i < persons.rowCount(); i++) {
@@ -474,7 +484,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		return persons;
 	}
 
-	private Map<String, Range<Integer>> getLabels(List<Integer> groups) {
+	Map<String, Range<Integer>> getLabels(List<Integer> groups) {
 		Map<String, Range<Integer>> labels = new HashMap<>();
 		for (int i = 0; i < groups.size() - 1; i++) {
 			labels.put(String.format("%d - %d", groups.get(i), groups.get(i + 1) - 1),
@@ -527,7 +537,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		return Integer.parseInt(s.split(regex)[0]);
 	}
 
-	private double parseTimeManually(String time) {
+	double parseTimeManually(String time) {
 		String[] parts = time.split(":");
 		if (parts.length != 3) {
 			throw new IllegalArgumentException("Invalid time format: " + time);

@@ -300,6 +300,17 @@ public class DrtOptions {
 		return rideTimeStd;
 	}
 
+	public String getDrtServiceAreaShpPathFromConfig(Config config) {
+		String drtServiceAreaShpPath = null;
+		for (DrtConfigGroup drtCfg : ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class).getModalElements()) {
+			if (drtCfg.getMode().equals(TransportMode.drt)) {
+				drtServiceAreaShpPath = (drtCfg.drtServiceAreaShapeFile.startsWith("file:/")) ? drtCfg.drtServiceAreaShapeFile.substring(6) : drtCfg.drtServiceAreaShapeFile;
+				break;
+			}
+		}
+		return drtServiceAreaShpPath;
+	}
+
 	/**
 	 * Defines if all necessary configs for intermodality between drt and pt should be made.
 	 */
