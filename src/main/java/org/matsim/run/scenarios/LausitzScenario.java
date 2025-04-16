@@ -155,6 +155,8 @@ public class LausitzScenario extends MATSimApplication {
 //		for more info see PTFareModule / ChainedPtFareCalculator classes in vsp contrib
 		PtFareConfigGroup ptFareConfigGroup = ConfigUtils.addOrGetModule(config, PtFareConfigGroup.class);
 
+//		TODO: set prices to reference year 2021 in shp file
+//		fare prices for vvo tarifzone 20 have to be set in shp file.
 		FareZoneBasedPtFareParams vvo20 = new FareZoneBasedPtFareParams();
 		vvo20.setTransactionPartner("VVO Tarifzone 20");
 		vvo20.setDescription("VVO Tarifzone 20");
@@ -165,6 +167,21 @@ public class LausitzScenario extends MATSimApplication {
 		germany.setTransactionPartner("Deutschlandtarif");
 		germany.setDescription("Deutschlandtarif");
 		germany.setOrder(2);
+
+//		apply inflation factor to distance based fare. fare values are from 10.12.23 / for the whole of 2024.
+//		car cost in this scenario is projected to 2021. Hence, we deflate the pt cost to 2021
+//		according to https://www-genesis.destatis.de/genesis/online?sequenz=tabelleErgebnis&selectionname=61111-0001&startjahr=1991#abreadcrumb (same source as for car cost inflation in google drive)
+//		Verbraucherpreisindex 2021 to 2024: 103.1 to 119.3 = 16.2 = inflationFactor of 1.16
+//		pt distance cost 2021: cost = (m*distance + b) / inflationFactor = m * inflationFactor * distance + b * inflationFactor
+//		ergo: slope2021 = slope2024/inflationFactor and intercept2021 = intercept2024/inflationFactor
+		double inflationFactor = 1.16;
+		DistanceBasedPtFareParams.DistanceClassLinearFareFunctionParams below100km = germany.getOrCreateDistanceClassFareParams(100_000.);
+		below100km.setFareSlope(below100km.getFareSlope() / inflationFactor);
+		below100km.setFareIntercept(below100km.getFareIntercept() / inflationFactor);
+
+		DistanceBasedPtFareParams.DistanceClassLinearFareFunctionParams greaterThan100km = germany.getOrCreateDistanceClassFareParams(Double.POSITIVE_INFINITY);
+		greaterThan100km.setFareSlope(greaterThan100km.getFareSlope() / inflationFactor);
+		greaterThan100km.setFareIntercept(greaterThan100km.getFareIntercept() / inflationFactor);
 
 		ptFareConfigGroup.addParameterSet(vvo20);
 		ptFareConfigGroup.addParameterSet(germany);
