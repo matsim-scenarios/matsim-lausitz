@@ -88,7 +88,7 @@ input/$V/$N-$V-network-with-pt.xml.gz: input/$V/$N-$V-network-freight-hbefa.xml.
 	 $(shared)/data/gtfs/20230113_train_long.zip\
 	 --prefix regio_,short_,long_\
 	 --shp $(shared)/data/network-area/network-area.shp\
-	 --shp $(shared)/data/network-area/network-area.shp\
+	 --shp $(shared)/data/network-area/network-area-incl-dresden.shp\
 	 --shp $(shared)/data/germany-area/germany-area.shp\
 
 # extract lausitz long haul freight traffic trips from german wide file
