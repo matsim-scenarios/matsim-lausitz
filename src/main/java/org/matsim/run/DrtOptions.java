@@ -307,7 +307,7 @@ public class DrtOptions {
 			if (drtCfg.getMode().equals(TransportMode.drt)) {
 				drtServiceAreaShpPath = (drtCfg.drtServiceAreaShapeFile.startsWith("file:/")) ? drtCfg.drtServiceAreaShapeFile.substring(6) : drtCfg.drtServiceAreaShapeFile;
 //				for cluster paths we need the / at the beginning
-				drtServiceAreaShpPath = (drtCfg.drtServiceAreaShapeFile.startsWith("net/ils")) ? SLASH + drtServiceAreaShpPath : drtServiceAreaShpPath;
+				drtServiceAreaShpPath = (drtServiceAreaShpPath.startsWith("net/ils")) ? SLASH + drtServiceAreaShpPath : drtServiceAreaShpPath;
 				break;
 			}
 		}
