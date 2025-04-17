@@ -157,9 +157,11 @@ public class DrtOptions {
 //			walk also needs to be added as access egress mode
 			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressWalkParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
 			accessEgressWalkParam.setMode(TransportMode.walk);
+//			initial radius for pt stop search
 			accessEgressWalkParam.setInitialSearchRadius(1000);
-			accessEgressWalkParam.setMaxRadius(1000);
-			accessEgressWalkParam.setSearchExtensionRadius(0.1);
+			accessEgressWalkParam.setMaxRadius(100000);
+//			with this, initialSearchRadius gets extended by the set value until maxRadius is reached
+			accessEgressWalkParam.setSearchExtensionRadius(1000);
 			srrConfig.addIntermodalAccessEgress(accessEgressWalkParam);
 
 		}
