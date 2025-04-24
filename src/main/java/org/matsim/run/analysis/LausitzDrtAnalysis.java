@@ -181,12 +181,10 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 
 //		get shp of drt service area
 		Config config = ConfigUtils.loadConfig(configPath);
-		ShpOptions drtServiceArea = new ShpOptions(Path.of(new DrtOptions().getDrtServiceAreaShpPathFromConfig(config)), null, null);
+		ShpOptions drtServiceArea = null;
 		for (DrtConfigGroup drtCfg : ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class).getModalElements()) {
 			if (drtCfg.getMode().equals(TransportMode.drt)) {
-				drtServiceArea = new ShpOptions(Path.of(
-					(drtCfg.drtServiceAreaShapeFile.startsWith("file:/")) ? drtCfg.drtServiceAreaShapeFile.substring(6) : drtCfg.drtServiceAreaShapeFile),
-					null, null);
+				drtServiceArea = new ShpOptions(Path.of(new DrtOptions().getDrtServiceAreaShpPathFromConfig(config)), null, null);
 				break;
 			}
 		}
