@@ -18,6 +18,7 @@ import picocli.CommandLine;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 @CommandLine.Command(
@@ -49,19 +50,20 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 			return 2;
 		}
 
-		if (!shp.isDefined()) {
-			log.error("service area shape file is not defined: {}", shp);
-			return 2;
-		}
+//		if (!shp.isDefined()) {
+//			log.error("service area shape file is not defined: {}", shp);
+//			return 2;
+//		}
 
 		Population population = PopulationUtils.readPopulation(input.toString());
-		Network network = NetworkUtils.readNetwork(networkPath);
+//		Network network = NetworkUtils.readNetwork(networkPath);
 
 		//		shp needs to include all locations, where the new pt line (from pt policy case) has a station
 //		thus, lausitz.shp should be chosen as an input
-		PrepareNetwork.prepareDrtNetwork(network, shp.getShapeFile());
+//		PrepareNetwork.prepareDrtNetwork(network, shp.getShapeFile());
 
-		convertVspRegionalTrainLegsToDrt(population, network);
+//		convertVspRegionalTrainLegsToDrt(population, network);
+		convertVspRegionalTrainTripsToDrt(population);
 
 		PopulationUtils.writePopulation(population, output.toString());
 
@@ -69,9 +71,62 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 	}
 
 	/**
-	 * Method to convert agents, which are using the new vsp pt line (see RunLausitzPtScenario) manually to mode DRT.
+	 * Method to convert trips of agents, which are using the new vsp pt line (see RunLausitzPtScenario) manually to mode DRT.
 	 * The network needs to be including DRT as an allowed mode.
 	 */
+	public static void convertVspRegionalTrainTripsToDrt(Population population) {
+		for (Person person : population.getPersons().values()) {
+			CleanPopulation.removeUnselectedPlans(person);
+
+			Plan selected = person.getSelectedPlan();
+			Plan drtPlan = null;
+
+//			get indexes of pt trips with new pt line
+			List<Integer> tripIndexes = getNewPtLineTripIndexes(selected);
+
+//			only remove routes from legs if no legs with new vsp pt line
+			if (tripIndexes.isEmpty()) {
+				TripStructureUtils.getLegs(selected).forEach(CleanPopulation::removeRouteFromLeg);
+				continue;
+			}
+
+			for (int index : tripIndexes) {
+				TripStructureUtils.Trip oldTrip = TripStructureUtils.getTrips(selected).get(index);
+//				register start and end index of trip in original plan
+				int startIndex = selected.getPlanElements().indexOf(oldTrip.getOriginActivity());
+				int endIndex = selected.getPlanElements().indexOf(oldTrip.getDestinationActivity());
+
+				Leg drtLeg = population.getFactory().createLeg(TransportMode.drt);
+				drtLeg.setTravelTimeUndefined();
+				drtLeg.setDepartureTimeUndefined();
+
+//				copy all plan elements until start act of trip, insert drt leg, copy all plan elements after trip incl end act of trip
+				Plan newPlan = population.getFactory().createPlan();
+				for (int i = 0; i <= startIndex; i++) {
+//					TODO: not sure if List of plan elements here is immutable. if so: add plan elements via plan.addLeg/.addActivitiy
+					newPlan.getPlanElements().add(i, selected.getPlanElements().get(i));
+				}
+				newPlan.getPlanElements().add(drtLeg);
+
+				for (int i = endIndex; i <= selected.getPlanElements().indexOf(selected.getPlanElements().getLast()); i++) {
+					newPlan.getPlanElements().add(i, selected.getPlanElements().get(i));
+				}
+
+//				set selected = new plan in case that agent has 2 trips with new pt line. Then we need to replace both trips by drt.
+				selected = newPlan;
+				drtPlan = newPlan;
+			}
+			person.addPlan(drtPlan);
+			person.removePlan(selected);
+			person.setSelectedPlan(drtPlan);
+		}
+	}
+
+	/**
+	 * Method to convert legs of agents, which are using the new vsp pt line (see RunLausitzPtScenario) manually to mode DRT.
+	 * The network needs to be including DRT as an allowed mode.
+	 */
+	@Deprecated
 	public static void convertVspRegionalTrainLegsToDrt(Population population, Network networkInclDrt) {
 		NetworkFilterManager manager = new NetworkFilterManager(networkInclDrt, new NetworkConfigGroup());
 		manager.addLinkFilter(l -> l.getAllowedModes().contains(TransportMode.drt));
@@ -82,7 +137,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 			Plan selected = person.getSelectedPlan();
 
 //			get indexes of pt legs with new pt line
-			List<Integer> indexes = getNewPtLineIndexes(selected);
+			List<Integer> indexes = getNewPtLineLegIndexes(selected);
 
 //			only remove routes from legs if no legs with new vsp pt line
 			if (indexes.isEmpty()) {
@@ -150,11 +205,25 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 		}
 	}
 
-	public static List<Integer> getNewPtLineIndexes(Plan selected) {
+	public static List<Integer> getNewPtLineLegIndexes(Plan selected) {
 		return TripStructureUtils.getLegs(selected).stream()
 			.filter(l -> l.getRoute().getStartLinkId().toString().contains("pt_vsp_")
 				&& l.getRoute().getEndLinkId().toString().contains("pt_vsp_"))
 			.map(l -> selected.getPlanElements().indexOf(l)).toList();
+	}
+
+	public static List<Integer> getNewPtLineTripIndexes(Plan selected) {
+		List<Integer> tripIndexes = new ArrayList<>();
+
+		for (TripStructureUtils.Trip trip : TripStructureUtils.getTrips(selected)) {
+			for (Leg leg : trip.getLegsOnly()) {
+				if (leg.getRoute().getStartLinkId().toString().contains("pt_vsp_") && leg.getRoute().getEndLinkId().toString().contains("pt_vsp_")) {
+					tripIndexes.add(TripStructureUtils.getTrips(selected).indexOf(trip));
+					break;
+				}
+			}
+		}
+		return tripIndexes;
 	}
 
 	private static void logNotPtInteractionAct(Person person, Activity act, int i) {
