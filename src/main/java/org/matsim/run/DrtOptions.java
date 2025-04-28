@@ -75,7 +75,7 @@ public class DrtOptions {
 	@CommandLine.Option(names = "--intermodal", defaultValue = "INTERMODALITY_ACTIVE", description = "enable intermodality for DRT service")
 	private IntermodalityHandling intermodal;
 
-	@CommandLine.Option(names = "--manual-trip-conversion", defaultValue = "NOT_CONVERT_TRIPS_MANUALLY", description = "enable manual trip conversion from pt to drt " +
+	@CommandLine.Option(names = "--manual-trip-conversion", defaultValue = "DONT_CONVERT_TRIPS_MANUALLY", description = "enable manual trip conversion from pt to drt " +
 		"(for legs with new pt line of LausitzPtScenario).")
 	private ManualTripConversionHandling manualTripConversion;
 
@@ -221,7 +221,7 @@ public class DrtOptions {
 		}
 
 		if (manualTripConversion == ManualTripConversionHandling.CONVERT_TRIPS_MANUALLY) {
-			PrepareDrtScenarioAgents.convertVspRegionalTrainLegsToDrt(scenario.getPopulation(), scenario.getNetwork());
+			PrepareDrtScenarioAgents.convertVspRegionalTrainTripsToDrt(scenario.getPopulation());
 		}
 	}
 
@@ -322,6 +322,6 @@ public class DrtOptions {
 	/**
 	 * Defines if pt legs with new pt regional train from LausitzPtScenario are converted to drt legs manually or not.
 	 */
-	enum ManualTripConversionHandling {CONVERT_TRIPS_MANUALLY, NOT_CONVERT_TRIPS_MANUALLY}
+	enum ManualTripConversionHandling {CONVERT_TRIPS_MANUALLY, DONT_CONVERT_TRIPS_MANUALLY}
 
 }
