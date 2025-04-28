@@ -36,8 +36,8 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 
 	@CommandLine.Option(names = "--agents", description = "Path to csv file with agentIds for filtering. AgentIds should be contained by the first column of the file.", required = true)
 	private String agentsPath;
-	@CommandLine.Option(names = "--run-dir", description = "Path to directory with run output.", required = true)
-	private Path runDir;
+	@CommandLine.Parameters(arity = "1..*", description = "Path to run output directories for which dashboards are to be generated.")
+	private List<Path> inputPaths;
 
 	public static void main(String[] args) {
 		new FilterEventsForSpecificAgents().execute(args);
@@ -45,8 +45,6 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
-		String eventsFile = globFile(runDir, "*output_events.xml.gz").toString();
-
 		Set<Id<Person>> agentSet = new HashSet<>();
 
 //		read csv file with agentIds
@@ -64,12 +62,16 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 			}
 		}
 
-		filterAndWriteEvents(eventsFile, agentSet, new ArrayList<>());
+		for (Path runDir : inputPaths) {
+			log.info("Running on {}", runDir);
+			String eventsFile = globFile(runDir, "*output_events.xml.gz").toString();
+			filterAndWriteEvents(eventsFile, agentSet, new ArrayList<>(), runDir.toString());
+		}
 
 		return 0;
 	}
 
-	private void filterAndWriteEvents(String eventsFile, Set<Id<Person>> agentSet, List<Event> filteredEvents) throws IOException {
+	private void filterAndWriteEvents(String eventsFile, Set<Id<Person>> agentSet, List<Event> filteredEvents, String runDir) throws IOException {
 		EventsManager manager = EventsUtils.createEventsManager();
 		manager.addHandler(new PersonFilterEventsHandler(agentSet, filteredEvents));
 		manager.initProcessing();
@@ -79,7 +81,9 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 		manager.finishProcessing();
 
 		//		for writing filtered events out of list
-		BufferedWriter eventsWriter = IOUtils.getBufferedWriter((runDir.endsWith("/")) ? runDir + "output_events_filtered.xml.gz" : runDir + "/" + "output_events_filtered.xml.gz");
+		String outPath = (runDir.endsWith("/")) ? runDir + "output_events_filtered.xml.gz" : runDir + "/" + "output_events_filtered.xml.gz";
+
+		BufferedWriter eventsWriter = IOUtils.getBufferedWriter(outPath);
 		eventsWriter.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
 		eventsWriter.newLine();
 		eventsWriter.write("<events version=\"1.0\">");
@@ -90,9 +94,10 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 		eventsWriter.newLine();
 		eventsWriter.write("</events>");
 		eventsWriter.close();
+		log.info("Filtered events written to {}", outPath);
 	}
 
-	private final class PersonFilterEventsHandler implements BasicEventHandler {
+	private static final class PersonFilterEventsHandler implements BasicEventHandler {
 		Set<Id<Person>> agentSet;
 		List<Event> filteredEvents;
 		private PersonFilterEventsHandler(Set<Id<Person>> agentSet, List<Event> filteredEvents) {
