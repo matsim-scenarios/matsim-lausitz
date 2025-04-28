@@ -107,9 +107,9 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 	}
 
 	/**
-	 * @deprecated since we now convert full trips instead of legs only.
 	 * Method to convert legs of agents, which are using the new vsp pt line (see RunLausitzPtScenario) manually to mode DRT.
 	 * The network needs to be including DRT as an allowed mode.
+	 * @deprecated since we now convert full trips instead of legs only.
 	 */
 	@Deprecated(since="2024.2")
 	public static void convertVspRegionalTrainLegsToDrt(Population population, Network networkInclDrt) {
