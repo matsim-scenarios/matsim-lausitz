@@ -6,11 +6,11 @@ import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
-import org.matsim.application.options.ShpOptions;
 import org.matsim.application.prepare.population.CleanPopulation;
 import org.matsim.core.config.groups.NetworkConfigGroup;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.network.filter.NetworkFilterManager;
+import org.matsim.core.population.PersonUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.router.TripStructureUtils;
 import org.matsim.run.DrtOptions;
@@ -30,14 +30,11 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 
 	@CommandLine.Parameters(arity = "1", paramLabel = "INPUT", description = "Path to input population")
 	private Path input;
-	@CommandLine.Option(names = "--network", description = "Path to network", required = true)
-	private String networkPath;
 	@CommandLine.Option(names = "--output", description = "Path to output population", required = true)
 	private Path output;
-	@CommandLine.Mixin
-	private final ShpOptions shp = new ShpOptions();
 
 	private static final String PT_INTERACTION = "pt interaction";
+	private static final String VSP_LINK_PREFIX = "pt_vsp_";
 
 	public static void main(String[] args) {
 		new PrepareDrtScenarioAgents().execute(args);
@@ -50,19 +47,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 			return 2;
 		}
 
-//		if (!shp.isDefined()) {
-//			log.error("service area shape file is not defined: {}", shp);
-//			return 2;
-//		}
-
 		Population population = PopulationUtils.readPopulation(input.toString());
-//		Network network = NetworkUtils.readNetwork(networkPath);
-
-		//		shp needs to include all locations, where the new pt line (from pt policy case) has a station
-//		thus, lausitz.shp should be chosen as an input
-//		PrepareNetwork.prepareDrtNetwork(network, shp.getShapeFile());
-
-//		convertVspRegionalTrainLegsToDrt(population, network);
 		convertVspRegionalTrainTripsToDrt(population);
 
 		PopulationUtils.writePopulation(population, output.toString());
@@ -103,13 +88,12 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 //				copy all plan elements until start act of trip, insert drt leg, copy all plan elements after trip incl end act of trip
 				Plan newPlan = population.getFactory().createPlan();
 				for (int i = 0; i <= startIndex; i++) {
-//					TODO: not sure if List of plan elements here is immutable. if so: add plan elements via plan.addLeg/.addActivitiy
-					newPlan.getPlanElements().add(i, selected.getPlanElements().get(i));
+					newPlan.getPlanElements().add(selected.getPlanElements().get(i));
 				}
 				newPlan.getPlanElements().add(drtLeg);
 
 				for (int i = endIndex; i <= selected.getPlanElements().indexOf(selected.getPlanElements().getLast()); i++) {
-					newPlan.getPlanElements().add(i, selected.getPlanElements().get(i));
+					newPlan.getPlanElements().add(selected.getPlanElements().get(i));
 				}
 
 //				set selected = new plan in case that agent has 2 trips with new pt line. Then we need to replace both trips by drt.
@@ -117,16 +101,17 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 				drtPlan = newPlan;
 			}
 			person.addPlan(drtPlan);
-			person.removePlan(selected);
 			person.setSelectedPlan(drtPlan);
+			PersonUtils.removeUnselectedPlans(person);
 		}
 	}
 
 	/**
+	 * @deprecated since we now convert full trips instead of legs only.
 	 * Method to convert legs of agents, which are using the new vsp pt line (see RunLausitzPtScenario) manually to mode DRT.
 	 * The network needs to be including DRT as an allowed mode.
 	 */
-	@Deprecated
+	@Deprecated(since="2024.2")
 	public static void convertVspRegionalTrainLegsToDrt(Population population, Network networkInclDrt) {
 		NetworkFilterManager manager = new NetworkFilterManager(networkInclDrt, new NetworkConfigGroup());
 		manager.addLinkFilter(l -> l.getAllowedModes().contains(TransportMode.drt));
@@ -207,8 +192,8 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 
 	public static List<Integer> getNewPtLineLegIndexes(Plan selected) {
 		return TripStructureUtils.getLegs(selected).stream()
-			.filter(l -> l.getRoute().getStartLinkId().toString().contains("pt_vsp_")
-				&& l.getRoute().getEndLinkId().toString().contains("pt_vsp_"))
+			.filter(l -> l.getRoute().getStartLinkId().toString().contains(VSP_LINK_PREFIX)
+				&& l.getRoute().getEndLinkId().toString().contains(VSP_LINK_PREFIX))
 			.map(l -> selected.getPlanElements().indexOf(l)).toList();
 	}
 
@@ -217,7 +202,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 
 		for (TripStructureUtils.Trip trip : TripStructureUtils.getTrips(selected)) {
 			for (Leg leg : trip.getLegsOnly()) {
-				if (leg.getRoute().getStartLinkId().toString().contains("pt_vsp_") && leg.getRoute().getEndLinkId().toString().contains("pt_vsp_")) {
+				if (leg.getRoute().getStartLinkId().toString().contains(VSP_LINK_PREFIX) && leg.getRoute().getEndLinkId().toString().contains(VSP_LINK_PREFIX)) {
 					tripIndexes.add(TripStructureUtils.getTrips(selected).indexOf(trip));
 					break;
 				}
