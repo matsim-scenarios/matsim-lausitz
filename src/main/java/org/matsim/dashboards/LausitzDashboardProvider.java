@@ -25,10 +25,7 @@ public class LausitzDashboardProvider implements DashboardProvider {
 			.setAnalysisArgs("--person-filter", "subpopulation=person");
 
 		return List.of(trips,
-			new EmissionsDashboard(config.global().getCoordinateSystem()),
-			new PtLineDashboard("https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v2024.2/output/10pct/"),
-			new LausitzDrtDashboard("https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v2024.2/output/10pct/",
-				config.global().getCoordinateSystem(), simWrapper.getConfigGroup().sampleSize)
+			new EmissionsDashboard(config.global().getCoordinateSystem())
 //			the NoiseAnalysis is not run here because it needs more RAM than the entire simulation,
 //			which leads to VM crashes and prevents other analysis to run. We have to run it separately (e.g. with LausitzSimWrapperRunner)
 		);

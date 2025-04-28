@@ -72,6 +72,7 @@ public class LausitzScenario extends MATSimApplication {
 	public static final String MEDIUM_MODE = "truck18t";
 	public static final String LIGHT_MODE = "truck8t";
 	public static final String CRS = "EPSG:25832";
+	public final String basePath = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-" + VERSION + "/output/10pct/";
 
 //	To decrypt hbefa input files set MATSIM_DECRYPTION_PASSWORD as environment variable. ask VSP for access.
 	private static final String HBEFA_2020_PATH = "https://svn.vsp.tu-berlin.de/repos/public-svn/3507bb3997e5657ab9da76dbedbb13c9b5991d3e/0e73947443d68f95202b71a156b337f7f71604ae/";

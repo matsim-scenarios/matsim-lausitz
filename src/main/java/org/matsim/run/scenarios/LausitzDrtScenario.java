@@ -22,9 +22,11 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.utils.io.IOUtils;
+import org.matsim.dashboards.LausitzDrtDashboard;
 import org.matsim.drt.ChainedPtAndDrtFareHandler;
 import org.matsim.drt.ShpBasedDrtRequestValidator;
 import org.matsim.run.DrtOptions;
+import org.matsim.simwrapper.SimWrapper;
 import picocli.CommandLine;
 
 import javax.annotation.Nullable;
@@ -71,6 +73,11 @@ public final class LausitzDrtScenario extends LausitzScenario {
 
 //		apply all necessary scenario changes for drt simulation
 		drtOpt.configureDrtScenario(scenario);
+
+//		add LausitzDrtDashboard. this cannot be done in DrtOptions as we need super.basePath.
+		SimWrapper sw = SimWrapper.create(scenario.getConfig());
+		sw.addDashboard(new LausitzDrtDashboard(super.basePath,
+			scenario.getConfig().global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
 	}
 
 	@Override

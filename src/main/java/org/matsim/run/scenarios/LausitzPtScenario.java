@@ -13,7 +13,9 @@ import org.matsim.core.config.Config;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.routes.RouteUtils;
+import org.matsim.dashboards.PtLineDashboard;
 import org.matsim.pt.transitSchedule.api.*;
+import org.matsim.simwrapper.SimWrapper;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleType;
 import org.matsim.vehicles.Vehicles;
@@ -56,6 +58,9 @@ public class LausitzPtScenario extends LausitzScenario {
 	public void prepareScenario(Scenario scenario) {
 		//		apply all scenario changes from base scenario class
 		super.prepareScenario(scenario);
+
+//		add LausitzPtLineDashbaord.
+		SimWrapper.create(scenario.getConfig()).addDashboard(new PtLineDashboard(super.basePath));
 
 //		pt stops are basically nodes, BUT are assigned to links
 //		each pt stop is assigned a circle link to and from the same node.
@@ -151,8 +156,6 @@ public class LausitzPtScenario extends LausitzScenario {
 	public void prepareControler(Controler controler) {
 		//		apply all controller changes from base scenario class
 		super.prepareControler(controler);
-//		TODO: add potential new Listeners here
-//		maybe a special controler for the new pt line would be handy?!
 	}
 	private TransitInfo configureTransitStops(List<Link> linkList, Network network, TransitSchedule schedule, TransitScheduleFactory fac, int count, Map<Link, Double> travelTimes) {
 		List<Id<Link>> links = new ArrayList<>();

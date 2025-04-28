@@ -28,7 +28,7 @@ public class LausitzDrtDashboard implements Dashboard {
 	private static final String MAIN_MODE = "main_mode";
 	private static final String SOURCE = "source";
 
-	LausitzDrtDashboard(String basePath, String crs, double scaleFactor) {
+	public LausitzDrtDashboard(String basePath, String crs, double scaleFactor) {
 		if (!basePath.endsWith("/")) {
 			basePath += "/";
 		}
