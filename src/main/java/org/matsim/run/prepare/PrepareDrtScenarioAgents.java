@@ -60,6 +60,8 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 	 * The network needs to be including DRT as an allowed mode.
 	 */
 	public static void convertVspRegionalTrainTripsToDrt(Population population) {
+		int personCount = 0;
+		int tripCount = 0;
 		for (Person person : population.getPersons().values()) {
 			CleanPopulation.removeUnselectedPlans(person);
 
@@ -99,11 +101,14 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 //				set selected = new plan in case that agent has 2 trips with new pt line. Then we need to replace both trips by drt.
 				selected = newPlan;
 				drtPlan = newPlan;
+				tripCount++;
 			}
 			person.addPlan(drtPlan);
 			person.setSelectedPlan(drtPlan);
 			PersonUtils.removeUnselectedPlans(person);
+			personCount++;
 		}
+		log.info("Adaption of {} pt trips to drt trips for {} persons done.", tripCount, personCount);
 	}
 
 	/**
