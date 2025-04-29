@@ -196,7 +196,7 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		Files.copy(Path.of(output.getPath("serviceArea.shp").toString().replace(".shp", ".dbf")),
 			output.getPath("serviceArea1.dbf"), StandardCopyOption.REPLACE_EXISTING);
 
-		IntList drtServiceAreaTripIds = new IntArrayList();
+		List<String> drtServiceAreaTripIds = new ArrayList<>();
 		Geometry geometry = drtServiceArea.getGeometry();
 
 //		filter for trips which start or end in service area
@@ -207,14 +207,12 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 			Coord endCoord = new Coord(row.getDouble("end_x"), row.getDouble("end_y"));
 
 			if (MGC.coord2Point(startCoord).within(geometry) || MGC.coord2Point(endCoord).within(geometry)) {
-				drtServiceAreaTripIds.add(i);
+				drtServiceAreaTripIds.add(row.getText(TRIP_ID));
 			}
 		}
 
-//		TODO: here we need to filter out freight trips as well. personIds from trips, which are not in fullPersons personIdColumn need to be filtered out.
-		Table drtServiceAreaTrips = trips
-			.where(Selection.with(drtServiceAreaTripIds.toIntArray()))
-			.where(trips.textColumn(PERSON).isIn(fullPersons.textColumn(PERSON)));
+		Table intermediateTrips = trips.where(trips.textColumn(PERSON).isIn(fullPersons.textColumn(PERSON)));
+		Table drtServiceAreaTrips = intermediateTrips.where(intermediateTrips.stringColumn(TRIP_ID).isIn(drtServiceAreaTripIds));
 
 //		calc and write mode shares
 		calcAndWriteModalShares(drtServiceAreaTrips);
