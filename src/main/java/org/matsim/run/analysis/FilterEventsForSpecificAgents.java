@@ -3,8 +3,9 @@ package org.matsim.run.analysis;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Id;
-import org.matsim.api.core.v01.events.Event;
-import org.matsim.api.core.v01.events.HasPersonId;
+import org.matsim.api.core.v01.events.*;
+import org.matsim.api.core.v01.events.handler.LinkEnterEventHandler;
+import org.matsim.api.core.v01.events.handler.LinkLeaveEventHandler;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CsvOptions;
@@ -13,6 +14,7 @@ import org.matsim.core.events.EventsUtils;
 import org.matsim.core.events.MatsimEventsReader;
 import org.matsim.core.events.handler.BasicEventHandler;
 import org.matsim.core.utils.io.IOUtils;
+import org.matsim.vehicles.Vehicle;
 import picocli.CommandLine;
 
 import java.io.BufferedReader;
@@ -20,10 +22,7 @@ import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static org.matsim.application.ApplicationUtils.globFile;
 
@@ -45,7 +44,7 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
-//		TODO: add LinkEnterEvent for pt vehicles, which the analyzed agents enter!
+//		TODO: via explicitely does not show RE-VSP vehicles. was it just the wrong network? -> pruefen ob netzwerk pt-vsp links beinhaltet
 
 //		read csv file with agentIds
 		Set<Id<Person>> agentSet = readPersonsCsv(agentsPath);
@@ -109,9 +108,10 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 		log.info("Filtered events written to {}", outPath);
 	}
 
-	private static final class PersonFilterEventsHandler implements BasicEventHandler {
+	private static final class PersonFilterEventsHandler implements BasicEventHandler, LinkEnterEventHandler, LinkLeaveEventHandler {
 		Set<Id<Person>> agentSet;
 		List<Event> filteredEvents;
+		Map<Id<Vehicle>, Set<Id<Person>>> person2Vehicle = new HashMap<>();
 		private PersonFilterEventsHandler(Set<Id<Person>> agentSet, List<Event> filteredEvents) {
 			this.agentSet = agentSet;
 			this.filteredEvents = filteredEvents;
@@ -120,6 +120,35 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 		@Override
 		public void handleEvent(Event event) {
 			if (event instanceof HasPersonId hasPersonId && agentSet.contains(hasPersonId.getPersonId())) {
+				filteredEvents.add(event);
+
+				if (event instanceof PersonEntersVehicleEvent personEntersVehicleEvent) {
+//					we want to track vehicles which our agents enter
+					person2Vehicle.putIfAbsent(personEntersVehicleEvent.getVehicleId(), new HashSet<>());
+					person2Vehicle.get(personEntersVehicleEvent.getVehicleId()).add(personEntersVehicleEvent.getPersonId());
+				}
+
+				if (event instanceof PersonLeavesVehicleEvent personLeavesVehicleEvent && this.person2Vehicle.containsKey(personLeavesVehicleEvent.getVehicleId())) {
+					person2Vehicle.get(personLeavesVehicleEvent.getVehicleId()).remove(personLeavesVehicleEvent.getPersonId());
+//					remove vehicle from map if person set is empty
+					if (person2Vehicle.get(personLeavesVehicleEvent.getVehicleId()).isEmpty()) {
+						person2Vehicle.remove(personLeavesVehicleEvent.getVehicleId());
+					}
+				}
+			}
+		}
+
+		@Override
+		public void handleEvent(LinkEnterEvent event) {
+//			add event if one of our filtered agents is in the vehicle
+			if (person2Vehicle.containsKey(event.getVehicleId())) {
+				filteredEvents.add(event);
+			}
+		}
+
+		@Override
+		public void handleEvent(LinkLeaveEvent event) {
+			if (person2Vehicle.containsKey(event.getVehicleId())) {
 				filteredEvents.add(event);
 			}
 		}
