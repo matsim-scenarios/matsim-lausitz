@@ -156,7 +156,6 @@ public class LausitzScenario extends MATSimApplication {
 //		for more info see PTFareModule / ChainedPtFareCalculator classes in vsp contrib
 		PtFareConfigGroup ptFareConfigGroup = ConfigUtils.addOrGetModule(config, PtFareConfigGroup.class);
 
-//		TODO: set prices to reference year 2021 in shp file
 //		fare prices for vvo tarifzone 20 have to be set in shp file.
 		FareZoneBasedPtFareParams vvo20 = new FareZoneBasedPtFareParams();
 		vvo20.setTransactionPartner("VVO Tarifzone 20");

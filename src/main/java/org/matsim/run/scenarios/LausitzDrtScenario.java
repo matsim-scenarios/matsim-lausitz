@@ -108,7 +108,6 @@ public final class LausitzDrtScenario extends LausitzScenario {
 						new DirectTripBasedDrtEstimator.Builder()
 //							TODO: for what exactly is the typicalWaitingTIme needed? Don't we set this from the shp file
 							.setWaitingTimeEstimator(new ShapeFileBasedWaitingTimeEstimator(network, shp.readFeatures(), drtOpt.getTypicalWaitTime()))
-//							TODO: set WaitTImeStd to 0 and run case for reference
 							.setWaitingTimeDistributionGenerator(new NormalDistributionGenerator(1, drtOpt.getWaitTimeStd()))
 							.setRideDurationEstimator(new ConstantRideDurationEstimator(drtOpt.getRideTimeAlpha(), drtOpt.getRideTimeBeta()))
 							.setRideDurationDistributionGenerator(new NormalDistributionGenerator(2, drtOpt.getRideTimeStd()))
