@@ -40,24 +40,27 @@ public class AdjustNetworkFreeSpeed implements MATSimAppCommand {
 			adjustMotorwayFreeSpeed(network, motorwayFactor, currentFreeSpeedFactor);
 			adjustNonMotorwayFreeSpeed(network, nonMotorwayFactor, currentFreeSpeedFactor);
 
-		}
-		else if(adjustNonMotorway) {
+		} if(adjustNonMotorway) {
 			adjustNonMotorwayFreeSpeed(network, nonMotorwayFactor, currentFreeSpeedFactor);
-		}
-		else if(adjustMotorway) {
+		} if(adjustMotorway) {
 			adjustMotorwayFreeSpeed(network, motorwayFactor, currentFreeSpeedFactor);
 		}
 
 		NetworkUtils.writeNetwork(network, outputPath);
 		return 0;
 	}
+	/**
+	 * adjust free speed for either the motorway, non motorway road types or both.
+	 */
+
 
 	public static void adjustMotorwayFreeSpeed(Network network, float motorwayFactor, float currentFreeSpeedFactor) {
 		for (Link link : network.getLinks().values()) {
 			// ignore pt Links !
 			if(link.getId().toString().startsWith("pt_")){
 				continue;
-			} else if (link.getAttributes().getAttribute("type").toString().startsWith("highway.motorway")) {
+			}
+			if (link.getAttributes().getAttribute("type").toString().startsWith("highway.motorway")) {
 				double currentSpeed = link.getFreespeed();
 				double newSpeed = (currentSpeed / currentFreeSpeedFactor) * motorwayFactor;
 				link.setFreespeed(newSpeed);
@@ -73,8 +76,8 @@ public class AdjustNetworkFreeSpeed implements MATSimAppCommand {
 		for (Link link : network.getLinks().values()) {
 			if(link.getId().toString().startsWith("pt_")){
 				continue;
-			}else if (link.getAttributes().getAttribute("type").toString().startsWith("highway.motorway")) {
-				continue;
+			} if (link.getAttributes().getAttribute("type").toString().startsWith("highway.motorway")) {
+	 			continue;
 			} else {
 				double currentSpeed = link.getFreespeed();
 				double newSpeed = (currentSpeed / currentFreeSpeedFactor) * nonMotorwayFactor;
