@@ -141,14 +141,14 @@ input/lausitz-small-scale-commercialTraffic-$V-100pct.plans.xml.gz: input/$V/$N-
 # trajectory-to-plans formerly was a collection of methods to prepare a given population
 # now, most of the functions of this class do have their own class (downsample, splitduration types...)
 # it basically only transforms the old attribute format to the new one
+# (--max-typical-duration 0 means that at this point no typical durations are appended to the activity types ... however, this is done later, see
+# below.  kai, feb'25)
 input/$V/prepare-100pct.plans.xml.gz:
 	$(sc) prepare trajectory-to-plans\
 	 --name prepare --sample-size 1 --output input/$V\
 	 --max-typical-duration 0\
 	 --population $(shared)/data/matsim-input-files/senozon/20230111_teilmodell_lausitz/population.xml.gz\
 	 --attributes  $(shared)/data/matsim-input-files/senozon/20230111_teilmodell_lausitz/additionalPersonAttributes.xml.gz
-# (--max-typical-duration 0 means that at this point no typical durations are appended to the activity types ... however, this is done later, see
-# below.  kai, feb'25)
 
 	# resolve senozon aggregated grid coords (activities): distribute them based on landuse.shp
 	$(sc) prepare resolve-grid-coords\
@@ -212,7 +212,6 @@ input/$V/$N-$V-counts-bast.xml.gz: input/$V/$N-$V-network-with-pt.xml.gz
 		--output $@
 
 check: input/$V/$N-$V-100pct.plans-initial.xml.gz
-	#commuter analysis, still TODO
 	$(sc) analysis commuter\
 	 --population $<\
  	 --input-crs $(CRS)\

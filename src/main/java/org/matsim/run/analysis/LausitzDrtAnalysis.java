@@ -31,6 +31,7 @@ import tech.tablesaw.selection.Selection;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 import static org.matsim.application.ApplicationUtils.globFile;
@@ -98,7 +99,7 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		String basePersonsPath = globFile(basePath, "*output_persons.csv.gz").toString();
 		String baseTripsPath = globFile(basePath, "*output_trips.csv.gz").toString();
 
-		Table persons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(personsPath))
+		Table fullPersons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(personsPath))
 			.columnTypesPartial(Map.of(PERSON, ColumnType.TEXT, SCORE, ColumnType.DOUBLE, INCOME, ColumnType.DOUBLE))
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(personsPath)).build());
@@ -108,17 +109,17 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		incomeGroups.add(Integer.MAX_VALUE);
 
 //		filter for real agents only, no freight agents!
-		Table freightPersons = persons.where(persons.textColumn(PERSON).containsString("commercialPersonTraffic")
-			.or(persons.textColumn(PERSON).containsString("freight"))
-			.or(persons.textColumn(PERSON).containsString("goodsTraffic")));
-		persons = persons.where(persons.textColumn(PERSON).isNotIn(freightPersons.textColumn(PERSON)));
+		Table freightPersons = fullPersons.where(fullPersons.textColumn(PERSON).containsString("commercialPersonTraffic")
+			.or(fullPersons.textColumn(PERSON).containsString("freight"))
+			.or(fullPersons.textColumn(PERSON).containsString("goodsTraffic")));
+		fullPersons = fullPersons.where(fullPersons.textColumn(PERSON).isNotIn(freightPersons.textColumn(PERSON)));
 
 		//		add income group column to persons table for further analysis
-		persons = ptLineAnalysis.addIncomeGroupColumnToTable(persons, incomeLabels);
+		fullPersons = ptLineAnalysis.addIncomeGroupColumnToTable(fullPersons, incomeLabels);
 
 //		write general income and age distr
-		ptLineAnalysis.writeIncomeDistr(persons, incomeLabels, "all_persons_income_groups.csv", null);
-		ptLineAnalysis.writeAgeDistr(persons, "all_persons_age_groups.csv", null);
+		ptLineAnalysis.writeIncomeDistr(fullPersons, incomeLabels, "all_persons_income_groups.csv", null);
+		ptLineAnalysis.writeAgeDistr(fullPersons, "all_persons_age_groups.csv", null);
 
 		Map<String, ColumnType> columnTypes = new HashMap<>(Map.of(PERSON, ColumnType.TEXT,
 			TRAV_TIME, ColumnType.STRING, "dep_time", ColumnType.STRING, MAIN_MODE, ColumnType.STRING,
@@ -131,8 +132,8 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 			.separator(CsvOptions.detectDelimiter(tripsPath)).build());
 
 //		filter for persons, which used the new drt service only
-		TextColumn personColumn = persons.textColumn(PERSON);
-		persons = persons.where(personColumn.isIn(drtLegs.textColumn(PERSON_ID)));
+		TextColumn personColumn = fullPersons.textColumn(PERSON);
+		Table persons = fullPersons.where(personColumn.isIn(drtLegs.textColumn(PERSON_ID)));
 
 		//		read base persons and filter them
 		Table basePersons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(basePersonsPath))
@@ -181,12 +182,10 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 
 //		get shp of drt service area
 		Config config = ConfigUtils.loadConfig(configPath);
-		ShpOptions drtServiceArea = new ShpOptions(Path.of(new DrtOptions().getDrtServiceAreaShpPathFromConfig(config)), null, null);
+		ShpOptions drtServiceArea = null;
 		for (DrtConfigGroup drtCfg : ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class).getModalElements()) {
 			if (drtCfg.getMode().equals(TransportMode.drt)) {
-				drtServiceArea = new ShpOptions(Path.of(
-					(drtCfg.drtServiceAreaShapeFile.startsWith("file:/")) ? drtCfg.drtServiceAreaShapeFile.substring(6) : drtCfg.drtServiceAreaShapeFile),
-					null, null);
+				drtServiceArea = new ShpOptions(Path.of(new DrtOptions().getDrtServiceAreaShpPathFromConfig(config)), null, null);
 				break;
 			}
 		}
@@ -194,9 +193,10 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 //		write service area to shp
 		GeoFileWriter.writeGeometries(drtServiceArea.readFeatures(), output.getPath("serviceArea.shp").toString());
 //		shp and dbf have the same file name and OutputOptions does not allow us to use an option twice, so we have to do this workaround by copying the dbf file
-		Files.copy(Path.of(output.getPath("serviceArea.shp").toString().replace(".shp", ".dbf")), output.getPath("serviceArea1.dbf"));
+		Files.copy(Path.of(output.getPath("serviceArea.shp").toString().replace(".shp", ".dbf")),
+			output.getPath("serviceArea1.dbf"), StandardCopyOption.REPLACE_EXISTING);
 
-		IntList drtServiceAreaTripIds = new IntArrayList();
+		List<String> drtServiceAreaTripIds = new ArrayList<>();
 		Geometry geometry = drtServiceArea.getGeometry();
 
 //		filter for trips which start or end in service area
@@ -207,11 +207,12 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 			Coord endCoord = new Coord(row.getDouble("end_x"), row.getDouble("end_y"));
 
 			if (MGC.coord2Point(startCoord).within(geometry) || MGC.coord2Point(endCoord).within(geometry)) {
-				drtServiceAreaTripIds.add(i);
+				drtServiceAreaTripIds.add(row.getText(TRIP_ID));
 			}
 		}
 
-		Table drtServiceAreaTrips = trips.where(Selection.with(drtServiceAreaTripIds.toIntArray()));
+		Table intermediateTrips = trips.where(trips.textColumn(PERSON).isIn(fullPersons.textColumn(PERSON)));
+		Table drtServiceAreaTrips = intermediateTrips.where(intermediateTrips.stringColumn(TRIP_ID).isIn(drtServiceAreaTripIds));
 
 //		calc and write mode shares
 		calcAndWriteModalShares(drtServiceAreaTrips);

@@ -23,7 +23,7 @@ public class PtLineDashboard implements Dashboard {
 	private static final String AGE_GROUP = "ageGroup";
 	private static final String DESCRIPTION = "... in base and policy case";
 
-	PtLineDashboard(String basePath) {
+	public PtLineDashboard(String basePath) {
 		if (!basePath.endsWith("/")) {
 			basePath += "/";
 		}

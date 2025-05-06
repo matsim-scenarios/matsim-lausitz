@@ -22,9 +22,12 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.utils.io.IOUtils;
+import org.matsim.dashboards.LausitzDrtDashboard;
 import org.matsim.drt.ChainedPtAndDrtFareHandler;
 import org.matsim.drt.ShpBasedDrtRequestValidator;
 import org.matsim.run.DrtOptions;
+import org.matsim.simwrapper.SimWrapper;
+import org.matsim.simwrapper.SimWrapperModule;
 import picocli.CommandLine;
 
 import javax.annotation.Nullable;
@@ -38,6 +41,8 @@ public final class LausitzDrtScenario extends LausitzScenario {
 	//	run params re drt are contained in separate class DrtOptions
 	@CommandLine.ArgGroup(heading = "%nDrt options%n", exclusive = false, multiplicity = "0..1")
 	private final DrtOptions drtOpt = new DrtOptions();
+
+	private SimWrapper sw;
 
 	//	this constructor is needed when this class is to be called from external classes with a given Config (e.g. for testing).
 	public LausitzDrtScenario(Config config) {
@@ -71,6 +76,11 @@ public final class LausitzDrtScenario extends LausitzScenario {
 
 //		apply all necessary scenario changes for drt simulation
 		drtOpt.configureDrtScenario(scenario);
+
+//		add LausitzDrtDashboard. this cannot be done in DrtOptions as we need super.basePath.
+		sw = SimWrapper.create(scenario.getConfig());
+		sw.addDashboard(new LausitzDrtDashboard(super.basePath,
+			scenario.getConfig().global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
 	}
 
 	@Override
@@ -86,6 +96,9 @@ public final class LausitzDrtScenario extends LausitzScenario {
 
 		controler.addOverridingModule(new DvrpModule());
 		controler.addOverridingModule(new MultiModeDrtModule());
+//		simwrapper module already is added in LausitzScenario class
+//		but we need the custom dashboard for this case, so we add it again. -sm05225
+		controler.addOverridingModule(new SimWrapperModule(sw));
 
 //		the following cannot be "experts only" (like requested from KN) because without it DRT would not work
 //		here, the DynActivityEngine, PreplanningEngine + DvrpModule for each drt mode are added to the qsim components
@@ -99,6 +112,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 				public void install() {
 					DrtEstimatorModule.bindEstimator(binder(), drtConfigGroup.mode).toInstance(
 						new DirectTripBasedDrtEstimator.Builder()
+//							TODO: for what exactly is the typicalWaitingTIme needed? Don't we set this from the shp file
 							.setWaitingTimeEstimator(new ShapeFileBasedWaitingTimeEstimator(network, shp.readFeatures(), drtOpt.getTypicalWaitTime()))
 							.setWaitingTimeDistributionGenerator(new NormalDistributionGenerator(1, drtOpt.getWaitTimeStd()))
 							.setRideDurationEstimator(new ConstantRideDurationEstimator(drtOpt.getRideTimeAlpha(), drtOpt.getRideTimeBeta()))
@@ -106,7 +120,9 @@ public final class LausitzDrtScenario extends LausitzScenario {
 							.build()
 					);
 
-					bind(PtFareHandler.class).to(ChainedPtAndDrtFareHandler.class);
+					if (drtOpt.getFareHandling() == DrtOptions.FunctionalityHandling.ENABLED) {
+						bind(PtFareHandler.class).to(ChainedPtAndDrtFareHandler.class);
+					}
 				}
 			});
 

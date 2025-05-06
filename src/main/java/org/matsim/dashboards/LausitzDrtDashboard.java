@@ -28,7 +28,7 @@ public class LausitzDrtDashboard implements Dashboard {
 	private static final String MAIN_MODE = "main_mode";
 	private static final String SOURCE = "source";
 
-	LausitzDrtDashboard(String basePath, String crs, double scaleFactor) {
+	public LausitzDrtDashboard(String basePath, String crs, double scaleFactor) {
 		if (!basePath.endsWith("/")) {
 			basePath += "/";
 		}
@@ -114,7 +114,7 @@ public class LausitzDrtDashboard implements Dashboard {
 			})
 			.el(Hexagons.class, (viz, data) -> {
 
-				viz.title = "Pt line agents home locations";
+				viz.title = "Drt users home locations";
 				viz.center = data.context().getCenter();
 				viz.zoom = data.context().mapZoomLevel;
 				viz.height = 7.5;

@@ -3,6 +3,8 @@ package org.matsim.run.drt_post_simulation;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.TransportMode;
@@ -11,6 +13,7 @@ import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CsvOptions;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.population.PopulationUtils;
+import org.matsim.utils.objectattributes.attributable.Attributes;
 import picocli.CommandLine;
 
 import java.nio.file.Files;
@@ -19,11 +22,13 @@ import java.nio.file.Path;
 import static org.matsim.contrib.drt.analysis.afterSimAnalysis.DrtVehicleStoppingTaskWriter.glob;
 
 /**
- * Extract DRT trips from the main output folder.
+ * Extract DRT trips from a MATSim run output folder.
  */
 @CommandLine.Command(name = "extract-drt-trips", description = "Extract drt trips from output runs")
 public class ExtractDrtTrips implements MATSimAppCommand {
-	@CommandLine.Option(names = "--run-folder", description = "path to the output run folder", required = true)
+	private static final Logger log = LogManager.getLogger(ExtractDrtTrips.class);
+
+	@CommandLine.Option(names = "--run-folder", description = "path to the output run folder which is taken as input for drt plans creation.", required = true)
 	private Path input;
 
 	@CommandLine.Option(names = "--output", description = "Output DRT plans", required = true)
@@ -40,8 +45,11 @@ public class ExtractDrtTrips implements MATSimAppCommand {
 		}
 
 		Path outputDrtLegsFile = glob(input, "*output_drt_legs_drt.csv").orElse(Path.of("no such file"));
+		String outputPlansFile = glob(input, "*output_plans.xml.gz").orElse(Path.of("no such file")).toString();
 		Population outputPlans = PopulationUtils.createPopulation(ConfigUtils.createConfig());
 		PopulationFactory populationFactory = outputPlans.getFactory();
+
+		Population fullPop = PopulationUtils.readPopulation(outputPlansFile);
 
 		try (CSVParser parser = new CSVParser(Files.newBufferedReader(outputDrtLegsFile),
 			CSVFormat.Builder.create()
@@ -49,13 +57,25 @@ public class ExtractDrtTrips implements MATSimAppCommand {
 				.setHeader().setSkipHeaderRecord(true)
 				.build())) {
 			int counter = 0;
-			for (CSVRecord record : parser.getRecords()) {
-//				String personId = record.get("personId");
-				Coord fromCoord = new Coord(Double.parseDouble(record.get("fromX")), Double.parseDouble(record.get("fromY")));
-				Coord toCoord = new Coord(Double.parseDouble(record.get("toX")), Double.parseDouble(record.get("toY")));
-				double submissionTime = Double.parseDouble(record.get("submissionTime"));
+			for (CSVRecord rec : parser.getRecords()) {
+				Id<Person> personId = Id.createPersonId(rec.get("personId"));
+				Coord fromCoord = new Coord(Double.parseDouble(rec.get("fromX")), Double.parseDouble(rec.get("fromY")));
+				Coord toCoord = new Coord(Double.parseDouble(rec.get("toX")), Double.parseDouble(rec.get("toY")));
+				double submissionTime = Double.parseDouble(rec.get("submissionTime"));
 
 				Person person = populationFactory.createPerson(Id.createPersonId("drt-passenger-" + counter));
+
+//				retrieve person attributes from full output population and add to new drt person
+				Attributes attrs = fullPop.getPersons().get(personId).getAttributes();
+//				vehicles attr is generated automatically
+				attrs.removeAttribute("vehicles");
+				if (!attrs.isEmpty()) {
+					attrs.getAsMap().keySet().forEach(a -> person.getAttributes().putAttribute(a, attrs.getAttribute(a)));
+				} else {
+					log.warn("Could not find attributes for person {} in output population of run directory {}. " +
+						"Please check if the person was created correctly.", personId, input);
+				}
+
 				Plan plan = populationFactory.createPlan();
 				Activity fromAct = populationFactory.createActivityFromCoord("dummy", fromCoord);
 				fromAct.setEndTime(submissionTime);
