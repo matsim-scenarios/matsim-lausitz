@@ -36,21 +36,23 @@ public class AdjustNetworkFreeSpeed implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 		Network network = NetworkUtils.readNetwork(networkPath);
-		if(adjustMotorway && motorwayFactor != 0) {
+		if(adjustMotorway && adjustNonMotorway) {
 			adjustMotorwayFreeSpeed(network, motorwayFactor, currentFreeSpeedFactor);
 			adjustNonMotorwayFreeSpeed(network, nonMotorwayFactor, currentFreeSpeedFactor);
-
-		} if(adjustNonMotorway) {
+		}
+		if(adjustNonMotorway && !adjustMotorway) {
 			adjustNonMotorwayFreeSpeed(network, nonMotorwayFactor, currentFreeSpeedFactor);
-		} if(adjustMotorway) {
+		}
+		if(adjustMotorway & !adjustNonMotorway) {
 			adjustMotorwayFreeSpeed(network, motorwayFactor, currentFreeSpeedFactor);
 		}
 
 		NetworkUtils.writeNetwork(network, outputPath);
 		return 0;
 	}
+
 	/**
-	 * adjust free speed for either the motorway, non motorway road types or both.
+	 * adjust free speed for all links of all types except motorway.
 	 */
 
 
@@ -60,29 +62,44 @@ public class AdjustNetworkFreeSpeed implements MATSimAppCommand {
 			if(link.getId().toString().startsWith("pt_")){
 				continue;
 			}
+
 			if (link.getAttributes().getAttribute("type").toString().startsWith("highway.motorway")) {
 				double currentSpeed = link.getFreespeed();
-				double newSpeed = (currentSpeed / currentFreeSpeedFactor) * motorwayFactor;
+				//log.info("the current free speed of link {} which is of type {} is {} km/h", link.getId().toString(), link.getAttributes().getAttribute("type"), currentSpeed);
+				double originalSpeed = (currentSpeed / currentFreeSpeedFactor);
+				//log.info("the original free speed of link {} is {} km/h", link.getId().toString(), originalSpeed);
+				double newSpeed = originalSpeed * motorwayFactor;
 				link.setFreespeed(newSpeed);
 				log.info("For link {} the free speed has been adjusted to {} km/h", link.getId().toString(), newSpeed);
+				link.getAttributes().putAttribute("allowed_speed", newSpeed);
+
 			}
 		}
 
 
 
 	}
+	/**
+	 * adjust free speed for all links of type motorway.
+	 */
+
 	public static void adjustNonMotorwayFreeSpeed(Network network, float nonMotorwayFactor, float currentFreeSpeedFactor) {
 		// ignore pt Links !
 		for (Link link : network.getLinks().values()) {
 			if(link.getId().toString().startsWith("pt_")){
 				continue;
-			} if (link.getAttributes().getAttribute("type").toString().startsWith("highway.motorway")) {
+			}
+			if (link.getAttributes().getAttribute("type").toString().startsWith("highway.motorway")) {
 	 			continue;
 			} else {
 				double currentSpeed = link.getFreespeed();
-				double newSpeed = (currentSpeed / currentFreeSpeedFactor) * nonMotorwayFactor;
+				//log.info("the current free speed of link {} which is of type {} is {} km/h", link.getId().toString(), link.getAttributes().getAttribute("type"), currentSpeed);
+				double originalSpeed = (currentSpeed / currentFreeSpeedFactor);
+				//log.info("the original free speed of link {} is {} km/h", link.getId().toString(), originalSpeed);
+				double newSpeed = originalSpeed * nonMotorwayFactor;
 				link.setFreespeed(newSpeed);
 				log.info("For link {} the free speed has been adjusted to {} km/h", link.getId().toString(), newSpeed);
+				link.getAttributes().putAttribute("allowed_speed", newSpeed);
 			}
 		}
 	}
