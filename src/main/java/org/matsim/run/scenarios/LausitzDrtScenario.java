@@ -41,7 +41,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 	//	run params re drt are contained in separate class DrtOptions
 	@CommandLine.ArgGroup(heading = "%nDrt options%n", exclusive = false, multiplicity = "0..1")
 	private final DrtOptions drtOpt = new DrtOptions();
-	@CommandLine.Option(names = "--base-run", description = "Path to run directory of base run. Used for comparison for dashboards/analysis.")
+	@CommandLine.Option(names = "--base-run", description = "Path to run directory of base run. Used for comparison for dashboards/analysis.", defaultValue = ".")
 	private String baseRunDir;
 
 	private SimWrapper sw;

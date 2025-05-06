@@ -30,7 +30,7 @@ import java.util.*;
  * All necessary configs will be made in this class.
  */
 public class LausitzPtScenario extends LausitzScenario {
-	@CommandLine.Option(names = "--base-run", description = "Path to run directory of base run. Used for comparison for dashboards/analysis.")
+	@CommandLine.Option(names = "--base-run", description = "Path to run directory of base run. Used for comparison for dashboards/analysis.", defaultValue = ".")
 	private String baseRunDir;
 
 	private SimWrapper sw;
