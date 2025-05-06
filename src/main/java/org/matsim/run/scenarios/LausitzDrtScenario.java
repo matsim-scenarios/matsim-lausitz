@@ -41,6 +41,8 @@ public final class LausitzDrtScenario extends LausitzScenario {
 	//	run params re drt are contained in separate class DrtOptions
 	@CommandLine.ArgGroup(heading = "%nDrt options%n", exclusive = false, multiplicity = "0..1")
 	private final DrtOptions drtOpt = new DrtOptions();
+	@CommandLine.Option(names = "--base-run", description = "Path to run directory of base run. Used for comparison for dashboards/analysis.")
+	private String baseRunDir;
 
 	private SimWrapper sw;
 
@@ -79,7 +81,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 
 //		add LausitzDrtDashboard. this cannot be done in DrtOptions as we need super.basePath.
 		sw = SimWrapper.create(scenario.getConfig());
-		sw.addDashboard(new LausitzDrtDashboard(super.basePath,
+		sw.addDashboard(new LausitzDrtDashboard(baseRunDir,
 			scenario.getConfig().global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
 	}
 
