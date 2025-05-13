@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.*;
 
 import static org.matsim.application.ApplicationUtils.globFile;
+import static org.matsim.run.scenarios.LausitzScenario.SLASH;
 
 @CommandLine.Command(
 	name = "filter-events",
@@ -44,8 +45,6 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
-//		TODO: via explicitely does not show RE-VSP vehicles. was it just the wrong network? -> pruefen ob netzwerk pt-vsp links beinhaltet
-
 //		read csv file with agentIds
 		Set<Id<Person>> agentSet = readPersonsCsv(agentsPath);
 
@@ -92,7 +91,7 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 		manager.finishProcessing();
 
 		//		for writing filtered events out of list
-		String outPath = (runDir.endsWith("/")) ? runDir + "output_events_filtered.xml.gz" : runDir + "/" + "output_events_filtered.xml.gz";
+		String outPath = (runDir.endsWith(SLASH)) ? runDir + "output_events_filtered.xml.gz" : runDir + SLASH + "output_events_filtered.xml.gz";
 
 		BufferedWriter eventsWriter = IOUtils.getBufferedWriter(outPath);
 		eventsWriter.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>");

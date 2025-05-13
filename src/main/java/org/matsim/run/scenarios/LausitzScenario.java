@@ -67,6 +67,7 @@ public class LausitzScenario extends MATSimApplication {
 
 	public static final String VERSION = "2024.2";
 	public static final String FREIGHT = "longDistanceFreight";
+	public static final String SLASH = "/";
 	private static final String AVERAGE = "average";
 	public static final String HEAVY_MODE = "truck40t";
 	public static final String MEDIUM_MODE = "truck18t";

@@ -12,6 +12,8 @@ import tech.tablesaw.plotly.traces.BarTrace;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.matsim.run.scenarios.LausitzScenario.SLASH;
+
 /**
  * Shows information about an optional policy case, which implements a drt service.
  * It also compares the agents and their trips using the new drt service with their respective trips in the base case.
@@ -29,8 +31,8 @@ public class LausitzDrtDashboard implements Dashboard {
 	private static final String SOURCE = "source";
 
 	public LausitzDrtDashboard(String basePath, String crs, double scaleFactor) {
-		if (!basePath.endsWith("/")) {
-			basePath += "/";
+		if (!basePath.endsWith(SLASH)) {
+			basePath += SLASH;
 		}
 		this.basePath = basePath;
 		this.crs = crs;

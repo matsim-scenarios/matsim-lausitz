@@ -30,6 +30,7 @@ import org.matsim.pt.config.TransitRouterConfigGroup;
 import org.matsim.run.prepare.PrepareDrtScenarioAgents;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.prepare.PrepareTransitSchedule;
+import org.matsim.run.scenarios.LausitzScenario;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleCapacity;
 import org.matsim.vehicles.VehicleType;
@@ -49,7 +50,6 @@ import java.util.Set;
 public class DrtOptions {
 	private static final Logger log = LogManager.getLogger(DrtOptions.class);
 	public static final String DRT_DUMMY_ACT_TYPE = "drt-split-trip";
-	public static final String SLASH = "/";
 
 	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/hoyerswerda-ruhland_Bhf-utm32N.shp")
 	private String drtAreaShp;
@@ -313,7 +313,7 @@ public class DrtOptions {
 			if (drtCfg.getMode().equals(TransportMode.drt)) {
 				drtServiceAreaShpPath = (drtCfg.drtServiceAreaShapeFile.startsWith("file:/")) ? drtCfg.drtServiceAreaShapeFile.substring(6) : drtCfg.drtServiceAreaShapeFile;
 //				for cluster paths we need the / at the beginning
-				drtServiceAreaShpPath = (drtServiceAreaShpPath.startsWith("net/ils")) ? SLASH + drtServiceAreaShpPath : drtServiceAreaShpPath;
+				drtServiceAreaShpPath = (drtServiceAreaShpPath.startsWith("net/ils")) ? LausitzScenario.SLASH + drtServiceAreaShpPath : drtServiceAreaShpPath;
 				break;
 			}
 		}

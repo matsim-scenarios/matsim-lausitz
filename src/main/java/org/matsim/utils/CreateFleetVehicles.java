@@ -47,6 +47,8 @@ import java.util.List;
 import java.util.SplittableRandom;
 import java.util.stream.Collectors;
 
+import static org.matsim.run.scenarios.LausitzScenario.SLASH;
+
 /**
  * Generating DRT fleets. The starting locations can be determined by shape file, depots or completely randomly.
  */
@@ -129,7 +131,7 @@ public class CreateFleetVehicles implements MATSimAppCommand {
 				DvrpVehicleSpecification vehicleSpecification = ImmutableDvrpVehicleSpecification.newBuilder().id(Id.create(operator + "_" + i, DvrpVehicle.class)).startLinkId(startLinkId).capacity(capacity).serviceBeginTime(startTime).serviceEndTime(endTime).build();
 				vehicleSpecifications.add(vehicleSpecification);
 			}
-			new FleetWriter(vehicleSpecifications.stream()).write(outputFolder.toString() + "/" + fleetSize + "-" + capacity + "_seater-" + operator + "-vehicles.xml");
+			new FleetWriter(vehicleSpecifications.stream()).write(outputFolder.toString() + SLASH + fleetSize + "-" + capacity + "_seater-" + operator + "-vehicles.xml");
 		}
 		return 0;
 	}

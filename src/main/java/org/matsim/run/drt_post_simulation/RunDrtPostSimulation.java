@@ -36,6 +36,7 @@ import java.util.*;
 
 import static org.matsim.contrib.drt.analysis.afterSimAnalysis.DrtVehicleStoppingTaskWriter.glob;
 import static org.matsim.contrib.drt.run.DrtConfigGroup.OperationalScheme.serviceAreaBased;
+import static org.matsim.run.scenarios.LausitzScenario.SLASH;
 
 /**
  * Run DRT post-simulation to acquire KPIs of DRT operations.
@@ -96,14 +97,14 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 		// Run simulations and analyze output
 		for (int fleetSize = fleetFrom; fleetSize <= fleetMax; fleetSize += fleetInterval) {
 			// setup run with specific fleet size
-			String outputDirectory = outputRootDirectory + "/" + fleetSize + "-veh";
+			String outputDirectory = outputRootDirectory + SLASH + fleetSize + "-veh";
 			Config config = ConfigUtils.loadConfig(configPath, new MultiModeDrtConfigGroup(), new DvrpConfigGroup());
 			config.controller().setOutputDirectory(outputDirectory);
 			config.global().setCoordinateSystem("EPSG:25832");
 			config.plans().setInputFile(drtPlansPath);
 
 			DrtConfigGroup drtCfg = DrtConfigGroup.getSingleModeDrtConfig(config);
-			drtCfg.vehiclesFile = fleetFolderPath + "/" + fleetSize + "-" + vehicleCapacity + "_seater-drt-vehicles.xml";
+			drtCfg.vehiclesFile = fleetFolderPath + SLASH + fleetSize + "-" + vehicleCapacity + "_seater-drt-vehicles.xml";
 			drtCfg.drtServiceAreaShapeFile = shp.getShapeFile();
 			drtCfg.operationalScheme = serviceAreaBased;
 
