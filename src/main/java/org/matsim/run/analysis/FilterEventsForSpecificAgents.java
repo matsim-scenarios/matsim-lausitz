@@ -35,7 +35,7 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 	private static final Logger log = LogManager.getLogger(FilterEventsForSpecificAgents.class);
 
 	@CommandLine.Option(names = "--agents", description = "Path to csv file with agentIds for filtering. AgentIds should be contained by the first column of the file.", required = true)
-	private String agentsPath;
+	private Path agentsPath;
 	@CommandLine.Parameters(arity = "1..*", description = "Path to run output directories for which dashboards are to be generated.")
 	private List<Path> inputPaths;
 	@CommandLine.Option(names = "--prefix", description = "Prefix for filtered events output file, optional.", defaultValue = "")
@@ -47,12 +47,19 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
-//		read csv file with agentIds
-		Set<Id<Person>> agentSet = readPersonsCsv(agentsPath);
 
 		for (Path runDir : inputPaths) {
 			log.info("Running on {}", runDir);
+
 			String eventsFile = globFile(runDir, "*output_events.xml.gz").toString();
+
+//			get absolute path out of potentially relative agentsPath.
+//			if agentsPath is absolute, it will be taken as is, see path.resolve().
+			Path absoluteAgentsPath = runDir.resolve(agentsPath).normalize();
+
+			//		read csv file with agentIds
+			Set<Id<Person>> agentSet = readPersonsCsv(absoluteAgentsPath.toString());
+
 			filterAndWriteEvents(eventsFile, agentSet, new ArrayList<>(), runDir.toString());
 		}
 
@@ -60,14 +67,12 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 	}
 
 	/**
-	 * Utils class to read a csv file containing personIds.
+	 * Utils method to read a csv file containing personIds.
 	 */
 	public static Set<Id<Person>> readPersonsCsv(String agentsPath) throws IOException {
 		Set<Id<Person>> agentSet = new HashSet<>();
 
 		try(BufferedReader br = new BufferedReader(new FileReader(agentsPath))) {
-			// Skip the header line
-			br.readLine();
 			String line;
 			String delim = String.valueOf(CsvOptions.detectDelimiter(agentsPath));
 			while ((line = br.readLine()) != null) {
