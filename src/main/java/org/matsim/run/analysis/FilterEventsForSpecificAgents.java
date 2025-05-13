@@ -38,6 +38,8 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 	private String agentsPath;
 	@CommandLine.Parameters(arity = "1..*", description = "Path to run output directories for which dashboards are to be generated.")
 	private List<Path> inputPaths;
+	@CommandLine.Option(names = "--prefix", description = "Prefix for filtered events output file, optional.", defaultValue = "")
+	private String prefix;
 
 	public static void main(String[] args) {
 		new FilterEventsForSpecificAgents().execute(args);
@@ -91,7 +93,7 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 		manager.finishProcessing();
 
 		//		for writing filtered events out of list
-		String outPath = (runDir.endsWith(SLASH)) ? runDir + "output_events_filtered.xml.gz" : runDir + SLASH + "output_events_filtered.xml.gz";
+		String outPath = (runDir.endsWith(SLASH)) ? runDir + prefix + "output_events_filtered.xml.gz" : runDir + SLASH + prefix + "output_events_filtered.xml.gz";
 
 		BufferedWriter eventsWriter = IOUtils.getBufferedWriter(outPath);
 		eventsWriter.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
