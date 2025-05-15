@@ -87,7 +87,6 @@ public class LausitzScenario extends MATSimApplication {
 	@CommandLine.Option(names = "--emissions", defaultValue = "PERFORM_EMISSIONS_ANALYSIS", description = "Define if emission analysis should be performed or not.")
 	EmissionAnalysisHandling emissions;
 
-
 	public LausitzScenario(@Nullable Config config) {
 		super(config);
 	}
@@ -217,7 +216,7 @@ public class LausitzScenario extends MATSimApplication {
 		controler.addOverridingModule(new AbstractModule() {
 			@Override
 			public void install() {
-				install(new PtFareModule());
+				install(getPtFareModule());
 				bind(ScoringParametersForPerson.class).to(IncomeDependentUtilityOfMoneyPersonScoringParameters.class).asEagerSingleton();
 
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
@@ -327,6 +326,11 @@ public class LausitzScenario extends MATSimApplication {
 		scenario.getTransitVehicles()
 			.getVehicleTypes()
 			.values().forEach(type -> VehicleUtils.setHbefaVehicleCategory(type.getEngineInformation(), HbefaVehicleCategory.NON_HBEFA_VEHICLE.toString()));
+	}
+
+//	overridable method to implement custom PtFareModules in policy scenarios.
+	public AbstractModule getPtFareModule() {
+		return new PtFareModule();
 	}
 
 	/**
