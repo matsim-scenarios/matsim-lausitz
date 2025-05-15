@@ -1,4 +1,4 @@
-package org.matsim.run.drt_post_simulation;
+package org.matsim.run.drtPostSimulation;
 
 import com.google.common.base.Preconditions;
 import com.google.inject.Singleton;
@@ -27,6 +27,7 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.utils.geometry.geotools.MGC;
+import org.matsim.utils.CreateFleetVehicles;
 import org.matsim.utils.objectattributes.attributable.Attributes;
 import picocli.CommandLine;
 
@@ -44,30 +45,26 @@ import static org.matsim.run.scenarios.LausitzScenario.SLASH;
 public class RunDrtPostSimulation implements MATSimAppCommand {
 	@CommandLine.Option(names = "--config", description = "path to drt config file", required = true)
 	private String configPath;
-
 	@CommandLine.Option(names = "--drt-plans", description = "path to drt plans file (complete path)", defaultValue = "")
 	private String drtPlansPath;
-
 	@CommandLine.Option(names = "--main-sim-output", description = "path to the output folder of main simulation (complete path)", defaultValue = "")
-	private String mainSimOutputPath;
-
+	private Path mainSimOutputPath;
 	@CommandLine.Option(names = "--output", description = "output root directory", required = true)
 	private String outputRootDirectory;
-
 	@CommandLine.Option(names = "--fleet-sizing", description = "a triplet: [from max interval]. ", arity = "1..*", defaultValue = "10 30 5")
 	private List<Integer> fleetSizing;
-
-	@CommandLine.Option(names = "--fleet-folder", description = "path to the fleet folder", defaultValue = "./drt-vehicles/hoyerswerda-ruhland")
-	private String fleetFolderPath;
-
 	@CommandLine.Option(names = "--capacity", description = "vehicle capacity", defaultValue = "8")
 	private String vehicleCapacity;
-
 	@CommandLine.Option(names = "--target-mean-wait-time", description = "target mean wait time by default, can be overwritten by the values in shp", defaultValue = "600")
 	private int defaultTargetMeanWaitTime;
-
+	@CommandLine.Option(names = "--start-time", description = "service starting time", defaultValue = "0")
+	private double startTime;
+	@CommandLine.Option(names = "--end-time", description = "service ending time", defaultValue = "108000")
+	private double endTime;
 	@CommandLine.Mixin
-	private ShpOptions shp = new ShpOptions();
+	private final ShpOptions shp = new ShpOptions();
+
+	private static final String TYP_WT = "typ_wt";
 
 	public static void main(String[] args) {
 		new RunDrtPostSimulation().execute(args);
@@ -78,11 +75,11 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 		// check if drt plans has been specified
 		if (drtPlansPath.isEmpty()){
 			// if not, we extract drt plans from the main run folder and write it to the root output folder
-			if (mainSimOutputPath.isEmpty()){
-				throw new RuntimeException("Please specify the drt plans file or the output folder of the main simulation run!!!");
+			if (mainSimOutputPath == null){
+				throw new IllegalArgumentException("Please specify the drt plans file or the output folder of the main simulation run!!!");
 			}
 			drtPlansPath = outputRootDirectory + "/drt-plans.xml.gz";
-			new ExtractDrtTrips().execute("--run-folder", mainSimOutputPath, "--output", drtPlansPath);
+			new ExtractDrtTrips().execute("--run-folder", mainSimOutputPath.toString(), "--output", drtPlansPath);
 		}
 
 		// Decoding fleet sizing sequence
@@ -104,7 +101,13 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 			config.plans().setInputFile(drtPlansPath);
 
 			DrtConfigGroup drtCfg = DrtConfigGroup.getSingleModeDrtConfig(config);
-			drtCfg.vehiclesFile = fleetFolderPath + SLASH + fleetSize + "-" + vehicleCapacity + "_seater-drt-vehicles.xml";
+
+			//		define CreateFleetVehicles object to generate drt veh fleet
+			CreateFleetVehicles fleetGenerator = new CreateFleetVehicles(Integer.parseInt(vehicleCapacity), drtCfg.getMode(), startTime,
+				endTime, "", shp, config.network().getInputFile(), mainSimOutputPath.getParent());
+
+//			TODO: test the auto creation of fleet vehicles.
+			drtCfg.vehiclesFile = fleetGenerator.generateFleetWithSpecifiedParams(fleetSize, fleetGenerator.getAllowedStartLinks());
 			drtCfg.drtServiceAreaShapeFile = shp.getShapeFile();
 			drtCfg.operationalScheme = serviceAreaBased;
 
@@ -144,10 +147,10 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 					.setDelimiter(CsvOptions.detectDelimiter(customerStats.toString()))
 					.setHeader().setSkipHeaderRecord(true)
 					.build())) {
-				for (CSVRecord record : parser.getRecords()) {
-					Coord fromCoord = new Coord(Double.parseDouble(record.get("fromX")), Double.parseDouble(record.get("fromY")));
+				for (CSVRecord csvRecord : parser.getRecords()) {
+					Coord fromCoord = new Coord(Double.parseDouble(csvRecord.get("fromX")), Double.parseDouble(csvRecord.get("fromY")));
 					waitTimeGroupingPerTargetWaitTime.computeIfAbsent(getMinTargetMeanWaitTime(features, fromCoord), l -> new ArrayList<>())
-						.add(Double.parseDouble(record.get("waitTime")));
+						.add(Double.parseDouble(csvRecord.get("waitTime")));
 				}
 				// check if the mean wait time in each group is below the target value
 				boolean fleetSizeIsAdequate = true;
@@ -171,7 +174,7 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 		double minTargetMeanWaitTime = defaultTargetMeanWaitTime;
 		for (SimpleFeature feature : features) {
 			if (MGC.coord2Point(coord).within((Geometry) feature.getDefaultGeometry())) {
-				double typicalWaitTime = Double.parseDouble(feature.getAttribute("typ_wt").toString());
+				double typicalWaitTime = Double.parseDouble(feature.getAttribute(TYP_WT).toString());
 				if (typicalWaitTime < minTargetMeanWaitTime) {
 					minTargetMeanWaitTime = typicalWaitTime;
 				}
@@ -190,7 +193,7 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 
 		List<SimpleFeature> features = new ShpOptions(drtOperationalArea, null, null).readFeatures();
 		for (SimpleFeature feature : features) {
-			double targetWaitTime = Double.parseDouble(feature.getAttribute("typ_wt").toString());
+			double targetWaitTime = Double.parseDouble(feature.getAttribute(TYP_WT).toString());
 			if (!waitTimes.contains(targetWaitTime * 1.5)){
 				drtConstraintSets.add(createDrtOptimizationConstraintsSet(targetWaitTime * 1.5));
 				waitTimes.add(targetWaitTime * 1.5);
@@ -238,7 +241,7 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 			Point fromPoint = MGC.coord2Point(accessActLink.getToNode().getCoord());
 			for (SimpleFeature feature : features) {
 				if (fromPoint.within((Geometry) feature.getDefaultGeometry())) {
-					double typicalWaitTimeInZone = Double.parseDouble(feature.getAttribute("typ_wt").toString());
+					double typicalWaitTimeInZone = Double.parseDouble(feature.getAttribute(TYP_WT).toString());
 					if (typicalWaitTimeInZone * 1.5 < maxWaitTime) {
 						maxWaitTime = typicalWaitTimeInZone * 1.5;
 					}
