@@ -1,4 +1,4 @@
-package org.matsim.run.drtPostSimulation;
+package org.matsim.run.drtpostsimulation;
 
 import com.google.common.base.Preconditions;
 import com.google.inject.Singleton;
@@ -45,12 +45,12 @@ import static org.matsim.run.scenarios.LausitzScenario.SLASH;
 public class RunDrtPostSimulation implements MATSimAppCommand {
 	@CommandLine.Option(names = "--config", description = "path to drt config file", required = true)
 	private String configPath;
-	@CommandLine.Option(names = "--drt-plans", description = "path to drt plans file (complete path)", defaultValue = "")
-	private String drtPlansPath;
+//	@CommandLine.Option(names = "--drt-plans", description = "path to drt plans file (complete path)", defaultValue = "")
+//	private String drtPlansPath;
 	@CommandLine.Option(names = "--main-sim-output", description = "path to the output folder of main simulation (complete path)", defaultValue = "")
 	private Path mainSimOutputPath;
-	@CommandLine.Option(names = "--output", description = "output root directory", required = true)
-	private String outputRootDirectory;
+//	@CommandLine.Option(names = "--output", description = "output root directory", required = true)
+//	private String outputRootDirectory;
 	@CommandLine.Option(names = "--fleet-sizing", description = "a triplet: [from max interval]. ", arity = "1..*", defaultValue = "10 30 5")
 	private List<Integer> fleetSizing;
 	@CommandLine.Option(names = "--capacity", description = "vehicle capacity", defaultValue = "8")
@@ -65,6 +65,7 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 	private final ShpOptions shp = new ShpOptions();
 
 	private static final String TYP_WT = "typ_wt";
+	private static final String POST_SIM_DIR = "drt-post-simulation";
 
 	public static void main(String[] args) {
 		new RunDrtPostSimulation().execute(args);
@@ -72,14 +73,22 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
-		// check if drt plans has been specified
-		if (drtPlansPath.isEmpty()){
-			// if not, we extract drt plans from the main run folder and write it to the root output folder
-			if (mainSimOutputPath == null){
-				throw new IllegalArgumentException("Please specify the drt plans file or the output folder of the main simulation run!!!");
-			}
-			drtPlansPath = outputRootDirectory + "/drt-plans.xml.gz";
-			new ExtractDrtTrips().execute("--run-folder", mainSimOutputPath.toString(), "--output", drtPlansPath);
+//		// check if drt plans has been specified
+//		if (drtPlansPath.isEmpty()){
+//			// if not, we extract drt plans from the main run folder and write it to the root output folder
+//			if (mainSimOutputPath == null){
+//				throw new IllegalArgumentException("Please specify the drt plans file or the output folder of the main simulation run!!!");
+//			}
+//			Path drtPlansPath = Path.of(mainSimOutputPath + POST_SIM_DIR + "/drt-plans.xml.gz");
+//			new ExtractDrtTrips().execute("--run-folder", mainSimOutputPath.toString(), "--output", drtPlansPath);
+//		}
+
+//		extract drt plans if they do no exist
+		Path drtPlansPath = Path.of(mainSimOutputPath + POST_SIM_DIR + "/drt-plans.xml.gz");
+		if (!Files.exists(drtPlansPath)) {
+//			make sure all parent dirs exist
+			Files.createDirectories(drtPlansPath.getParent());
+			new ExtractDrtTrips().execute("--run-folder", mainSimOutputPath.toString(), "--output", drtPlansPath.toString());
 		}
 
 		// Decoding fleet sizing sequence
@@ -94,13 +103,18 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 		// Run simulations and analyze output
 		for (int fleetSize = fleetFrom; fleetSize <= fleetMax; fleetSize += fleetInterval) {
 			// setup run with specific fleet size
-			String outputDirectory = outputRootDirectory + SLASH + fleetSize + "-veh";
+			String outputDirectory = drtPlansPath.getParent() + SLASH + fleetSize + "-veh";
+//			TODO: rather use output config from run with correct settings and delete stuff we do not need.
 			Config config = ConfigUtils.loadConfig(configPath, new MultiModeDrtConfigGroup(), new DvrpConfigGroup());
 			config.controller().setOutputDirectory(outputDirectory);
 			config.global().setCoordinateSystem("EPSG:25832");
-			config.plans().setInputFile(drtPlansPath);
+			config.plans().setInputFile(drtPlansPath.toString());
 
 			DrtConfigGroup drtCfg = DrtConfigGroup.getSingleModeDrtConfig(config);
+
+//			TODO: clear all replanning strategies except ChangeExpBeta
+//			TODO: clear all mode params except drt (and walk?)
+//			TODO: clear all act params except interaction acts
 
 			//		define CreateFleetVehicles object to generate drt veh fleet
 			CreateFleetVehicles fleetGenerator = new CreateFleetVehicles(Integer.parseInt(vehicleCapacity), drtCfg.getMode(), startTime,
