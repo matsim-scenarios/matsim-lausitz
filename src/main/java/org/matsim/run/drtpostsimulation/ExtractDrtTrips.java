@@ -1,4 +1,4 @@
-package org.matsim.run.drt_post_simulation;
+package org.matsim.run.drtpostsimulation;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;

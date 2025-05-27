@@ -41,7 +41,7 @@ import static org.matsim.application.ApplicationUtils.globFile;
 class RunIntegrationTest {
 
 	@RegisterExtension
-	private MatsimTestUtils utils = new MatsimTestUtils();
+	private final MatsimTestUtils utils = new MatsimTestUtils();
 
 	@TempDir
 	private Path p;
@@ -253,7 +253,7 @@ class RunIntegrationTest {
 		new PopulationWriter(population).write(this.inputPath);
 	}
 
-	private void createDrtTestPopulation(String inputPath) {
+	void createDrtTestPopulation(String inputPath) {
 		Random random = new Random(1);
 		Config config = ConfigUtils.createConfig();
 		Scenario scenario = ScenarioUtils.loadScenario(config);
