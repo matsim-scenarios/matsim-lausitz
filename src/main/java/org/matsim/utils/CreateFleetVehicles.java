@@ -49,8 +49,6 @@ import java.util.List;
 import java.util.SplittableRandom;
 import java.util.stream.Collectors;
 
-import static org.matsim.run.scenarios.LausitzScenario.SLASH;
-
 /**
  * Generating DRT fleets. The starting locations can be determined by shape file, depots or completely randomly.
  */
@@ -118,7 +116,7 @@ public class CreateFleetVehicles implements MATSimAppCommand {
 		List<Link> links = getAllowedStartLinks();
 
 		for (int fleetSize = fleetSizeFrom; fleetSize <= fleetSizeTo; fleetSize += fleetSizeInterval) {
-			generateFleetWithSpecifiedParams(fleetSize, links);
+			generateFleetWithSpecifiedParams(fleetSize, links, null);
 		}
 		return 0;
 	}
@@ -150,7 +148,7 @@ public class CreateFleetVehicles implements MATSimAppCommand {
 	/**
 	 * Method to generate a drt vehicle fleet with specified params.
 	 */
-	public String generateFleetWithSpecifiedParams(int fleetSize, List<Link> allowedStartLinks) {
+	public String generateFleetWithSpecifiedParams(int fleetSize, List<Link> allowedStartLinks, String runId) {
 		log.info("Creating fleet with size {}", fleetSize);
 		List<DvrpVehicleSpecification> vehicleSpecifications = new ArrayList<>();
 		for (int i = 0; i < fleetSize; i++) {
@@ -170,7 +168,8 @@ public class CreateFleetVehicles implements MATSimAppCommand {
 				.build();
 			vehicleSpecifications.add(vehicleSpecification);
 		}
-		String outputPath = outputFolder.toString() + SLASH + fleetSize + "-" + capacity + "_seater-" + operator + "-vehicles.xml";
+		String outputPath = runId != null ? outputFolder.resolve(runId + "." + fleetSize + "-" + capacity + "_seater-" + operator + "-vehicles.xml").toString() :
+			outputFolder.resolve(fleetSize + "-" + capacity + "_seater-" + operator + "-vehicles.xml").toString();
 		new FleetWriter(vehicleSpecifications.stream()).write(outputPath);
 		log.info("Drt fleet with size of {} vehicles and single vehicle capacity of {} written to {}", vehicleSpecifications.size(), capacity, outputPath);
 
