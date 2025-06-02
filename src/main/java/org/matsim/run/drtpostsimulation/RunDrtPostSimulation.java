@@ -35,7 +35,6 @@ import org.matsim.contrib.vsp.pt.fare.PtFareConfigGroup;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigGroup;
 import org.matsim.core.config.ConfigUtils;
-import org.matsim.core.config.groups.QSimConfigGroup;
 import org.matsim.core.config.groups.ReplanningConfigGroup;
 import org.matsim.core.config.groups.RoutingConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
@@ -76,6 +75,8 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 	private double endTime;
 	@CommandLine.Option(names = "--service-area-path", description = "path to the output folder of main simulation (complete path)", required = true)
 	private Path drtServiceAreaPath;
+	@CommandLine.Option(names = "--network-mode", description = "Network mode for drt simulation.", defaultValue = TransportMode.car)
+	private String networkMode;
 
 	private static final String TYP_WT = "typ_wt";
 	private static final String POST_SIM_DIR = "drt-post-simulation";
@@ -136,10 +137,8 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 				newConfig.addModule(group);
 			}
 
-			adaptNewConfig(newConfig, outputDirectory, drtPlansPath, oldConfig);
-
 			DvrpConfigGroup dvrpCfg = ConfigUtils.addOrGetModule(newConfig, DvrpConfigGroup.class);
-			dvrpCfg.networkModes = Set.of(TransportMode.car);
+			dvrpCfg.networkModes = Set.of(networkMode);
 			ConfigUtils.addOrGetModule(newConfig, SimWrapperConfigGroup.class);
 
 			MultiModeDrtConfigGroup multiModeDrtConfigGroup = ConfigUtils.addOrGetModule(newConfig, MultiModeDrtConfigGroup.class);
@@ -162,12 +161,16 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 			CreateFleetVehicles fleetGenerator = new CreateFleetVehicles(Integer.parseInt(vehicleCapacity), drtCfg.getMode(), startTime,
 				endTime, "", shp, newConfig.network().getInputFile(), mainSimOutputPath);
 
-			drtCfg.vehiclesFile = fleetGenerator.generateFleetWithSpecifiedParams(fleetSize, fleetGenerator.getAllowedStartLinks(), newConfig.controller().getRunId());
+			String[] outputVehiclePaths = fleetGenerator.generateFleetWithSpecifiedParams(fleetSize, fleetGenerator.getAllowedStartLinks(), newConfig.controller().getRunId(), networkMode);
+
+			drtCfg.vehiclesFile = outputVehiclePaths[0];
 			drtCfg.drtServiceAreaShapeFile = shp.getShapeFile();
 			drtCfg.operationalScheme = serviceAreaBased;
 			drtCfg.simulationType = DrtConfigGroup.SimulationType.fullSimulation;
 
 			addSpecialDrtParametersets(drtCfg, shp);
+
+			adaptNewConfig(newConfig, outputDirectory, drtPlansPath, oldConfig, outputVehiclePaths[1]);
 
 			Controler controler = DrtControlerCreator.createControler(newConfig, false);
 			// Use shape-file-based constraints
@@ -246,24 +249,23 @@ public class RunDrtPostSimulation implements MATSimAppCommand {
 		drtCfg.addParameterSet(zoneSystemParams);
 	}
 
-	private void adaptNewConfig(Config newConfig, String outputDirectory, Path drtPlansPath, Config oldConfig) throws IOException {
+	private void adaptNewConfig(Config newConfig, String outputDirectory, Path drtPlansPath, Config oldConfig, String outputVehTypesPath) throws IOException {
 		newConfig.controller().setOutputDirectory(outputDirectory);
 		newConfig.controller().setLastIteration(1);
 		newConfig.counts().setInputFile(null);
 		newConfig.global().setCoordinateSystem("EPSG:25832");
 		newConfig.plans().setInputFile(drtPlansPath.toString());
-		newConfig.qsim().setVehiclesSource(QSimConfigGroup.VehiclesSource.defaultVehicle);
 //			set flow/storage cap factors to 1 (as in 100pct) because we only look at drt vehicles anyways
 		newConfig.qsim().setFlowCapFactor(1.);
 		newConfig.qsim().setStorageCapFactor(1.);
-		newConfig.qsim().setMainModes(Set.of(TransportMode.car));
+		newConfig.qsim().setMainModes(Set.of(networkMode));
 		newConfig.replanningAnnealer().setActivateAnnealingModule(false);
 		newConfig.routing().setAccessEgressType(RoutingConfigGroup.AccessEgressType.none);
-		newConfig.routing().setNetworkModes(Set.of(TransportMode.car));
+		newConfig.routing().setNetworkModes(Set.of(networkMode));
 		newConfig.transit().setUseTransit(false);
 		newConfig.transit().setTransitScheduleFile(null);
 		newConfig.transit().setVehiclesFile(null);
-		newConfig.vehicles().setVehiclesFile(null);
+		newConfig.vehicles().setVehiclesFile(outputVehTypesPath);
 
 		//			get output network, filter it for drt only and set as input network if it does not exist yet
 		Path drtNetworkPath = Paths.get(mainSimOutputPath.toString(), POST_SIM_DIR).resolve("drt-network.xml.gz");

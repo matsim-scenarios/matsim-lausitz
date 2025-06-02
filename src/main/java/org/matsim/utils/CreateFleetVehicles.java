@@ -38,6 +38,10 @@ import org.matsim.contrib.dvrp.fleet.FleetWriter;
 import org.matsim.contrib.dvrp.fleet.ImmutableDvrpVehicleSpecification;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.utils.geometry.geotools.MGC;
+import org.matsim.vehicles.MatsimVehicleWriter;
+import org.matsim.vehicles.VehicleType;
+import org.matsim.vehicles.VehicleUtils;
+import org.matsim.vehicles.Vehicles;
 import picocli.CommandLine;
 
 import java.io.IOException;
@@ -88,6 +92,7 @@ public class CreateFleetVehicles implements MATSimAppCommand {
 
 	private static final Logger log = LogManager.getLogger(CreateFleetVehicles.class);
 	private static final SplittableRandom random = new SplittableRandom(1);
+	static final String SEAT = "_seater-";
 
 	public CreateFleetVehicles(int capacity, String operator, double startTime, double endTime, String depotsPath, ShpOptions shp, String networkFile, Path outputFolder) {
 		this.capacity = capacity;
@@ -116,7 +121,7 @@ public class CreateFleetVehicles implements MATSimAppCommand {
 		List<Link> links = getAllowedStartLinks();
 
 		for (int fleetSize = fleetSizeFrom; fleetSize <= fleetSizeTo; fleetSize += fleetSizeInterval) {
-			generateFleetWithSpecifiedParams(fleetSize, links, null);
+			generateFleetWithSpecifiedParams(fleetSize, links, null, TransportMode.drt);
 		}
 		return 0;
 	}
@@ -148,7 +153,7 @@ public class CreateFleetVehicles implements MATSimAppCommand {
 	/**
 	 * Method to generate a drt vehicle fleet with specified params.
 	 */
-	public String generateFleetWithSpecifiedParams(int fleetSize, List<Link> allowedStartLinks, String runId) {
+	public String[] generateFleetWithSpecifiedParams(int fleetSize, List<Link> allowedStartLinks, String runId, String networkMode) {
 		log.info("Creating fleet with size {}", fleetSize);
 		List<DvrpVehicleSpecification> vehicleSpecifications = new ArrayList<>();
 		for (int i = 0; i < fleetSize; i++) {
@@ -168,11 +173,23 @@ public class CreateFleetVehicles implements MATSimAppCommand {
 				.build();
 			vehicleSpecifications.add(vehicleSpecification);
 		}
-		String outputPath = runId != null ? outputFolder.resolve(runId + "." + fleetSize + "-" + capacity + "_seater-" + operator + "-vehicles.xml").toString() :
-			outputFolder.resolve(fleetSize + "-" + capacity + "_seater-" + operator + "-vehicles.xml").toString();
+		String outputPath = runId != null ? outputFolder.resolve(runId + "." + fleetSize + "-" + capacity + SEAT + operator + "-vehicles.xml").toString() :
+			outputFolder.resolve(fleetSize + "-" + capacity + SEAT + operator + "-vehicles.xml").toString();
 		new FleetWriter(vehicleSpecifications.stream()).write(outputPath);
 		log.info("Drt fleet with size of {} vehicles and single vehicle capacity of {} written to {}", vehicleSpecifications.size(), capacity, outputPath);
 
-		return outputPath;
+		String outputVehTypesPath = runId != null ? outputFolder.resolve(runId + "." + capacity + SEAT + operator + "-vehicle-types.xml").toString() :
+			outputFolder.resolve(capacity + SEAT + operator + "-vehicle-types.xml").toString();
+
+		if (!Files.exists(Path.of(outputVehTypesPath))) {
+			Vehicles vehicles = VehicleUtils.createVehiclesContainer();
+			VehicleType type = VehicleUtils.createVehicleType(Id.create(networkMode, VehicleType.class));
+			type.setNetworkMode(networkMode);
+			type.getCapacity().setSeats(capacity);
+			vehicles.addVehicleType(type);
+			new MatsimVehicleWriter(vehicles).writeFile(outputVehTypesPath);
+		}
+
+		return new String[]{outputPath, outputVehTypesPath};
 	}
 }
