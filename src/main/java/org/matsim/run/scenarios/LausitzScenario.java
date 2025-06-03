@@ -237,12 +237,14 @@ public class LausitzScenario extends MATSimApplication {
 		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("freight_end").setTypicalDuration(30 * 60.));
 
 		for (String subpopulation : List.of("commercialPersonTraffic", "commercialPersonTraffic_service", "goodsTraffic")) {
-			config.replanning().addStrategySettings(
-				new ReplanningConfigGroup.StrategySettings()
-					.setStrategyName(DefaultPlanStrategiesModule.DefaultSelector.ChangeExpBeta)
-					.setWeight(0.85)
-					.setSubpopulation(subpopulation)
-			);
+//			for the count experiments we only want agents to use rerouting, such that we do not have to recalibrate! -sm0625
+//			TODO: remove this before merge
+//			config.replanning().addStrategySettings(
+//				new ReplanningConfigGroup.StrategySettings()
+//					.setStrategyName(DefaultPlanStrategiesModule.DefaultSelector.ChangeExpBeta)
+//					.setWeight(0.85)
+//					.setSubpopulation(subpopulation)
+//			);
 
 			config.replanning().addStrategySettings(
 				new ReplanningConfigGroup.StrategySettings()
