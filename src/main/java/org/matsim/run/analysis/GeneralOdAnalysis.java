@@ -38,9 +38,6 @@ public class GeneralOdAnalysis implements MATSimAppCommand {
 	@CommandLine.Mixin
 	private ShpOptions shp;
 
-//	@CommandLine.Mixin
-//	private CrsOptions crs;
-
 	public static void main(String[] args) {
 		new GeneralOdAnalysis().execute(args);
 	}
@@ -68,17 +65,16 @@ public class GeneralOdAnalysis implements MATSimAppCommand {
 					Activity originActivity = trip.getOriginActivity();
 					double departureTime = originActivity.getEndTime().orElse(-1);
 
-					if (CoordUtils.calcEuclideanDistance(fromCoord, toCoord) > minDistance) {
-						if (serviceArea == null || MGC.coord2Point(fromCoord).within(serviceArea) || MGC.coord2Point(toCoord).within(serviceArea)) {
-							printer.printRecord(
-								Double.toString(fromCoord.getX()),
-								Double.toString(fromCoord.getY()),
-								Double.toString(toCoord.getX()),
-								Double.toString(toCoord.getY()),
-								Double.toString(departureTime),
-								mode
-							);
-						}
+					if (CoordUtils.calcEuclideanDistance(fromCoord, toCoord) > minDistance &&
+						(serviceArea == null || MGC.coord2Point(fromCoord).within(serviceArea) || MGC.coord2Point(toCoord).within(serviceArea))) {
+						printer.printRecord(
+							Double.toString(fromCoord.getX()),
+							Double.toString(fromCoord.getY()),
+							Double.toString(toCoord.getX()),
+							Double.toString(toCoord.getY()),
+							Double.toString(departureTime),
+							mode
+						);
 					}
 				}
 			}
