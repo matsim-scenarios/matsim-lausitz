@@ -67,12 +67,12 @@ public class LausitzScenario extends MATSimApplication {
 
 	public static final String VERSION = "2024.2";
 	public static final String FREIGHT = "longDistanceFreight";
+	public static final String SLASH = "/";
 	private static final String AVERAGE = "average";
 	public static final String HEAVY_MODE = "truck40t";
 	public static final String MEDIUM_MODE = "truck18t";
 	public static final String LIGHT_MODE = "truck8t";
 	public static final String CRS = "EPSG:25832";
-	public final String basePath = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v" + VERSION + "/output/10pct/";
 
 //	To decrypt hbefa input files set MATSIM_DECRYPTION_PASSWORD as environment variable. ask VSP for access.
 	private static final String HBEFA_2020_PATH = "https://svn.vsp.tu-berlin.de/repos/public-svn/3507bb3997e5657ab9da76dbedbb13c9b5991d3e/0e73947443d68f95202b71a156b337f7f71604ae/";
@@ -86,7 +86,6 @@ public class LausitzScenario extends MATSimApplication {
 
 	@CommandLine.Option(names = "--emissions", defaultValue = "PERFORM_EMISSIONS_ANALYSIS", description = "Define if emission analysis should be performed or not.")
 	EmissionAnalysisHandling emissions;
-
 
 	public LausitzScenario(@Nullable Config config) {
 		super(config);
@@ -217,7 +216,7 @@ public class LausitzScenario extends MATSimApplication {
 		controler.addOverridingModule(new AbstractModule() {
 			@Override
 			public void install() {
-				install(new PtFareModule());
+				install(getPtFareModule());
 				bind(ScoringParametersForPerson.class).to(IncomeDependentUtilityOfMoneyPersonScoringParameters.class).asEagerSingleton();
 
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
@@ -327,6 +326,11 @@ public class LausitzScenario extends MATSimApplication {
 		scenario.getTransitVehicles()
 			.getVehicleTypes()
 			.values().forEach(type -> VehicleUtils.setHbefaVehicleCategory(type.getEngineInformation(), HbefaVehicleCategory.NON_HBEFA_VEHICLE.toString()));
+	}
+
+//	overridable method to implement custom PtFareModules in policy scenarios.
+	public AbstractModule getPtFareModule() {
+		return new PtFareModule();
 	}
 
 	/**

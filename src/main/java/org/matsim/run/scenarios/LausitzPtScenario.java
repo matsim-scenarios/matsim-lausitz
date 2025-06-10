@@ -20,6 +20,7 @@ import org.matsim.simwrapper.SimWrapperModule;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleType;
 import org.matsim.vehicles.Vehicles;
+import picocli.CommandLine;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -29,6 +30,8 @@ import java.util.*;
  * All necessary configs will be made in this class.
  */
 public class LausitzPtScenario extends LausitzScenario {
+	@CommandLine.Option(names = "--base-run", description = "Path to run directory of base run. Used for comparison for dashboards/analysis.", defaultValue = ".")
+	private String baseRunDir;
 
 	private SimWrapper sw;
 
@@ -63,7 +66,7 @@ public class LausitzPtScenario extends LausitzScenario {
 		super.prepareScenario(scenario);
 
 //		add LausitzPtLineDashboard.
-		sw = SimWrapper.create(scenario.getConfig()).addDashboard(new PtLineDashboard(super.basePath));
+		sw = SimWrapper.create(scenario.getConfig()).addDashboard(new PtLineDashboard(baseRunDir));
 
 //		pt stops are basically nodes, BUT are assigned to links
 //		each pt stop is assigned a circle link to and from the same node.

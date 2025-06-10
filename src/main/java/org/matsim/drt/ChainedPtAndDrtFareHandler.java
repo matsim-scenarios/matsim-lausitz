@@ -29,6 +29,7 @@ public class ChainedPtAndDrtFareHandler implements PtFareHandler {
 	@Inject
 	private EventsManager events;
 	private static final String DRT_INTERACTION = ScoringConfigGroup.createStageActivityType(TransportMode.drt);
+	public static final String DRT_OR_PT_FARE = "drt or drt-pt intermodal fare";
 
 	private final Map<Id<Person>, Coord> personDepartureCoordMap = new HashMap<>();
 	private final Map<Id<Person>, Coord> personArrivalCoordMap = new HashMap<>();
@@ -69,7 +70,7 @@ public class ChainedPtAndDrtFareHandler implements PtFareHandler {
 
 		// charge fare to the person
 		events.processEvent(new PersonMoneyEvent(event.getTime(), event.getPersonId(), -fare.fare(),
-			personInvolvedInDrtTrip.contains(personId)? "drt or drt-pt intermodal fare" : PtFareConfigGroup.PT_FARE,
+			personInvolvedInDrtTrip.contains(personId)? DRT_OR_PT_FARE : PtFareConfigGroup.PT_FARE,
 			fare.transactionPartner(), event.getPersonId().toString()));
 
 		personDepartureCoordMap.remove(personId);

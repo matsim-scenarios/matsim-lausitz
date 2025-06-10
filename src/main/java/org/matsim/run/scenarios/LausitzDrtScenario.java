@@ -16,14 +16,14 @@ import org.matsim.contrib.dvrp.passenger.PassengerRequestValidator;
 import org.matsim.contrib.dvrp.run.AbstractDvrpModeQSimModule;
 import org.matsim.contrib.dvrp.run.DvrpModule;
 import org.matsim.contrib.dvrp.run.DvrpQSimComponents;
-import org.matsim.contrib.vsp.pt.fare.PtFareHandler;
+import org.matsim.contrib.vsp.pt.fare.PtFareModule;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.utils.io.IOUtils;
 import org.matsim.dashboards.LausitzDrtDashboard;
-import org.matsim.drt.ChainedPtAndDrtFareHandler;
+import org.matsim.drt.PtAndDrtFareModule;
 import org.matsim.drt.ShpBasedDrtRequestValidator;
 import org.matsim.run.DrtOptions;
 import org.matsim.simwrapper.SimWrapper;
@@ -41,6 +41,8 @@ public final class LausitzDrtScenario extends LausitzScenario {
 	//	run params re drt are contained in separate class DrtOptions
 	@CommandLine.ArgGroup(heading = "%nDrt options%n", exclusive = false, multiplicity = "0..1")
 	private final DrtOptions drtOpt = new DrtOptions();
+	@CommandLine.Option(names = "--base-run", description = "Path to run directory of base run. Used for comparison for dashboards/analysis.", defaultValue = ".")
+	private String baseRunDir;
 
 	private SimWrapper sw;
 
@@ -79,7 +81,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 
 //		add LausitzDrtDashboard. this cannot be done in DrtOptions as we need super.basePath.
 		sw = SimWrapper.create(scenario.getConfig());
-		sw.addDashboard(new LausitzDrtDashboard(super.basePath,
+		sw.addDashboard(new LausitzDrtDashboard(baseRunDir,
 			scenario.getConfig().global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
 	}
 
@@ -119,10 +121,6 @@ public final class LausitzDrtScenario extends LausitzScenario {
 							.setRideDurationDistributionGenerator(new NormalDistributionGenerator(2, drtOpt.getRideTimeStd()))
 							.build()
 					);
-
-					if (drtOpt.getFareHandling() == DrtOptions.FunctionalityHandling.ENABLED) {
-						bind(PtFareHandler.class).to(ChainedPtAndDrtFareHandler.class);
-					}
 				}
 			});
 
@@ -134,6 +132,19 @@ public final class LausitzDrtScenario extends LausitzScenario {
 						modalProvider(getter -> new ShpBasedDrtRequestValidator(shp))).asEagerSingleton();
 				}
 			});
+		}
+	}
+
+
+//	this method overrides the getPtFareModule method in LausitzScenario (parent class).
+//	for DRT we need an upperBoundHandler which gives fare refunds when using pt OR drt.
+//	the handler is added in PtAndDrtFareModule. -sm0525
+	@Override
+	public AbstractModule getPtFareModule() {
+		if (drtOpt.getFareHandling() == DrtOptions.FunctionalityHandling.ENABLED) {
+			return new PtAndDrtFareModule();
+		} else {
+			return new PtFareModule();
 		}
 	}
 }

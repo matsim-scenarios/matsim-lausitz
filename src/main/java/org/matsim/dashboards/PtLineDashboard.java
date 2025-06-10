@@ -11,6 +11,8 @@ import tech.tablesaw.plotly.traces.BarTrace;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.matsim.run.scenarios.LausitzScenario.SLASH;
+
 /**
  * Shows information about an optional policy case, which implements a pt line between Cottbus and Hoyerswerda.
  * It also compares the agents and their trips using the new pt line with their respective trips in the base case.
@@ -24,8 +26,8 @@ public class PtLineDashboard implements Dashboard {
 	private static final String DESCRIPTION = "... in base and policy case";
 
 	public PtLineDashboard(String basePath) {
-		if (!basePath.endsWith("/")) {
-			basePath += "/";
+		if (!basePath.endsWith(SLASH)) {
+			basePath += SLASH;
 		}
 		this.basePath = basePath;
 	}
