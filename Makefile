@@ -88,7 +88,7 @@ input/$V/$N-$V-network-with-pt.xml.gz: input/$V/$N-$V-network-freight-hbefa.xml.
 	 $(shared)/data/gtfs/20230113_train_long.zip\
 	 --prefix regio_,short_,long_\
 	 --shp $(shared)/data/network-area/network-area.shp\
-	 --shp $(shared)/data/network-area/network-area.shp\
+	 --shp $(shared)/data/network-area/network-area-incl-dresden.shp\
 	 --shp $(shared)/data/germany-area/germany-area.shp\
 
 # extract lausitz long haul freight traffic trips from german wide file
@@ -141,6 +141,8 @@ input/lausitz-small-scale-commercialTraffic-$V-100pct.plans.xml.gz: input/$V/$N-
 # trajectory-to-plans formerly was a collection of methods to prepare a given population
 # now, most of the functions of this class do have their own class (downsample, splitduration types...)
 # it basically only transforms the old attribute format to the new one
+# (--max-typical-duration 0 means that at this point no typical durations are appended to the activity types ... however, this is done later, see
+# below.  kai, feb'25)
 input/$V/prepare-100pct.plans.xml.gz:
 	$(sc) prepare trajectory-to-plans\
 	 --name prepare --sample-size 1 --output input/$V\
@@ -193,6 +195,8 @@ input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz i
 #	merge person and freight pops
 	$(sc) prepare merge-populations $@ $< $(word 3,$^) --output $@
 
+#	TODO: do adapt-freight-plans here
+
 	$(sc) prepare downsample-population $@\
     	 --sample-size 1\
     	 --samples 0.25 0.1 0.01\
@@ -210,7 +214,6 @@ input/$V/$N-$V-counts-bast.xml.gz: input/$V/$N-$V-network-with-pt.xml.gz
 		--output $@
 
 check: input/$V/$N-$V-100pct.plans-initial.xml.gz
-	#commuter analysis, still TODO
 	$(sc) analysis commuter\
 	 --population $<\
  	 --input-crs $(CRS)\

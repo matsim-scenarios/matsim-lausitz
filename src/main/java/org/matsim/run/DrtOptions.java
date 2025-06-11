@@ -30,6 +30,7 @@ import org.matsim.pt.config.TransitRouterConfigGroup;
 import org.matsim.run.prepare.PrepareDrtScenarioAgents;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.prepare.PrepareTransitSchedule;
+import org.matsim.run.scenarios.LausitzScenario;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleCapacity;
 import org.matsim.vehicles.VehicleType;
@@ -50,13 +51,13 @@ public class DrtOptions {
 	private static final Logger log = LogManager.getLogger(DrtOptions.class);
 	public static final String DRT_DUMMY_ACT_TYPE = "drt-split-trip";
 
-	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/nord-bautzen-waiting-times_utm32N.shp")
+	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/hoyerswerda-ruhland_Bhf-utm32N.shp")
 	private String drtAreaShp;
 
-	@CommandLine.Option(names = "--intermodal-shp", description = "Path to shp file for adding intermodal tags for drt to pt intermodality.", defaultValue = "./intermodal-area/pt-intermodal-areas-ruhland.shp")
+	@CommandLine.Option(names = "--intermodal-shp", description = "Path to shp file for adding intermodal tags for drt to pt intermodality.", defaultValue = "./intermodal-area/pt-intermodal-areas-ruhland-spremberg.shp")
 	private String intermodalAreaShp;
 
-	@CommandLine.Option(names = "--typ-wt", description = "typical waiting time", defaultValue = "300")
+	@CommandLine.Option(names = "--typ-wt", description = "typical waiting time (base)", defaultValue = "900")
 	protected double typicalWaitTime;
 
 	@CommandLine.Option(names = "--wt-std", description = "waiting time standard deviation", defaultValue = "0.3")
@@ -71,12 +72,14 @@ public class DrtOptions {
 	@CommandLine.Option(names = "--ride-time-std", description = "ride duration standard deviation", defaultValue = "0.3")
 	protected double rideTimeStd;
 
-	@CommandLine.Option(names = "--intermodal", defaultValue = "INTERMODALITY_ACTIVE", description = "enable intermodality for DRT service")
-	private IntermodalityHandling intermodal;
+	@CommandLine.Option(names = "--intermodal", defaultValue = "ENABLED", description = "enable intermodality for DRT service")
+	private FunctionalityHandling intermodal;
 
-	@CommandLine.Option(names = "--manual-trip-conversion", defaultValue = "NOT_CONVERT_TRIPS_MANUALLY", description = "enable manual trip conversion from pt to drt " +
+	@CommandLine.Option(names = "--manual-trip-conversion", defaultValue = "DISABLED", description = "enable manual trip conversion from pt to drt " +
 		"(for legs with new pt line of LausitzPtScenario).")
-	private ManualTripConversionHandling manualTripConversion;
+	private FunctionalityHandling manualTripConversion;
+	@CommandLine.Option(names = "--drt-fare", defaultValue = "ENABLED", description = "enable fares for DRT service. The fare will be the same as for pt.")
+	private FunctionalityHandling fare;
 
 	/**
 	 * a helper method, which makes all necessary config changes to simulate drt.
@@ -134,7 +137,7 @@ public class DrtOptions {
 //		creates a drt staging activity and adds it to the scoring params
 		DrtConfigs.adjustMultiModeDrtConfig(multiModeDrtConfigGroup, config.scoring(), config.routing());
 
-		if (intermodal == IntermodalityHandling.INTERMODALITY_ACTIVE) {
+		if (intermodal == FunctionalityHandling.ENABLED) {
 			SwissRailRaptorConfigGroup srrConfig = ConfigUtils.addOrGetModule(config, SwissRailRaptorConfigGroup.class);
 			srrConfig.setUseIntermodalAccessEgress(true);
 			srrConfig.setIntermodalAccessEgressModeSelection(SwissRailRaptorConfigGroup.IntermodalAccessEgressModeSelection.CalcLeastCostModePerStop);
@@ -161,7 +164,7 @@ public class DrtOptions {
 
 		}
 
-		if (manualTripConversion == ManualTripConversionHandling.CONVERT_TRIPS_MANUALLY) {
+		if (manualTripConversion == FunctionalityHandling.ENABLED) {
 			ScoringConfigGroup.ActivityParams drtDummyScoringParams = new ScoringConfigGroup.ActivityParams();
 			drtDummyScoringParams.setTypicalDuration(0.);
 			drtDummyScoringParams.setActivityType(DRT_DUMMY_ACT_TYPE);
@@ -169,6 +172,12 @@ public class DrtOptions {
 
 			scoringConfigGroup.addActivityParams(drtDummyScoringParams);
 		}
+
+//		add drt to mode choice
+		List<String> modes = new ArrayList<>(List.of(config.subtourModeChoice().getModes()));
+		modes.add(TransportMode.drt);
+
+		config.subtourModeChoice().setModes(modes.toArray(new String[0]));
 	}
 
 	/**
@@ -184,6 +193,7 @@ public class DrtOptions {
 
 //		prepare network for drt
 //		preparation needs to be done with lausitz shp not service area shp
+		// Chengqi 25.03: I don't like this!!!
 		PrepareNetwork.prepareDrtNetwork(scenario.getNetwork(), IOUtils.extendUrl(scenario.getConfig().getContext(), "../shp/lausitz.shp").toString());
 		//		add drt veh type if not already existing
 		Id<VehicleType> drtTypeId = Id.create(TransportMode.drt, VehicleType.class);
@@ -208,12 +218,12 @@ public class DrtOptions {
 		}
 
 		//			tag intermodal pt stops for intermodality between pt and drt
-		if (intermodal == IntermodalityHandling.INTERMODALITY_ACTIVE) {
+		if (intermodal == FunctionalityHandling.ENABLED) {
 			PrepareTransitSchedule.tagIntermodalStops(scenario.getTransitSchedule(), new ShpOptions(IOUtils.extendUrl(scenario.getConfig().getContext(), intermodalAreaShp).toString(), null, null));
 		}
 
-		if (manualTripConversion == ManualTripConversionHandling.CONVERT_TRIPS_MANUALLY) {
-			PrepareDrtScenarioAgents.convertVspRegionalTrainLegsToDrt(scenario.getPopulation(), scenario.getNetwork());
+		if (manualTripConversion == FunctionalityHandling.ENABLED) {
+			PrepareDrtScenarioAgents.convertVspRegionalTrainTripsToDrt(scenario.getPopulation());
 		}
 	}
 
@@ -293,14 +303,26 @@ public class DrtOptions {
 		return rideTimeStd;
 	}
 
-	/**
-	 * Defines if all necessary configs for intermodality between drt and pt should be made.
-	 */
-	enum IntermodalityHandling {INTERMODALITY_ACTIVE, INTERMODALITY_NOT_ACTIVE}
+	public FunctionalityHandling getFareHandling() {
+		return fare;
+	}
+
+	public String getDrtServiceAreaShpPathFromConfig(Config config) {
+		String drtServiceAreaShpPath = null;
+		for (DrtConfigGroup drtCfg : ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class).getModalElements()) {
+			if (drtCfg.getMode().equals(TransportMode.drt)) {
+				drtServiceAreaShpPath = (drtCfg.drtServiceAreaShapeFile.startsWith("file:/")) ? drtCfg.drtServiceAreaShapeFile.substring(6) : drtCfg.drtServiceAreaShapeFile;
+//				for cluster paths we need the / at the beginning
+				drtServiceAreaShpPath = (drtServiceAreaShpPath.startsWith("net/ils")) ? LausitzScenario.SLASH + drtServiceAreaShpPath : drtServiceAreaShpPath;
+				break;
+			}
+		}
+		return drtServiceAreaShpPath;
+	}
 
 	/**
-	 * Defines if pt legs with new pt regional train from LausitzPtScenario are converted to drt legs manually or not.
+	 * Helper enum to enable/disable functionalities.
 	 */
-	enum ManualTripConversionHandling {CONVERT_TRIPS_MANUALLY, NOT_CONVERT_TRIPS_MANUALLY}
+	public enum FunctionalityHandling {ENABLED, DISABLED}
 
 }

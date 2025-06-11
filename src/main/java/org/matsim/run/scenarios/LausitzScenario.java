@@ -6,6 +6,7 @@ import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.application.MATSimApplication;
 import org.matsim.application.analysis.CheckPopulation;
+import org.matsim.application.analysis.pt.PublicTransitAnalysis;
 import org.matsim.application.analysis.traffic.LinkStats;
 import org.matsim.application.options.SampleOptions;
 import org.matsim.application.prepare.CreateLandUseShp;
@@ -60,16 +61,18 @@ import java.util.Set;
 		PrepareDrtScenarioAgents.class
 })
 @MATSimApplication.Analysis({
-		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class, DistanceMatrix.class
+		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class, DistanceMatrix.class, PublicTransitAnalysis.class
 })
 public class LausitzScenario extends MATSimApplication {
 
 	public static final String VERSION = "2024.2";
 	public static final String FREIGHT = "longDistanceFreight";
+	public static final String SLASH = "/";
 	private static final String AVERAGE = "average";
 	public static final String HEAVY_MODE = "truck40t";
 	public static final String MEDIUM_MODE = "truck18t";
 	public static final String LIGHT_MODE = "truck8t";
+	public static final String CRS = "EPSG:25832";
 
 //	To decrypt hbefa input files set MATSIM_DECRYPTION_PASSWORD as environment variable. ask VSP for access.
 	private static final String HBEFA_2020_PATH = "https://svn.vsp.tu-berlin.de/repos/public-svn/3507bb3997e5657ab9da76dbedbb13c9b5991d3e/0e73947443d68f95202b71a156b337f7f71604ae/";
@@ -83,7 +86,6 @@ public class LausitzScenario extends MATSimApplication {
 
 	@CommandLine.Option(names = "--emissions", defaultValue = "PERFORM_EMISSIONS_ANALYSIS", description = "Define if emission analysis should be performed or not.")
 	EmissionAnalysisHandling emissions;
-
 
 	public LausitzScenario(@Nullable Config config) {
 		super(config);
@@ -153,6 +155,7 @@ public class LausitzScenario extends MATSimApplication {
 //		for more info see PTFareModule / ChainedPtFareCalculator classes in vsp contrib
 		PtFareConfigGroup ptFareConfigGroup = ConfigUtils.addOrGetModule(config, PtFareConfigGroup.class);
 
+//		fare prices for vvo tarifzone 20 have to be set in shp file.
 		FareZoneBasedPtFareParams vvo20 = new FareZoneBasedPtFareParams();
 		vvo20.setTransactionPartner("VVO Tarifzone 20");
 		vvo20.setDescription("VVO Tarifzone 20");
@@ -163,6 +166,21 @@ public class LausitzScenario extends MATSimApplication {
 		germany.setTransactionPartner("Deutschlandtarif");
 		germany.setDescription("Deutschlandtarif");
 		germany.setOrder(2);
+
+//		apply inflation factor to distance based fare. fare values are from 10.12.23 / for the whole of 2024.
+//		car cost in this scenario is projected to 2021. Hence, we deflate the pt cost to 2021
+//		according to https://www-genesis.destatis.de/genesis/online?sequenz=tabelleErgebnis&selectionname=61111-0001&startjahr=1991#abreadcrumb (same source as for car cost inflation in google drive)
+//		Verbraucherpreisindex 2021 to 2024: 103.1 to 119.3 = 16.2 = inflationFactor of 1.16
+//		pt distance cost 2021: cost = (m*distance + b) / inflationFactor = m * inflationFactor * distance + b * inflationFactor
+//		ergo: slope2021 = slope2024/inflationFactor and intercept2021 = intercept2024/inflationFactor
+		double inflationFactor = 1.16;
+		DistanceBasedPtFareParams.DistanceClassLinearFareFunctionParams below100km = germany.getOrCreateDistanceClassFareParams(100_000.);
+		below100km.setFareSlope(below100km.getFareSlope() / inflationFactor);
+		below100km.setFareIntercept(below100km.getFareIntercept() / inflationFactor);
+
+		DistanceBasedPtFareParams.DistanceClassLinearFareFunctionParams greaterThan100km = germany.getOrCreateDistanceClassFareParams(Double.POSITIVE_INFINITY);
+		greaterThan100km.setFareSlope(greaterThan100km.getFareSlope() / inflationFactor);
+		greaterThan100km.setFareIntercept(greaterThan100km.getFareIntercept() / inflationFactor);
 
 		ptFareConfigGroup.addParameterSet(vvo20);
 		ptFareConfigGroup.addParameterSet(germany);
@@ -198,7 +216,7 @@ public class LausitzScenario extends MATSimApplication {
 		controler.addOverridingModule(new AbstractModule() {
 			@Override
 			public void install() {
-				install(new PtFareModule());
+				install(getPtFareModule());
 				bind(ScoringParametersForPerson.class).to(IncomeDependentUtilityOfMoneyPersonScoringParameters.class).asEagerSingleton();
 
 				addTravelTimeBinding(TransportMode.ride).to(networkTravelTime());
@@ -310,6 +328,11 @@ public class LausitzScenario extends MATSimApplication {
 		scenario.getTransitVehicles()
 			.getVehicleTypes()
 			.values().forEach(type -> VehicleUtils.setHbefaVehicleCategory(type.getEngineInformation(), HbefaVehicleCategory.NON_HBEFA_VEHICLE.toString()));
+	}
+
+//	overridable method to implement custom PtFareModules in policy scenarios.
+	public AbstractModule getPtFareModule() {
+		return new PtFareModule();
 	}
 
 	/**
