@@ -1,4 +1,4 @@
-package org.matsim.run.prepare;
+package org.matsim.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -7,7 +7,6 @@ import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Population;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.core.population.PopulationUtils;
-import org.matsim.run.analysis.FilterEventsForSpecificAgents;
 import picocli.CommandLine;
 
 import java.nio.file.Path;

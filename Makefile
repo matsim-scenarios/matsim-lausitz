@@ -195,6 +195,8 @@ input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz i
 #	merge person and freight pops
 	$(sc) prepare merge-populations $@ $< $(word 3,$^) --output $@
 
+#	TODO: do adapt-freight-plans here
+
 	$(sc) prepare downsample-population $@\
     	 --sample-size 1\
     	 --samples 0.25 0.1 0.01\

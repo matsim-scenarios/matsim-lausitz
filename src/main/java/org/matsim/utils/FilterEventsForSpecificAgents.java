@@ -1,4 +1,4 @@
-package org.matsim.run.analysis;
+package org.matsim.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
