@@ -1,6 +1,8 @@
 library(tidyverse)
 library(lubridate)
 
+# DEPRECATED SCRIPT
+
 ptPersons <- read.csv(file="Y:/net/ils/matsim-lausitz/caseStudies/v2024.2/pt-case-study/output-lausitz-pt-case/analysis/analysis/pt_persons.csv")
 
 ptCaseTrips <- read.csv2(file="Y:/net/ils/matsim-lausitz/caseStudies/v2024.2/pt-case-study/output-lausitz-pt-case/lausitz-pt-case.output_trips.csv.gz")
