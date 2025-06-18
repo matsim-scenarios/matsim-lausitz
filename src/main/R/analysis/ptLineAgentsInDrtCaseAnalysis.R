@@ -159,6 +159,6 @@ write.csv(df, file="mean_stats_pt_line_drt_cases_comparison.csv")
 write.csv(persons_joined, file="score_comparison_pt_line_drt_cases.csv")
 ggsave("modal_split_of_trips_corresponding_to_pt_line_trips.pdf", plot_modal_split_drt_case, dpi = 500, w = 12, h = 9)
 
-plot("mean comparison stats, score comparison for each agent and modal split in drt case written to", getwd())
+print("mean comparison stats, score comparison for each agent and modal split in drt case written to", getwd())
 
 
