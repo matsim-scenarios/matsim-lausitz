@@ -107,14 +107,23 @@ mean_trav_dist_drt_case <- round(mean(corresponding_trips_in_drt_case$traveled_d
 modal_split_corresponding_trips_in_drt_case <- corresponding_trips_in_drt_case %>% 
   count(main_mode) %>% 
   mutate(percentage = n / sum(n) * 100,
-         legend_label = paste0(main_mode, " (", round(percentage, 1), "%)"))
+         legend_label_relative = paste0(main_mode, " (", round(percentage, 1), "%)"),
+         legend_label_absolute = paste0(main_mode, " (", round(n, 1), ")"))
 
-plot_modal_split_drt_case <- ggplot(modal_split_corresponding_trips_in_drt_case, aes(x = "", y = n, fill = legend_label)) +
+plot_modal_split_drt_case <- ggplot(modal_split_corresponding_trips_in_drt_case, aes(x = "", y = percentage, fill = legend_label_relative)) +
   geom_bar(stat = "identity", width = 1, color = "black") +
   coord_polar("y") +
   theme_void() +
-  labs(title = "Modal Split for corresponding trips to trips with pt line (in drt case)", fill = "Main Mode") +
+  labs(title = "Modal Split for corresponding trips to trips with pt line (in drt case) - relative", fill = "Main Mode") +
   scale_fill_okabe_ito()
+
+plot_modal_split_drt_case_absolute <- ggplot(modal_split_corresponding_trips_in_drt_case, aes(x = "", y = n, fill = legend_label_absolute)) +
+  geom_bar(stat = "identity", width = 1, color = "black") +
+  coord_polar("y") +
+  theme_void() +
+  labs(title = "Modal Split for corresponding trips to trips with pt line (in drt case) - absolute", fill = "Main Mode") +
+  scale_fill_okabe_ito()
+
 
 ############################################ pt line trips -> drt trips only ##############################################################
 
@@ -157,8 +166,9 @@ df <- data.frame(
 
 write.csv(df, file="mean_stats_pt_line_drt_cases_comparison.csv")
 write.csv(persons_joined, file="score_comparison_pt_line_drt_cases.csv")
-ggsave("modal_split_of_trips_corresponding_to_pt_line_trips.pdf", plot_modal_split_drt_case, dpi = 500, w = 12, h = 9)
+ggsave("modal_split_of_trips_corresponding_to_pt_line_trips_relative.pdf", plot_modal_split_drt_case, dpi = 500, w = 12, h = 9)
+ggsave("modal_split_of_trips_corresponding_to_pt_line_trips_absolute.pdf", plot_modal_split_drt_case_absolute, dpi = 500, w = 12, h = 9)
 
-print("mean comparison stats, score comparison for each agent and modal split in drt case written to", getwd())
+print(paste("mean comparison stats, score comparison for each agent and modal split in drt case written to", getwd()))
 
 
