@@ -105,6 +105,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 //		the following cannot be "experts only" (like requested from KN) because without it DRT would not work
 //		here, the DynActivityEngine, PreplanningEngine + DvrpModule for each drt mode are added to the qsim components
 //		this is necessary for drt / dvrp to work!
+		// there is a syntax that can achieve the same thing but it does not need the "components". kai, jun'25
 		controler.configureQSimComponents(DvrpQSimComponents.activateAllModes(ConfigUtils.addOrGetModule(controler.getConfig(), MultiModeDrtConfigGroup.class)));
 
 		MultiModeDrtConfigGroup multiModeDrtConfigGroup = MultiModeDrtConfigGroup.get(config);

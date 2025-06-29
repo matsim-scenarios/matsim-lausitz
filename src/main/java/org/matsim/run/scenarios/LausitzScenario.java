@@ -64,6 +64,7 @@ import java.util.Set;
 		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class, DistanceMatrix.class, PublicTransitAnalysis.class
 })
 public class LausitzScenario extends MATSimApplication {
+// user classes should be final or non-public.  This one here currently can neither be final nor non-public.  kai, jun'25
 
 	public static final String VERSION = "2024.2";
 	public static final String FREIGHT = "longDistanceFreight";
