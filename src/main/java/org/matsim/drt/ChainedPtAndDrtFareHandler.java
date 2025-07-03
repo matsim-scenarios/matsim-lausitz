@@ -33,7 +33,7 @@ public class ChainedPtAndDrtFareHandler implements PtFareHandler {
 
 	private final Map<Id<Person>, Coord> personDepartureCoordMap = new HashMap<>();
 	private final Map<Id<Person>, Coord> personArrivalCoordMap = new HashMap<>();
-	private final Set<Id<Person>> personInvolvedInDrtTrip = new HashSet<>();
+	private final Set<Id<Person>> personsInvolvedInDrtTrip = new HashSet<>();
 
 	@Inject
 	private ChainedPtFareCalculator fareCalculator;
@@ -46,19 +46,24 @@ public class ChainedPtAndDrtFareHandler implements PtFareHandler {
 			personDepartureCoordMap.computeIfAbsent(event.getPersonId(), c -> event.getCoord());
 			// The departure place is fixed to the place of
 			// first pt interaction an agent has in the whole leg
+
 			personArrivalCoordMap.put(event.getPersonId(), event.getCoord());
 			// The arrival stop will keep updating until the agent start a real
 			// activity (i.e. finish the leg)
+
 			if (eventType.equals(DRT_INTERACTION)) {
-				personInvolvedInDrtTrip.add(event.getPersonId());
+				personsInvolvedInDrtTrip.add(event.getPersonId() );
 			}
 		}
 
 		if (StageActivityTypeIdentifier.isStageActivity(event.getActType())) {
 			return;
 		}
+		// if we have made it to here, it means that the agent is now at a "real" activity
 
 		Id<Person> personId = event.getPersonId();
+
+		// check if the person has arrived at the real activity by pt; otherwise return:
 		if (!personDepartureCoordMap.containsKey(personId)) {
 			return;
 		}
@@ -70,12 +75,12 @@ public class ChainedPtAndDrtFareHandler implements PtFareHandler {
 
 		// charge fare to the person
 		events.processEvent(new PersonMoneyEvent(event.getTime(), event.getPersonId(), -fare.fare(),
-			personInvolvedInDrtTrip.contains(personId)? DRT_OR_PT_FARE : PtFareConfigGroup.PT_FARE,
+			personsInvolvedInDrtTrip.contains(personId )? DRT_OR_PT_FARE : PtFareConfigGroup.PT_FARE,
 			fare.transactionPartner(), event.getPersonId().toString()));
 
 		personDepartureCoordMap.remove(personId);
 		personArrivalCoordMap.remove(personId);
-		personInvolvedInDrtTrip.remove(personId);
+		personsInvolvedInDrtTrip.remove(personId );
 	}
 
 	@Override
@@ -87,6 +92,6 @@ public class ChainedPtAndDrtFareHandler implements PtFareHandler {
 	public void reset(int iteration) {
 		personArrivalCoordMap.clear();
 		personDepartureCoordMap.clear();
-		personInvolvedInDrtTrip.clear();
+		personsInvolvedInDrtTrip.clear();
 	}
 }
