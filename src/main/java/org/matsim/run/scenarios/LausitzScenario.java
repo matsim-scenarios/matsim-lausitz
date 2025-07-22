@@ -167,20 +167,22 @@ public class LausitzScenario extends MATSimApplication {
 		germany.setDescription("Deutschlandtarif");
 		germany.setOrder(2);
 
-//		apply inflation factor to distance based fare. fare values are from 10.12.23 / for the whole of 2024.
-//		car cost in this scenario is projected to 2021. Hence, we deflate the pt cost to 2021
-//		according to https://www-genesis.destatis.de/genesis/online?sequenz=tabelleErgebnis&selectionname=61111-0001&startjahr=1991#abreadcrumb (same source as for car cost inflation in google drive)
-//		Verbraucherpreisindex 2021 to 2024: 103.1 to 119.3 = 16.2 = inflationFactor of 1.16
-//		pt distance cost 2021: cost = (m*distance + b) / inflationFactor = m * inflationFactor * distance + b * inflationFactor
-//		ergo: slope2021 = slope2024/inflationFactor and intercept2021 = intercept2024/inflationFactor
-		double inflationFactor = 1.16;
-		DistanceBasedPtFareParams.DistanceClassLinearFareFunctionParams below100km = germany.getOrCreateDistanceClassFareParams(100_000.);
-		below100km.setFareSlope(below100km.getFareSlope() / inflationFactor);
-		below100km.setFareIntercept(below100km.getFareIntercept() / inflationFactor);
+//		reset the following to 2024 as hotfix for comparability to base case. -sm0725
 
-		DistanceBasedPtFareParams.DistanceClassLinearFareFunctionParams greaterThan100km = germany.getOrCreateDistanceClassFareParams(Double.POSITIVE_INFINITY);
-		greaterThan100km.setFareSlope(greaterThan100km.getFareSlope() / inflationFactor);
-		greaterThan100km.setFareIntercept(greaterThan100km.getFareIntercept() / inflationFactor);
+////		apply inflation factor to distance based fare. fare values are from 10.12.23 / for the whole of 2024.
+////		car cost in this scenario is projected to 2021. Hence, we deflate the pt cost to 2021
+////		according to https://www-genesis.destatis.de/genesis/online?sequenz=tabelleErgebnis&selectionname=61111-0001&startjahr=1991#abreadcrumb (same source as for car cost inflation in google drive)
+////		Verbraucherpreisindex 2021 to 2024: 103.1 to 119.3 = 16.2 = inflationFactor of 1.16
+////		pt distance cost 2021: cost = (m*distance + b) / inflationFactor = m * inflationFactor * distance + b * inflationFactor
+////		ergo: slope2021 = slope2024/inflationFactor and intercept2021 = intercept2024/inflationFactor
+//		double inflationFactor = 1.16;
+//		DistanceBasedPtFareParams.DistanceClassLinearFareFunctionParams below100km = germany.getOrCreateDistanceClassFareParams(100_000.);
+//		below100km.setFareSlope(below100km.getFareSlope() / inflationFactor);
+//		below100km.setFareIntercept(below100km.getFareIntercept() / inflationFactor);
+//
+//		DistanceBasedPtFareParams.DistanceClassLinearFareFunctionParams greaterThan100km = germany.getOrCreateDistanceClassFareParams(Double.POSITIVE_INFINITY);
+//		greaterThan100km.setFareSlope(greaterThan100km.getFareSlope() / inflationFactor);
+//		greaterThan100km.setFareIntercept(greaterThan100km.getFareIntercept() / inflationFactor);
 
 		ptFareConfigGroup.addParameterSet(vvo20);
 		ptFareConfigGroup.addParameterSet(germany);
