@@ -123,6 +123,8 @@ class DrtAndPtFareTest {
 
 
 //		assert that pt and drt fare are in the same range for 1) agent in vvo area and 2) agent to cott (distance based pt fare)
+		log.info("PT fare hoyerswerda only: {}. DRT fare hoyerswerda only: {}", fares.get(TransportMode.pt).get(hoyerswerdaOnly), fares.get(TransportMode.drt).get(hoyerswerdaOnly));
+		log.info("PT fare hoyerswerda cottbus: {}. DRT fare hoyerswerda cottbus: {}", fares.get(TransportMode.pt).get(hoyerswerdaCottbus), fares.get(TransportMode.drt).get(hoyerswerdaCottbus));
 		Assertions.assertEquals(fares.get(TransportMode.pt).get(hoyerswerdaOnly), fares.get(TransportMode.drt).get(hoyerswerdaOnly));
 		Assertions.assertEquals(fares.get(TransportMode.pt).get(hoyerswerdaCottbus), fares.get(TransportMode.drt).get(hoyerswerdaCottbus), delta);
 	}

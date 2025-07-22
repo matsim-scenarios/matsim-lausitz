@@ -28,7 +28,7 @@ import java.util.Set;
 public class ChainedPtAndDrtFareHandler implements PtFareHandler {
 	@Inject
 	private EventsManager events;
-	private static final String DRT_INTERACTION = ScoringConfigGroup.createStageActivityType(TransportMode.drt);
+	public static final String DRT_INTERACTION = ScoringConfigGroup.createStageActivityType(TransportMode.drt);
 	public static final String DRT_OR_PT_FARE = "drt or drt-pt intermodal fare";
 
 	private final Map<Id<Person>, Coord> personDepartureCoordMap = new HashMap<>();
