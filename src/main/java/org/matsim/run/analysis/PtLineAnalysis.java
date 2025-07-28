@@ -521,7 +521,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		return distr;
 	}
 
-	private static CSVFormat getCsvFormat() {
+	static CSVFormat getCsvFormat() {
 		return CSVFormat.DEFAULT.builder()
 			.setQuote(null)
 			.setDelimiter(',')
