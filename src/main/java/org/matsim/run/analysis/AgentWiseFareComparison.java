@@ -43,27 +43,26 @@ public class AgentWiseFareComparison implements MATSimAppCommand {
 		String pattern = "*" + prefix + "output_events.xml.gz";
 		String baseEventsFile = globFile(basePath, pattern).toString();
 
+		//			read base case events
+		Map<Id<Person>, FareData> baseFareDataMap = new HashMap<>();
+		FareEventHandler baseHandler = new FareEventHandler(baseFareDataMap);
+
+		EventsManager baseManager = EventsUtils.createEventsManager();
+		baseManager.addHandler(baseHandler);
+		baseManager.initProcessing();
+
+		MatsimEventsReader baseReader = new MatsimEventsReader(baseManager);
+		baseReader.readFile(baseEventsFile);
+		baseManager.finishProcessing();
+
 		for(Path inputPath : inputPaths) {
 			log.info("Running on {}", inputPath);
-
-//			read base case events
-			Map<Id<Person>, FareData> baseFareDataMap = new HashMap<>();
-			FareEventHandler baseHandler = new FareEventHandler(baseFareDataMap);
-
-			EventsManager manager = EventsUtils.createEventsManager();
-			manager.addHandler(baseHandler);
-			manager.initProcessing();
-
-			MatsimEventsReader baseReader = new MatsimEventsReader(manager);
-			baseReader.readFile(baseEventsFile);
-
 //			read policy case events
 			String eventsFile = globFile(inputPath, pattern).toString();
 			Map<Id<Person>, FareData> policyFareDataMap = new HashMap<>();
-			FareEventHandler policyHandler = new FareEventHandler(policyFareDataMap);
 
-			manager.removeHandler(baseHandler);
-			manager.addHandler(policyHandler);
+			EventsManager manager = EventsUtils.createEventsManager();
+			manager.addHandler(new FareEventHandler(policyFareDataMap));
 			MatsimEventsReader policyReader = new MatsimEventsReader(manager);
 			policyReader.readFile(eventsFile);
 			manager.finishProcessing();
