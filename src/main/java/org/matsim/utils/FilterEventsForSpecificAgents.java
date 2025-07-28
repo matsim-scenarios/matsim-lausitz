@@ -36,7 +36,7 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 
 	@CommandLine.Option(names = "--agents", description = "Path to csv file with agentIds for filtering. AgentIds should be contained by the first column of the file.", required = true)
 	private Path agentsPath;
-	@CommandLine.Parameters(arity = "1..*", description = "Path to run output directories for which dashboards are to be generated.")
+	@CommandLine.Parameters(arity = "1..*", description = "Path to run output directories.")
 	private List<Path> inputPaths;
 	@CommandLine.Option(names = "--prefix", description = "Prefix for filtered events output file, optional.", defaultValue = "")
 	private String prefix;
