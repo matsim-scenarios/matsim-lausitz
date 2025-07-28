@@ -42,6 +42,8 @@ public class ExcludeEventTypes implements MATSimAppCommand {
 
 		for (Path runDir : inputPaths) {
 			log.info("Running on {}", runDir);
+			log.info("This class will filter out the following event types:");
+			types.forEach(log::info);
 
 			String eventsFile = globFile(runDir, "*output_events.xml.gz").toString();
 
