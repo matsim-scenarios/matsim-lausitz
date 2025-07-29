@@ -1,5 +1,6 @@
 package org.matsim.run.scenarios;
 
+import ch.sbb.matsim.config.SwissRailRaptorConfigGroup;
 import com.google.common.collect.Sets;
 import org.matsim.analysis.personMoney.PersonMoneyEventsAnalysisModule;
 import org.matsim.api.core.v01.Scenario;
@@ -191,6 +192,32 @@ public class LausitzScenario extends MATSimApplication {
 //		set hbefa input files for emission analysis
 			setEmissionsConfigs(config);
 		}
+// ######################################################### add explicit intermodality for base case ctd ctd tes wise ################################################
+		SwissRailRaptorConfigGroup srrConfig = ConfigUtils.addOrGetModule(config, SwissRailRaptorConfigGroup.class);
+		srrConfig.setUseIntermodalAccessEgress(true);
+		srrConfig.setIntermodalAccessEgressModeSelection(SwissRailRaptorConfigGroup.IntermodalAccessEgressModeSelection.CalcLeastCostModePerStop);
+
+//			add drt as access egress mode for pt
+//		SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressDrtParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
+//		accessEgressDrtParam.setMode(TransportMode.drt);
+//		// Euclidean distance from Hoyerswerda to Ruhland: 20-30 km
+//		accessEgressDrtParam.setInitialSearchRadius(40000);
+//		accessEgressDrtParam.setMaxRadius(40000);
+//		accessEgressDrtParam.setSearchExtensionRadius(1000);
+//		accessEgressDrtParam.setStopFilterAttribute("allowDrtAccessEgress");
+//		accessEgressDrtParam.setStopFilterValue("true");
+//		srrConfig.addIntermodalAccessEgress(accessEgressDrtParam);
+
+//			walk also needs to be added as access egress mode
+		SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressWalkParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
+		accessEgressWalkParam.setMode(TransportMode.walk);
+		accessEgressWalkParam.setInitialSearchRadius(10000.0);
+		accessEgressWalkParam.setMaxRadius(100000.0);
+		accessEgressWalkParam.setSearchExtensionRadius(1000.0);
+		srrConfig.addIntermodalAccessEgress(accessEgressWalkParam);
+
+//		###########################################################################################################################################################
+
 		return config;
 	}
 
