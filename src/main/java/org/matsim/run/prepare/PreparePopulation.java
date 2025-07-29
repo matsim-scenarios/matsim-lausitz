@@ -79,13 +79,9 @@ public class PreparePopulation implements MATSimAppCommand {
 		// Set car availability to "never" for agents below 18 years old
 		// Standardize the attribute "age"
 		String avail = "always";
-		Object age = person.getAttributes().getAttribute("microm:modeled:age");
-		if (age != null) {
-			PersonUtils.setAge(person, (int) age);
-			person.getAttributes().removeAttribute("microm:modeled:age");
-			if ((int) age < 18) {
-				avail = "never";
-			}
+		Object age = person.getAttributes().getAttribute("age");
+		if (age != null && (int) age < 18) {
+			avail = "never";
 		}
 
 		// Replace with standardized car availability attribute
@@ -93,14 +89,15 @@ public class PreparePopulation implements MATSimAppCommand {
 		person.getAttributes().removeAttribute("sim_carAvailability");
 
 		// Standardize the attribute "sex"
-		Object sex = person.getAttributes().getAttribute("microm:modeled:sex");
+		Object sex = person.getAttributes().getAttribute("gender");
 		if (sex != null) {
 			PersonUtils.setSex(person, (String) sex);
-			person.getAttributes().removeAttribute("microm:modeled:sex");
+			person.getAttributes().removeAttribute("gender");
 		}
 
 		// Assign income to person (skip the freight agents)
-		if (person.getId().toString().startsWith("freight")) {
+		if (person.getId().toString().startsWith("freight") || person.getId().toString().startsWith("commercial")
+		|| person.getId().toString().startsWith("goods")) {
 			return;
 		}
 

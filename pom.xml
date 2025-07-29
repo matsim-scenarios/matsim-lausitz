@@ -12,13 +12,14 @@
 		<!--<version>14.0-PR1452</version>-->
 
 		<!-- snapshot == not recommended: rather use PR-labelled release!-->
-		<version>16.0-PR3381</version>
+		<version>2025.0-PR3552</version>
 	</parent>
+
 
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.github.matsim-scenarios</groupId>
 	<artifactId>matsim-lausitz</artifactId>
-	<version>1.0</version>
+	<version>2024.2</version>
 
 	<name>MATSim Lausitz Model</name>
 	<description>A transport model of the Lausitz region and its surroundings</description>
@@ -31,7 +32,7 @@
 
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<maven.compiler.release>17</maven.compiler.release>
+		<maven.compiler.release>21</maven.compiler.release>
 	</properties>
 
 	<distributionManagement>
@@ -74,6 +75,42 @@
 			<groupId>org.matsim.contrib</groupId>
 			<artifactId>vsp</artifactId>
 			<version>${matsim.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.matsim.contrib</groupId>
+			<artifactId>drt-extensions</artifactId>
+			<version>${matsim.version}</version>
+			<scope>compile</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>com.github.matsim-vsp</groupId>
+			<artifactId>pt-extensions</artifactId>
+			<version>ceef00ef6e</version>
+			<exclusions>
+				<!-- Will pull old drt version -->
+				<exclusion>
+					<groupId>org.matsim.contrib</groupId>
+					<artifactId>drt</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.matsim</groupId>
+					<artifactId>matsim</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.matsim</groupId>
+					<artifactId>matsim-examples</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.matsim.contrib</groupId>
+					<artifactId>vsp</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.openjfx</groupId>
+					<artifactId>javafx-graphics</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 
@@ -152,7 +189,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.8</version>
+				<version>0.8.12</version>
 				<executions>
 					<execution>
 						<goals>

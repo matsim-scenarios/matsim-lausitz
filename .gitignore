@@ -6,6 +6,7 @@
 output/
 scenarios/output
 test/output
+runs/
 
 *.gz
 *.pbf
@@ -506,3 +507,4 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/osx,java,linux,maven,eclipse,windows,python,r,intellij+all
+/matsim-lausitz.Rproj

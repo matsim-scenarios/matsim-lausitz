@@ -36,14 +36,14 @@ Handling of large files within git is not without problems (git lfs files are no
 
 1. Open SimWrapper at https://simwrapper.github.io/site/ .
 1. Select Explore Data Sources -> VSP Public-SVN .
-1. Navigate to de -> lausitz -> lausitz-v1.0 (https://simwrapper.github.io/site/public/de/lausitz/output/v1.0).
+1. Navigate to de -> lausitz -> output -> choose version (https://simwrapper.github.io/site/public/de/lausitz/output/).
 1. Enjoy the dashboards and visualizations.
 
 ### Run VIA on output files
 
 1. Get VIA from https://www.simunto.com/via/.  (There is a free license for a small number of agents; that will probably work but only display a small number of vehicles/agents.)
-1. Go to https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/ .
-1. Decide for a scenario that you find interesting (e.g. `lausitz-v1.0`) and go into that directory.
+1. Go to https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/output/ .
+1. Decide for a scenario that you find interesting (e.g. `v2024.2`) and go into that directory.
 1. Inside there, look for an `output-*` directory that you find interesting and go into that directory.
 1. Download `*.output_network.xml.gz` and `*.output_events.xml.gz`.  Best make sure that they do not uncompress, e.g. by "Download linked file as ...".
 1. Get these files into VIA.  This can be achieved in various ways; one is to open VIA and then drag the files from a file browser into VIA.
@@ -123,4 +123,4 @@ For more information about MATSim, see here: https://www.matsim.org/
 
 ### Internal Documentation
 Internal documentation can be found here:
-https://docs.google.com/document/d/1igBcrRTFklb7THSU1bNNIyG-pwiYgXBg6WeI-Pf7zj8/edit
+https://docs.google.com/document/d/1igBcrRTFklb7THSU1bNNIyG-pwiYgXBg6WeI-Pf7zj8/edit?usp=sharing
