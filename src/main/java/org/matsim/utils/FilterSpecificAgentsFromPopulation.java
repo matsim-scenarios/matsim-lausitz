@@ -27,6 +27,8 @@ public class FilterSpecificAgentsFromPopulation implements MATSimAppCommand {
 	private String agentsPath;
 	@CommandLine.Parameters(arity = "1..*", description = "Path to run output directories for which dashboards are to be generated.")
 	private List<Path> inputPaths;
+	@CommandLine.Option(names = "--suffix", description = "Suffix for filtered plans output file, optional.", defaultValue = "")
+	private String suffix;
 
 	public static void main(String[] args) {
 		new FilterSpecificAgentsFromPopulation().execute(args);
@@ -51,7 +53,7 @@ public class FilterSpecificAgentsFromPopulation implements MATSimAppCommand {
 
 			filteredPersons.forEach(p -> population.removePerson(p.getId()));
 
-			PopulationUtils.writePopulation(population, populationFile.split(".xml.gz")[0] + "_filtered.xml.gz");
+			PopulationUtils.writePopulation(population, populationFile.split(".xml.gz")[0] + "_" + suffix + "_filtered.xml.gz");
 		}
 		return 0;
 	}
