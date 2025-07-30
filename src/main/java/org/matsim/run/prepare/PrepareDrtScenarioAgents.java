@@ -13,7 +13,7 @@ import org.matsim.core.network.filter.NetworkFilterManager;
 import org.matsim.core.population.PersonUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.router.TripStructureUtils;
-import org.matsim.run.DrtOptions;
+import org.matsim.run.DrtAndIntermodalityOptions;
 import picocli.CommandLine;
 
 import java.nio.file.Files;
@@ -231,7 +231,7 @@ public class PrepareDrtScenarioAgents implements MATSimAppCommand {
 //		The original trip has to be split up because MATSim does not allow trips with 2 different routing modes.
 //		for the drt subtrip, a dummy act, which is not scored, is created.
 		if (TripStructureUtils.isStageActivityType(previous.getType())) {
-			previous.setType(DrtOptions.DRT_DUMMY_ACT_TYPE);
+			previous.setType(DrtAndIntermodalityOptions.DRT_DUMMY_ACT_TYPE);
 			previous.setFacilityId(null);
 			previous.setLinkId(null);
 		}

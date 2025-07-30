@@ -47,8 +47,8 @@ import java.util.Set;
 /**
  * This class bundles some run parameter options and functionalities connected to drt-scenarios.
  */
-public class DrtOptions {
-	private static final Logger log = LogManager.getLogger(DrtOptions.class);
+public class DrtAndIntermodalityOptions {
+	private static final Logger log = LogManager.getLogger(DrtAndIntermodalityOptions.class);
 	public static final String DRT_DUMMY_ACT_TYPE = "drt-split-trip";
 
 	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/hoyerswerda-ruhland_Bhf-utm32N.shp")
