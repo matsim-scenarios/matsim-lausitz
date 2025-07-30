@@ -146,8 +146,9 @@ public class DrtOptions {
 			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressDrtParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
 			accessEgressDrtParam.setMode(TransportMode.drt);
 			// Euclidean distance from Hoyerswerda to Ruhland: 20-30 km
-			accessEgressDrtParam.setInitialSearchRadius(40000);
-			accessEgressDrtParam.setMaxRadius(40000);
+//			max euclidean distance for intermodal drt access/egress Hoy-Cott Bhf ~43km
+			accessEgressDrtParam.setInitialSearchRadius(50000);
+			accessEgressDrtParam.setMaxRadius(50000);
 			accessEgressDrtParam.setSearchExtensionRadius(1000);
 			accessEgressDrtParam.setStopFilterAttribute("allowDrtAccessEgress");
 			accessEgressDrtParam.setStopFilterValue("true");
