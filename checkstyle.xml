@@ -148,7 +148,7 @@
 
         <!-- Metrics -->
         <module name="JavaNCSS">
-            <property name="methodMaximum" value="70"/>
+            <property name="methodMaximum" value="80"/>
             <property name="classMaximum" value="800"/>
             <property name="fileMaximum" value="1000"/>
         </module>

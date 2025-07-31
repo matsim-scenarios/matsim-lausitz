@@ -25,8 +25,9 @@ input/network.osm: $(NETWORK)
 	 --tf accept-ways bicycle=yes highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary_link,secondary,tertiary,motorway_junction,residential,unclassified,living_street\
 	 --bounding-polygon file="$(shared)/data/cottbus.poly"\
 	 --used-node --wb input/network-detailed.osm.pbf
+	# (yyyy warum cottbus.poly, wenn das Zentrum der Studie in Hoyerswerda liegt? kai, jul'24)
 
-	# This includes residential as well, since multiple cities are covered by the study area
+	# Coarse network.  This includes residential as well, since multiple cities are covered by the study area
 	#	retrieve coarse network (see param highway) from OSM
 	$(osmosis) --rb file=$<\
 	 --tf accept-ways highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary_link,secondary,tertiary,motorway_junction,residential\
@@ -38,7 +39,7 @@ input/network.osm: $(NETWORK)
 	 --tf accept-ways highway=motorway,motorway_link,motorway_junction,trunk,trunk_link,primary,primary_link\
 	 --used-node --wb input/network-germany.osm.pbf
 
-#	put the 3 above networks together and remove railway
+#	put the 3 above networks together and remove railway yyyy woher kommt der "remove-railway.xml" input? kai, jul'24
 	$(osmosis) --rb file=input/network-germany.osm.pbf --rb file=input/network-coarse.osm.pbf --rb file=input/network-detailed.osm.pbf\
   	 --merge --merge\
   	 --tag-transform file=input/remove-railway.xml\
@@ -48,7 +49,7 @@ input/network.osm: $(NETWORK)
 	rm input/network-coarse.osm.pbf
 	rm input/network-germany.osm.pbf
 
-
+# matsim networks are generated using a detour via sumo networks:
 input/sumo.net.xml: input/network.osm
 
 #	create sumo network from osm network
@@ -69,6 +70,7 @@ input/sumo.net.xml: input/network.osm
 # free-speed-factor 0.75 (standard is 0.9): see VSP WP 24-08. lausitz is mix between rural and city (~0.7 - 0.8)
 input/$V/$N-$V-network.xml.gz: input/sumo.net.xml
 	$(sc) prepare network-from-sumo $< --output $@ --free-speed-factor 0.75
+	# (yyyy what is the free-speed-factor doing?  kai, jul'24)
 	$(sc) prepare clean-network $@ --output $@ --modes car --modes bike
 
 # add freight modes as allowed modes
@@ -88,10 +90,11 @@ input/$V/$N-$V-network-with-pt.xml.gz: input/$V/$N-$V-network-freight-hbefa.xml.
 	 $(shared)/data/gtfs/20230113_train_long.zip\
 	 --prefix regio_,short_,long_\
 	 --shp $(shared)/data/network-area/network-area.shp\
-	 --shp $(shared)/data/network-area/network-area.shp\
+	 --shp $(shared)/data/network-area/network-area-incl-dresden.shp\
 	 --shp $(shared)/data/germany-area/germany-area.shp\
 
-# extract lausitz long haul freight traffic trips from german wide file
+# extract freight trips for lausitz.shp from the germin-wide freight plans:
+# If this german freight file needs to be regenerated, the appropriate method is GenerateFreightPlans in matsim-germany.
 input/plans-longHaulFreight.xml.gz: input/$V/$N-$V-network.xml.gz
 	$(sc) prepare extract-freight-trips ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/german_freight.100pct.plans.xml.gz\
 	 --network ../public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/germany-europe-network.xml.gz\
@@ -141,6 +144,8 @@ input/lausitz-small-scale-commercialTraffic-$V-100pct.plans.xml.gz: input/$V/$N-
 # trajectory-to-plans formerly was a collection of methods to prepare a given population
 # now, most of the functions of this class do have their own class (downsample, splitduration types...)
 # it basically only transforms the old attribute format to the new one
+# (--max-typical-duration 0 means that at this point no typical durations are appended to the activity types ... however, this is done later, see
+# below.  kai, feb'25)
 input/$V/prepare-100pct.plans.xml.gz:
 	$(sc) prepare trajectory-to-plans\
 	 --name prepare --sample-size 1 --output input/$V\
@@ -193,6 +198,8 @@ input/$V/$N-$V-100pct.plans-initial.xml.gz: input/plans-longHaulFreight.xml.gz i
 #	merge person and freight pops
 	$(sc) prepare merge-populations $@ $< $(word 3,$^) --output $@
 
+#	TODO: do adapt-freight-plans here
+
 	$(sc) prepare downsample-population $@\
     	 --sample-size 1\
     	 --samples 0.25 0.1 0.01\
@@ -210,7 +217,6 @@ input/$V/$N-$V-counts-bast.xml.gz: input/$V/$N-$V-network-with-pt.xml.gz
 		--output $@
 
 check: input/$V/$N-$V-100pct.plans-initial.xml.gz
-	#commuter analysis, still TODO
 	$(sc) analysis commuter\
 	 --population $<\
  	 --input-crs $(CRS)\

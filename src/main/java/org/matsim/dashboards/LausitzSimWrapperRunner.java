@@ -26,6 +26,7 @@ import org.matsim.api.core.v01.Scenario;
 import org.matsim.application.ApplicationUtils;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.ShpOptions;
+import org.matsim.contrib.drt.extension.dashboards.DrtDashboardProvider;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
@@ -43,6 +44,7 @@ import picocli.CommandLine;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -66,16 +68,28 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	private boolean trips;
 	@CommandLine.Option(names = "--emissions", defaultValue = "false", description = "create emission dashboard")
 	private boolean emissions;
+	@CommandLine.Option(names = "--base-dir", description = "dir of base run for pt-line and drt dashbord. required if you want one of those dashboards.")
+	private String baseDir;
+	@CommandLine.Option(names = "--pt-line", defaultValue = "false", description = "create lausitz pt line dashboard")
+	private boolean ptLine;
+	@CommandLine.Option(names = "--drt", defaultValue = "false", description = "create lausitz drt dashboard")
+	private boolean drt;
+
+	private static final String FILE_TYPE = "_before_emissions.xml";
 
 
 	public LausitzSimWrapperRunner(){
 //		public constructor needed for testing purposes.
 	}
 
+	public static void main(String[] args) {
+		new LausitzSimWrapperRunner().execute(args);
+	}
+
 	@Override
 	public Integer call() throws Exception {
 
-		if (!noise && !trips && !emissions){
+		if (!noise && !trips && !emissions && !drt && !ptLine){
 			throw new IllegalArgumentException("you have not configured any dashboard to be created! Please use command line parameters!");
 		}
 
@@ -112,30 +126,45 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 				sw.addDashboard(Dashboard.customize(new EmissionsDashboard(config.global().getCoordinateSystem())).context("emissions"));
 
 				LausitzScenario.setEmissionsConfigs(config);
-				ConfigUtils.writeConfig(config, configPath);
-
-				Config dummyConfig = new Config();
 
 				String networkPath = ApplicationUtils.matchInput("output_network.xml.gz", runDirectory).toString();
 				String vehiclesPath = ApplicationUtils.matchInput("output_vehicles.xml.gz", runDirectory).toString();
 				String transitVehiclesPath = ApplicationUtils.matchInput("output_transitVehicles.xml.gz", runDirectory).toString();
+				String populationPath = ApplicationUtils.matchInput("output_plans.xml.gz", runDirectory).toString();
 
-				dummyConfig.network().setInputFile(networkPath);
-				dummyConfig.vehicles().setVehiclesFile(vehiclesPath);
-				dummyConfig.transit().setVehiclesFile(transitVehiclesPath);
+				config.network().setInputFile(networkPath);
+				config.vehicles().setVehiclesFile(vehiclesPath);
+				config.transit().setVehiclesFile(transitVehiclesPath);
+				config.plans().setInputFile(populationPath);
 
-				Scenario scenario = ScenarioUtils.loadScenario(dummyConfig);
+				Scenario scenario = ScenarioUtils.loadScenario(config);
 
 //				adapt network and veh types for emissions analysis like in LausitzScenario base run class
 				PrepareNetwork.prepareEmissionsAttributes(scenario.getNetwork());
 				LausitzScenario.prepareVehicleTypesForEmissionAnalysis(scenario);
 
-//				overwrite outputs with adapted files
+//				write outputs with adapted files.
+//				original output files need to be overwritten as AirPollutionAnalysis searches for "config.xml".
+//				copy old files to separate files
+				Files.copy(Path.of(configPath), getUniqueTargetPath(Path.of(configPath.split(".xml")[0] + FILE_TYPE)));
+				Files.copy(Path.of(networkPath), getUniqueTargetPath(Path.of(networkPath.split(".xml")[0] + FILE_TYPE + ".gz")));
+				Files.copy(Path.of(vehiclesPath), getUniqueTargetPath(Path.of(vehiclesPath.split(".xml")[0] + FILE_TYPE + ".gz")));
+				Files.copy(Path.of(transitVehiclesPath), getUniqueTargetPath(Path.of(transitVehiclesPath.split(".xml")[0] + FILE_TYPE + ".gz")));
+
+				ConfigUtils.writeConfig(config, configPath);
 				NetworkUtils.writeNetwork(scenario.getNetwork(), networkPath);
 				new MatsimVehicleWriter(scenario.getVehicles()).writeFile(vehiclesPath);
 				new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(transitVehiclesPath);
 			}
 
+			if (drt) {
+				new DrtDashboardProvider().getDashboards(config, sw).forEach(sw::addDashboard);
+				sw.addDashboard(new LausitzDrtDashboard(baseDir, config.global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
+			}
+
+			if (ptLine) {
+				sw.addDashboard(new PtLineDashboard(baseDir));
+			}
 
 			try {
 				sw.generate(runDirectory, true);
@@ -148,9 +177,22 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 		return 0;
 	}
 
-	public static void main(String[] args) {
-		new LausitzSimWrapperRunner().execute(args);
+	private static Path getUniqueTargetPath(Path targetPath) {
+		int counter = 1;
+		Path uniquePath = targetPath;
 
+		// Add a suffix if the file already exists
+		while (Files.exists(uniquePath)) {
+			String originalPath = targetPath.toString();
+			int dotIndex = originalPath.lastIndexOf(".");
+			if (dotIndex == -1) {
+				uniquePath = Path.of(originalPath + "_" + counter);
+			} else {
+				uniquePath = Path.of(originalPath.substring(0, dotIndex) + "_" + counter + originalPath.substring(dotIndex));
+			}
+			counter++;
+		}
+
+		return uniquePath;
 	}
-
 }

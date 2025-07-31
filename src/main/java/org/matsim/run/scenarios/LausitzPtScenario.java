@@ -8,14 +8,19 @@ import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.network.Node;
 import org.matsim.application.MATSimApplication;
+import org.matsim.contrib.emissions.EmissionUtils;
 import org.matsim.core.config.Config;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.routes.RouteUtils;
+import org.matsim.dashboards.PtLineDashboard;
 import org.matsim.pt.transitSchedule.api.*;
+import org.matsim.simwrapper.SimWrapper;
+import org.matsim.simwrapper.SimWrapperModule;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleType;
 import org.matsim.vehicles.Vehicles;
+import picocli.CommandLine;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -25,8 +30,10 @@ import java.util.*;
  * All necessary configs will be made in this class.
  */
 public class LausitzPtScenario extends LausitzScenario {
+	@CommandLine.Option(names = "--base-run", description = "Path to run directory of base run. Used for comparison for dashboards/analysis.", defaultValue = ".")
+	private String baseRunDir;
 
-	private final LausitzScenario baseScenario = new LausitzScenario(sample, emissions);
+	private SimWrapper sw;
 
 	public LausitzPtScenario(@Nullable Config config) {
 		super(config);
@@ -47,8 +54,8 @@ public class LausitzPtScenario extends LausitzScenario {
 	@Nullable
 	@Override
 	public Config prepareConfig(Config config) {
-		//		apply all config changes from base scenario class
-		baseScenario.prepareConfig(config);
+//		//		apply all config changes from base scenario class
+		super.prepareConfig(config);
 
 		return config;
 	}
@@ -56,7 +63,10 @@ public class LausitzPtScenario extends LausitzScenario {
 	@Override
 	public void prepareScenario(Scenario scenario) {
 		//		apply all scenario changes from base scenario class
-		baseScenario.prepareScenario(scenario);
+		super.prepareScenario(scenario);
+
+//		add LausitzPtLineDashboard.
+		sw = SimWrapper.create(scenario.getConfig()).addDashboard(new PtLineDashboard(baseRunDir));
 
 //		pt stops are basically nodes, BUT are assigned to links
 //		each pt stop is assigned a circle link to and from the same node.
@@ -111,6 +121,8 @@ public class LausitzPtScenario extends LausitzScenario {
 		int i = 0;
 		for (List<Link> linkList : List.of(List.of(startLink1, link1, link2, link3, link4, link5), List.of(startLink2, link6, link7, link8, link9, link10))) {
 			transitInfoList.add(configureTransitStops(linkList, scenario.getNetwork(), schedule, fac, i, travelTimes));
+//			set dummy hbefaRoadType for new pt line links, as pt is not considered for AirPollution analysis anyways -sm0325
+			linkList.forEach(l -> EmissionUtils.setHbefaRoadType(l, "URB/Local/60"));
 			i++;
 		}
 
@@ -149,9 +161,11 @@ public class LausitzPtScenario extends LausitzScenario {
 	@Override
 	public void prepareControler(Controler controler) {
 		//		apply all controller changes from base scenario class
-		baseScenario.prepareControler(controler);
-//		TODO: add potential new Listeners here
-//		maybe a special controler for the new pt line would be handy?!
+		super.prepareControler(controler);
+
+		//		simwrapper module already is added in LausitzScenario class
+//		but we need the custom dashboard for this case, so we add it again. -sm05225
+		controler.addOverridingModule(new SimWrapperModule(sw));
 	}
 	private TransitInfo configureTransitStops(List<Link> linkList, Network network, TransitSchedule schedule, TransitScheduleFactory fac, int count, Map<Link, Double> travelTimes) {
 		List<Id<Link>> links = new ArrayList<>();

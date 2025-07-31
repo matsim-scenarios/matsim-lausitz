@@ -41,7 +41,7 @@ import static org.matsim.application.ApplicationUtils.globFile;
 class RunIntegrationTest {
 
 	@RegisterExtension
-	private MatsimTestUtils utils = new MatsimTestUtils();
+	private final MatsimTestUtils utils = new MatsimTestUtils();
 
 	@TempDir
 	private Path p;
@@ -66,7 +66,7 @@ class RunIntegrationTest {
 		assert MATSimApplication.execute(LausitzScenario.class, config,
 			"--1pct",
 			"--iterations", "1",
-			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v2024.2/lausitz-v2024.2-0.1pct.plans-initial.xml.gz",
+			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v2024.2/input/lausitz-v2024.2-0.1pct.plans-initial.xml.gz",
 			"--output", utils.getOutputDirectory(),
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 			"--config:global.numberOfThreads", "2",
@@ -93,7 +93,8 @@ class RunIntegrationTest {
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 			"--config:global.numberOfThreads", "2",
 			"--config:qsim.numberOfThreads", "2",
-			"--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+			"--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS"
+		)
 			== 0 : "Must return non error code";
 
 		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
@@ -155,7 +156,7 @@ class RunIntegrationTest {
 		assert MATSimApplication.execute(LausitzSpeedReductionScenario.class, config,
 			"--1pct",
 			"--iterations", "0",
-			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/input/v2024.2/lausitz-v2024.2-0.1pct.plans-initial.xml.gz",
+			"--config:plans.inputPlansFile", "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v2024.2/input/lausitz-v2024.2-0.1pct.plans-initial.xml.gz",
 			"--output", utils.getOutputDirectory(),
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 			"--config:global.numberOfThreads", "2",
@@ -222,6 +223,8 @@ class RunIntegrationTest {
 		Population population = PopulationUtils.createPopulation(config);
 		PopulationFactory fac = population.getFactory();
 		Person person = fac.createPerson(personId);
+		person.getAttributes().putAttribute("home_x", 863538.13);
+		person.getAttributes().putAttribute("home_y", 5711028.24);
 		Plan plan = PopulationUtils.createPlan(person);
 
 //		home in hoyerswerda
@@ -243,13 +246,14 @@ class RunIntegrationTest {
 
 		person.addPlan(plan);
 		PersonUtils.setIncome(person, 1000.);
+		PersonUtils.setAge(person, 30);
 		person.getAttributes().putAttribute("subpopulation", "person");
 		population.addPerson(person);
 
 		new PopulationWriter(population).write(this.inputPath);
 	}
 
-	private void createDrtTestPopulation(String inputPath) {
+	void createDrtTestPopulation(String inputPath) {
 		Random random = new Random(1);
 		Config config = ConfigUtils.createConfig();
 		Scenario scenario = ScenarioUtils.loadScenario(config);
@@ -259,6 +263,9 @@ class RunIntegrationTest {
 		for (int i = 0; i < 500; i++) {
 			Person person = populationFactory.createPerson(Id.createPersonId("dummy_person_" + i));
 			PersonUtils.setIncome(person, 1000.);
+			PersonUtils.setAge(person, 30);
+			person.getAttributes().putAttribute("home_x", 863538.13);
+			person.getAttributes().putAttribute("home_y", 5711028.24);
 			Plan plan = populationFactory.createPlan();
 			// a random location in the Hoyerswerda town center
 			Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(863949.91, 5711547.75));
@@ -279,14 +286,17 @@ class RunIntegrationTest {
 
 		Person drtOnly = populationFactory.createPerson(Id.createPersonId("drtOnly"));
 		PersonUtils.setIncome(drtOnly, 1000.);
+		PersonUtils.setAge(drtOnly, 30);
+		drtOnly.getAttributes().putAttribute("home_x", 863538.13);
+		drtOnly.getAttributes().putAttribute("home_y", 5711028.24);
 		Plan plan = populationFactory.createPlan();
 		// a random location in the Hoyerswerda town center
 		Activity fromAct = populationFactory.createActivityFromCoord("home_2400", new Coord(863949.91, 5711547.75));
 		// a random time between 6:00-9:00
 		fromAct.setEndTime(21600 + random.nextInt(10800));
 		Leg leg = populationFactory.createLeg(TransportMode.drt);
-		// a location in Wittichenau
-		Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(864808.3,5705774.7));
+		// a random location within vvo zone, close to Spohla and Maukendorf
+		Activity toAct = populationFactory.createActivityFromCoord("work_2400", new Coord(867912.23,5708354.43));
 
 		plan.addActivity(fromAct);
 		plan.addLeg(leg);
