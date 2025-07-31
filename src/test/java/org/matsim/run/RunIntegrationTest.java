@@ -71,7 +71,7 @@ class RunIntegrationTest {
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 			"--config:global.numberOfThreads", "2",
 			"--config:qsim.numberOfThreads", "2",
-			"--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+			"--emissions", "DISABLED")
 			== 0 : "Must return non error code";
 
 		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
@@ -93,7 +93,7 @@ class RunIntegrationTest {
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 			"--config:global.numberOfThreads", "2",
 			"--config:qsim.numberOfThreads", "2",
-			"--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS"
+			"--emissions", "DISABLED"
 		)
 			== 0 : "Must return non error code";
 
@@ -116,7 +116,7 @@ class RunIntegrationTest {
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 			"--config:global.numberOfThreads", "2",
 			"--config:qsim.numberOfThreads", "2",
-			"--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+			"--emissions", "DISABLED")
 			== 0 : "Must return non error code";
 
 		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
@@ -161,7 +161,7 @@ class RunIntegrationTest {
 			"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 			"--config:global.numberOfThreads", "2",
 			"--config:qsim.numberOfThreads", "2",
-			"--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+			"--emissions", "DISABLED")
 			== 0 : "Must return non error code";
 
 		Assertions.assertTrue(new File(utils.getOutputDirectory()).isDirectory());
@@ -194,7 +194,7 @@ class RunIntegrationTest {
 				"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 				"--config:global.numberOfThreads", "2",
 				"--config:qsim.numberOfThreads", "2",
-				"--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS",
+				"--emissions", "DISABLED",
 				"--transport-mode", mode)
 				== 0 : "Must return non error code";
 

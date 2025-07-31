@@ -142,7 +142,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 //	the handler is added in PtAndDrtFareModule. -sm0525
 	@Override
 	public AbstractModule getPtFareModule() {
-		if (drtOpt.getFareHandling() == DrtAndIntermodalityOptions.FunctionalityHandling.ENABLED) {
+		if (drtOpt.getFareHandling() == LausitzScenario.FunctionalityHandling.ENABLED) {
 			return new PtAndDrtFareModule();
 		} else {
 			return new PtFareModule();
