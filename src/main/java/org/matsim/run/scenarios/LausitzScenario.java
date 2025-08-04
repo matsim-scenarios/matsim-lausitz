@@ -73,7 +73,7 @@ public class LausitzScenario extends MATSimApplication {
 //	One could think of making this class non-public and refactoring all functionality which is used by other classes to a utils class,
 //	but we would have the same problem (public class needed). -sm0825
 
-	public static final String VERSION = "2024.2";
+	public static final String VERSION = "2.0";
 	public static final String FREIGHT = "longDistanceFreight";
 	public static final String SLASH = "/";
 	private static final String AVERAGE = "average";
