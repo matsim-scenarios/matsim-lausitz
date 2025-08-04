@@ -66,6 +66,13 @@ import java.util.Set;
 public class LausitzScenario extends MATSimApplication {
 // user classes should be final or non-public.  This one here currently can neither be final nor non-public.  kai, jun'25
 
+// This class is public and non-final intentionally.
+// Public: Required because it's accessed from outside the package.
+// Non-final: Required because it is extended by other scenario classes like LausitzPtScenario because we want to apply all changes of this (base) class
+//	to all other (policy) cases.
+//	One could think of making this class non-public and refactoring all functionality which is used by other classes to a utils class,
+//	but we would have the same problem (public class needed). -sm0825
+
 	public static final String VERSION = "2024.2";
 	public static final String FREIGHT = "longDistanceFreight";
 	public static final String SLASH = "/";
