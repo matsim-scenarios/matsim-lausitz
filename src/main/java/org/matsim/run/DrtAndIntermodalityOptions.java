@@ -47,8 +47,8 @@ import java.util.Set;
 /**
  * This class bundles some run parameter options and functionalities connected to drt-scenarios.
  */
-public class DrtOptions {
-	private static final Logger log = LogManager.getLogger(DrtOptions.class);
+public class DrtAndIntermodalityOptions {
+	private static final Logger log = LogManager.getLogger(DrtAndIntermodalityOptions.class);
 	public static final String DRT_DUMMY_ACT_TYPE = "drt-split-trip";
 
 	@CommandLine.Option(names = "--drt-shp", description = "Path to shp file for adding drt not network links as an allowed mode.", defaultValue = "./drt-area/hoyerswerda-ruhland_Bhf-utm32N.shp")
@@ -73,13 +73,13 @@ public class DrtOptions {
 	protected double rideTimeStd;
 
 	@CommandLine.Option(names = "--intermodal", defaultValue = "ENABLED", description = "enable intermodality for DRT service")
-	private FunctionalityHandling intermodal;
+	private LausitzScenario.FunctionalityHandling intermodal;
 
 	@CommandLine.Option(names = "--manual-trip-conversion", defaultValue = "DISABLED", description = "enable manual trip conversion from pt to drt " +
 		"(for legs with new pt line of LausitzPtScenario).")
-	private FunctionalityHandling manualTripConversion;
+	private LausitzScenario.FunctionalityHandling manualTripConversion;
 	@CommandLine.Option(names = "--drt-fare", defaultValue = "ENABLED", description = "enable fares for DRT service. The fare will be the same as for pt.")
-	private FunctionalityHandling fare;
+	private LausitzScenario.FunctionalityHandling fare;
 
 	/**
 	 * a helper method, which makes all necessary config changes to simulate drt.
@@ -137,34 +137,27 @@ public class DrtOptions {
 //		creates a drt staging activity and adds it to the scoring params
 		DrtConfigs.adjustMultiModeDrtConfig(multiModeDrtConfigGroup, config.scoring(), config.routing());
 
-		if (intermodal == FunctionalityHandling.ENABLED) {
+		if (intermodal == LausitzScenario.FunctionalityHandling.ENABLED) {
 			SwissRailRaptorConfigGroup srrConfig = ConfigUtils.addOrGetModule(config, SwissRailRaptorConfigGroup.class);
-			srrConfig.setUseIntermodalAccessEgress(true);
-			srrConfig.setIntermodalAccessEgressModeSelection(SwissRailRaptorConfigGroup.IntermodalAccessEgressModeSelection.CalcLeastCostModePerStop);
 
+//			we need to configure walk-pt intermodality if it has not been done in base case.
+			if (LausitzScenario.getExplicitWalkIntermodalityInBase() == LausitzScenario.FunctionalityHandling.DISABLED) {
+				LausitzScenario.setExplicitIntermodalityParamsForWalkToPt(srrConfig);
+			}
 //			add drt as access egress mode for pt
 			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressDrtParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
 			accessEgressDrtParam.setMode(TransportMode.drt);
 			// Euclidean distance from Hoyerswerda to Ruhland: 20-30 km
-			accessEgressDrtParam.setInitialSearchRadius(40000);
-			accessEgressDrtParam.setMaxRadius(40000);
+//			max euclidean distance for intermodal drt access/egress Hoy-Cott Bhf ~43km
+			accessEgressDrtParam.setInitialSearchRadius(50000);
+			accessEgressDrtParam.setMaxRadius(50000);
 			accessEgressDrtParam.setSearchExtensionRadius(1000);
 			accessEgressDrtParam.setStopFilterAttribute("allowDrtAccessEgress");
 			accessEgressDrtParam.setStopFilterValue("true");
 			srrConfig.addIntermodalAccessEgress(accessEgressDrtParam);
-
-			// TODO adjust the distance after test or make it configurable
-//			walk also needs to be added as access egress mode
-			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressWalkParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
-			accessEgressWalkParam.setMode(TransportMode.walk);
-			accessEgressWalkParam.setInitialSearchRadius(1000);
-			accessEgressWalkParam.setMaxRadius(1000);
-			accessEgressWalkParam.setSearchExtensionRadius(0.1);
-			srrConfig.addIntermodalAccessEgress(accessEgressWalkParam);
-
 		}
 
-		if (manualTripConversion == FunctionalityHandling.ENABLED) {
+		if (manualTripConversion == LausitzScenario.FunctionalityHandling.ENABLED) {
 			ScoringConfigGroup.ActivityParams drtDummyScoringParams = new ScoringConfigGroup.ActivityParams();
 			drtDummyScoringParams.setTypicalDuration(0.);
 			drtDummyScoringParams.setActivityType(DRT_DUMMY_ACT_TYPE);
@@ -218,11 +211,11 @@ public class DrtOptions {
 		}
 
 		//			tag intermodal pt stops for intermodality between pt and drt
-		if (intermodal == FunctionalityHandling.ENABLED) {
+		if (intermodal == LausitzScenario.FunctionalityHandling.ENABLED) {
 			PrepareTransitSchedule.tagIntermodalStops(scenario.getTransitSchedule(), new ShpOptions(IOUtils.extendUrl(scenario.getConfig().getContext(), intermodalAreaShp).toString(), null, null));
 		}
 
-		if (manualTripConversion == FunctionalityHandling.ENABLED) {
+		if (manualTripConversion == LausitzScenario.FunctionalityHandling.ENABLED) {
 			PrepareDrtScenarioAgents.convertVspRegionalTrainTripsToDrt(scenario.getPopulation());
 		}
 	}
@@ -303,7 +296,7 @@ public class DrtOptions {
 		return rideTimeStd;
 	}
 
-	public FunctionalityHandling getFareHandling() {
+	public LausitzScenario.FunctionalityHandling getFareHandling() {
 		return fare;
 	}
 
@@ -319,10 +312,4 @@ public class DrtOptions {
 		}
 		return drtServiceAreaShpPath;
 	}
-
-	/**
-	 * Helper enum to enable/disable functionalities.
-	 */
-	public enum FunctionalityHandling {ENABLED, DISABLED}
-
 }

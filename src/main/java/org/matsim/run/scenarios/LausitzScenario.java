@@ -1,5 +1,6 @@
 package org.matsim.run.scenarios;
 
+import ch.sbb.matsim.config.SwissRailRaptorConfigGroup;
 import com.google.common.collect.Sets;
 import org.matsim.analysis.personMoney.PersonMoneyEventsAnalysisModule;
 import org.matsim.api.core.v01.Scenario;
@@ -66,7 +67,14 @@ import java.util.Set;
 public class LausitzScenario extends MATSimApplication {
 // user classes should be final or non-public.  This one here currently can neither be final nor non-public.  kai, jun'25
 
-	public static final String VERSION = "2024.2";
+// This class is public and non-final intentionally.
+// Public: Required because it's accessed from outside the package.
+// Non-final: Required because it is extended by other scenario classes like LausitzPtScenario because we want to apply all changes of this (base) class
+//	to all other (policy) cases.
+//	One could think of making this class non-public and refactoring all functionality which is used by other classes to a utils class,
+//	but we would have the same problem (public class needed). -sm0825
+
+	public static final String VERSION = "2.0";
 	public static final String FREIGHT = "longDistanceFreight";
 	public static final String SLASH = "/";
 	private static final String AVERAGE = "average";
@@ -85,8 +93,10 @@ public class LausitzScenario extends MATSimApplication {
 	@CommandLine.Mixin
 	SampleOptions sample = new SampleOptions( 100, 25, 10, 1);
 
-	@CommandLine.Option(names = "--emissions", defaultValue = "PERFORM_EMISSIONS_ANALYSIS", description = "Define if emission analysis should be performed or not.")
-	EmissionAnalysisHandling emissions;
+	@CommandLine.Option(names = "--emissions", defaultValue = "ENABLED", description = "Define if emission analysis should be performed or not.")
+	FunctionalityHandling emissions;
+	@CommandLine.Option(names = "--explicit-walk-intermodality", defaultValue = "ENABLED", description = "Define if explicit walk intermodality parameter to/from pt should be set or not (use default).")
+	static FunctionalityHandling explicitWalkIntermodality;
 
 	public LausitzScenario(@Nullable Config config) {
 		super(config);
@@ -100,7 +110,7 @@ public class LausitzScenario extends MATSimApplication {
 		super(String.format("input/v%s/lausitz-v%s-10pct.config.xml", VERSION, VERSION));
 	}
 
-	public LausitzScenario(SampleOptions sample, EmissionAnalysisHandling handling) {
+	public LausitzScenario(SampleOptions sample, FunctionalityHandling handling) {
 		this.sample = sample;
 		this.emissions = handling;
 	}
@@ -186,11 +196,30 @@ public class LausitzScenario extends MATSimApplication {
 		ptFareConfigGroup.addParameterSet(vvo20);
 		ptFareConfigGroup.addParameterSet(germany);
 
-		if (emissions == EmissionAnalysisHandling.PERFORM_EMISSIONS_ANALYSIS) {
+		if (explicitWalkIntermodality == FunctionalityHandling.ENABLED) {
+			setExplicitIntermodalityParamsForWalkToPt(ConfigUtils.addOrGetModule(config, SwissRailRaptorConfigGroup.class));
+		}
+
+		if (emissions == FunctionalityHandling.ENABLED) {
 //		set hbefa input files for emission analysis
 			setEmissionsConfigs(config);
 		}
 		return config;
+	}
+
+	public static void setExplicitIntermodalityParamsForWalkToPt(SwissRailRaptorConfigGroup srrConfig) {
+		srrConfig.setUseIntermodalAccessEgress(true);
+		srrConfig.setIntermodalAccessEgressModeSelection(SwissRailRaptorConfigGroup.IntermodalAccessEgressModeSelection.CalcLeastCostModePerStop);
+
+//			add walk as access egress mode to pt
+		SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressWalkParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
+		accessEgressWalkParam.setMode(TransportMode.walk);
+//			initial radius for pt stop search
+		accessEgressWalkParam.setInitialSearchRadius(10000);
+		accessEgressWalkParam.setMaxRadius(100000);
+//			with this, initialSearchRadius gets extended by the set value until maxRadius is reached
+		accessEgressWalkParam.setSearchExtensionRadius(1000);
+		srrConfig.addIntermodalAccessEgress(accessEgressWalkParam);
 	}
 
 	@Override
@@ -198,7 +227,7 @@ public class LausitzScenario extends MATSimApplication {
 //		add freight and truck as allowed modes together with car
 		PrepareNetwork.prepareFreightNetwork(scenario.getNetwork());
 
-		if (emissions == EmissionAnalysisHandling.PERFORM_EMISSIONS_ANALYSIS) {
+		if (emissions == FunctionalityHandling.ENABLED) {
 //			prepare hbefa link attributes + make link.getType() handable for OsmHbefaMapping
 			PrepareNetwork.prepareEmissionsAttributes(scenario.getNetwork());
 //			prepare vehicle types for emission analysis
@@ -334,9 +363,12 @@ public class LausitzScenario extends MATSimApplication {
 		return new PtFareModule();
 	}
 
+	public static FunctionalityHandling getExplicitWalkIntermodalityInBase() {
+		return explicitWalkIntermodality;
+	}
+
 	/**
-	 * Defines if all necessary configs for emissions analysis should be made
-	 * and hence if emissions analysis is performed or not (will fail without configs).
+	 * Helper enum to enable/disable functionalities.
 	 */
-	enum EmissionAnalysisHandling {PERFORM_EMISSIONS_ANALYSIS, DO_NOT_PERFORM_EMISSIONS_ANALYSIS}
+	public enum FunctionalityHandling {ENABLED, DISABLED}
 }

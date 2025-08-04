@@ -25,7 +25,7 @@ import org.matsim.core.utils.io.IOUtils;
 import org.matsim.dashboards.LausitzDrtDashboard;
 import org.matsim.drt.PtAndDrtFareModule;
 import org.matsim.drt.ShpBasedDrtRequestValidator;
-import org.matsim.run.DrtOptions;
+import org.matsim.run.DrtAndIntermodalityOptions;
 import org.matsim.simwrapper.SimWrapper;
 import org.matsim.simwrapper.SimWrapperModule;
 import picocli.CommandLine;
@@ -40,7 +40,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 
 	//	run params re drt are contained in separate class DrtOptions
 	@CommandLine.ArgGroup(heading = "%nDrt options%n", exclusive = false, multiplicity = "0..1")
-	private final DrtOptions drtOpt = new DrtOptions();
+	private final DrtAndIntermodalityOptions drtOpt = new DrtAndIntermodalityOptions();
 	@CommandLine.Option(names = "--base-run", description = "Path to run directory of base run. Used for comparison for dashboards/analysis.", defaultValue = ".")
 	private String baseRunDir;
 
@@ -142,7 +142,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 //	the handler is added in PtAndDrtFareModule. -sm0525
 	@Override
 	public AbstractModule getPtFareModule() {
-		if (drtOpt.getFareHandling() == DrtOptions.FunctionalityHandling.ENABLED) {
+		if (drtOpt.getFareHandling() == LausitzScenario.FunctionalityHandling.ENABLED) {
 			return new PtAndDrtFareModule();
 		} else {
 			return new PtFareModule();

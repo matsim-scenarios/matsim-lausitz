@@ -14,7 +14,7 @@ import org.matsim.contrib.emissions.OsmHbefaMapping;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.network.algorithms.MultimodalNetworkCleaner;
 import org.matsim.core.utils.geometry.geotools.MGC;
-import org.matsim.run.DrtOptions;
+import org.matsim.run.DrtAndIntermodalityOptions;
 import picocli.CommandLine;
 
 import java.util.HashSet;
@@ -37,7 +37,7 @@ public class PrepareNetwork implements MATSimAppCommand {
 	private String outputPath;
 
 	@CommandLine.ArgGroup(heading = "%nDrt options%n", exclusive = false, multiplicity = "0..1")
-	private final DrtOptions drtOpt = new DrtOptions();
+	private final DrtAndIntermodalityOptions drtOpt = new DrtAndIntermodalityOptions();
 
 	public static void main(String[] args) {
 		new PrepareNetwork().execute(args);

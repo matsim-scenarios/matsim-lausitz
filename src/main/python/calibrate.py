@@ -65,7 +65,7 @@ study, obj = create_calibration(
     "calib",
     ASCCalibrator(modes, initial, target, lr=utils.linear_scheduler(start=0.3, interval=12)),
     "matsim-lausitz-1.x-SNAPSHOT-20c8ab3.jar",
-    "../input/v2024.2/lausitz-v2024.2-10pct.config.xml",
+    "../input/v2.0/lausitz-v2.0-10pct.config.xml",
     args="--25pct",
     jvm_args="-Xmx60G -Xmx60G -XX:+AlwaysPreTouch -XX:+UseParallelGC",
     transform_persons=filter_persons, transform_trips=filter_modes,
