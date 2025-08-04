@@ -1,6 +1,6 @@
 
 N := lausitz
-V := v2.0
+V := v2024.2
 CRS := EPSG:25832
 JAR := matsim-$(N)-*.jar
 
