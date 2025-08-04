@@ -77,7 +77,7 @@ class DrtAndPtFareTest {
 						"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 						"--config:global.numberOfThreads", "2",
 						"--config:qsim.numberOfThreads", "2",
-						"--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+						"--emissions", "DISABLED")
 						== 0 : "Must return non error code";
 					break;
 
@@ -92,7 +92,7 @@ class DrtAndPtFareTest {
 						"--config:controller.overwriteFiles=deleteDirectoryIfExists",
 						"--config:global.numberOfThreads", "2",
 						"--config:qsim.numberOfThreads", "2",
-						"--emissions", "DO_NOT_PERFORM_EMISSIONS_ANALYSIS")
+						"--emissions", "DISABLED")
 						== 0 : "Must return non error code";
 					break;
 

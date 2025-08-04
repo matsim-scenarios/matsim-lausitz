@@ -73,13 +73,13 @@ public class DrtAndIntermodalityOptions {
 	protected double rideTimeStd;
 
 	@CommandLine.Option(names = "--intermodal", defaultValue = "ENABLED", description = "enable intermodality for DRT service")
-	private FunctionalityHandling intermodal;
+	private LausitzScenario.FunctionalityHandling intermodal;
 
 	@CommandLine.Option(names = "--manual-trip-conversion", defaultValue = "DISABLED", description = "enable manual trip conversion from pt to drt " +
 		"(for legs with new pt line of LausitzPtScenario).")
-	private FunctionalityHandling manualTripConversion;
+	private LausitzScenario.FunctionalityHandling manualTripConversion;
 	@CommandLine.Option(names = "--drt-fare", defaultValue = "ENABLED", description = "enable fares for DRT service. The fare will be the same as for pt.")
-	private FunctionalityHandling fare;
+	private LausitzScenario.FunctionalityHandling fare;
 
 	/**
 	 * a helper method, which makes all necessary config changes to simulate drt.
@@ -137,11 +137,13 @@ public class DrtAndIntermodalityOptions {
 //		creates a drt staging activity and adds it to the scoring params
 		DrtConfigs.adjustMultiModeDrtConfig(multiModeDrtConfigGroup, config.scoring(), config.routing());
 
-		if (intermodal == FunctionalityHandling.ENABLED) {
+		if (intermodal == LausitzScenario.FunctionalityHandling.ENABLED) {
 			SwissRailRaptorConfigGroup srrConfig = ConfigUtils.addOrGetModule(config, SwissRailRaptorConfigGroup.class);
-			srrConfig.setUseIntermodalAccessEgress(true);
-			srrConfig.setIntermodalAccessEgressModeSelection(SwissRailRaptorConfigGroup.IntermodalAccessEgressModeSelection.CalcLeastCostModePerStop);
 
+//			we need to configure walk-pt intermodality if it has not been done in base case.
+			if (LausitzScenario.getExplicitWalkIntermodalityInBase() == LausitzScenario.FunctionalityHandling.DISABLED) {
+				LausitzScenario.setExplicitIntermodalityParamsForWalkToPt(srrConfig);
+			}
 //			add drt as access egress mode for pt
 			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressDrtParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
 			accessEgressDrtParam.setMode(TransportMode.drt);
@@ -153,20 +155,9 @@ public class DrtAndIntermodalityOptions {
 			accessEgressDrtParam.setStopFilterAttribute("allowDrtAccessEgress");
 			accessEgressDrtParam.setStopFilterValue("true");
 			srrConfig.addIntermodalAccessEgress(accessEgressDrtParam);
-
-//			walk also needs to be added as access egress mode
-			SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet accessEgressWalkParam = new SwissRailRaptorConfigGroup.IntermodalAccessEgressParameterSet();
-			accessEgressWalkParam.setMode(TransportMode.walk);
-//			initial radius for pt stop search
-			accessEgressWalkParam.setInitialSearchRadius(10000);
-			accessEgressWalkParam.setMaxRadius(100000);
-//			with this, initialSearchRadius gets extended by the set value until maxRadius is reached
-			accessEgressWalkParam.setSearchExtensionRadius(1000);
-			srrConfig.addIntermodalAccessEgress(accessEgressWalkParam);
-
 		}
 
-		if (manualTripConversion == FunctionalityHandling.ENABLED) {
+		if (manualTripConversion == LausitzScenario.FunctionalityHandling.ENABLED) {
 			ScoringConfigGroup.ActivityParams drtDummyScoringParams = new ScoringConfigGroup.ActivityParams();
 			drtDummyScoringParams.setTypicalDuration(0.);
 			drtDummyScoringParams.setActivityType(DRT_DUMMY_ACT_TYPE);
@@ -220,11 +211,11 @@ public class DrtAndIntermodalityOptions {
 		}
 
 		//			tag intermodal pt stops for intermodality between pt and drt
-		if (intermodal == FunctionalityHandling.ENABLED) {
+		if (intermodal == LausitzScenario.FunctionalityHandling.ENABLED) {
 			PrepareTransitSchedule.tagIntermodalStops(scenario.getTransitSchedule(), new ShpOptions(IOUtils.extendUrl(scenario.getConfig().getContext(), intermodalAreaShp).toString(), null, null));
 		}
 
-		if (manualTripConversion == FunctionalityHandling.ENABLED) {
+		if (manualTripConversion == LausitzScenario.FunctionalityHandling.ENABLED) {
 			PrepareDrtScenarioAgents.convertVspRegionalTrainTripsToDrt(scenario.getPopulation());
 		}
 	}
@@ -305,7 +296,7 @@ public class DrtAndIntermodalityOptions {
 		return rideTimeStd;
 	}
 
-	public FunctionalityHandling getFareHandling() {
+	public LausitzScenario.FunctionalityHandling getFareHandling() {
 		return fare;
 	}
 
@@ -321,10 +312,4 @@ public class DrtAndIntermodalityOptions {
 		}
 		return drtServiceAreaShpPath;
 	}
-
-	/**
-	 * Helper enum to enable/disable functionalities.
-	 */
-	public enum FunctionalityHandling {ENABLED, DISABLED}
-
 }
