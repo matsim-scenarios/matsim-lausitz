@@ -58,7 +58,7 @@ class DrtPostSimulationTest {
 		new RunDrtPostSimulation().execute("--main-sim-output", utils.getOutputDirectory(),
 			"--fleet-sizing", "1", "2", "1",
 			"--capacity", "1",
-			"--service-area-path", Path.of("./input/v2024.2/drt-area/hoyerswerda-ruhland_Bhf-utm32N.shp").toAbsolutePath().normalize().toString()
+			"--service-area-path", Path.of("./input/drt-area/hoyerswerda-ruhland_Bhf-utm32N.shp").toAbsolutePath().normalize().toString()
 			);
 
 		Assertions.assertEquals(2,
