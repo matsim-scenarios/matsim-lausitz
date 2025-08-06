@@ -32,7 +32,7 @@
 
 	<module name="plans">
 		<param name="inputPlansFile"
-			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v2024.2/input/lausitz-v2024.2-10pct.plans-initial.xml.gz"/>
+			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v2.0/input/lausitz-v2.0-10pct-calibrated-plans_selected_cleaned.xml.gz"/>
 		<param name="removingUnnecessaryPlanAttributes" value="true"/>
 	</module>
 
