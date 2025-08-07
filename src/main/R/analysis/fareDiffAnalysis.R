@@ -11,12 +11,17 @@ option_list <- list(
 opt_parser <- OptionParser(option_list=option_list)
 opt <- parse_args(opt_parser)
 
+if (is.null(opt$runDir)) {
+  print_help(opt_parser)
+  stop("Error: --runDir is required", call.=FALSE)
+}
+
 run_dir <- opt$runDir
 run_dir_fixed <- gsub("////", "/", run_dir)
 
 # if you do not want to use opt_parse, comment out the above lines starting from option_list <- ...
 # you have to define run_dir_fixed yourself
-# run_dir_fixed <- "Y:/net/ils/matsim-lausitz/caseStudies/v2024.2/pt-case-study/output-lausitz-pt-case"
+# run_dir_fixed <- "Y:/net/ils/matsim-lausitz/caseStudies/v2.0/drt-case-study/no-pooling-0-fare/output-4-ruhland-bhf-spremberg-bhf-schwarze-pumpe"
 
 setwd(run_dir_fixed)
 print(paste("Running analysis on run dir", getwd()))
@@ -25,10 +30,22 @@ money_events_path <- list.files(path=run_dir_fixed, pattern="output_personMoneyE
 
 ############################################## get the data ##################################################################
 
-money_events_policy <- read_csv2(file=money_events_path) %>% 
-  mutate(amount=as.numeric(amount))
-money_events_base <- read_csv2(file="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v2024.2/output/10pct/lausitz-v2024.2-10pct-base-case.output_personMoneyEvents.tsv.gz") %>% 
-  mutate(amount=as.numeric(amount))
+money_events_policy <- read_delim(file = money_events_path,delim = ";", col_types = cols(
+    time = col_double(),
+    person = col_character(),
+    amount = col_double(),
+    purpose = col_character(),
+    transactionPartner = col_character(),
+    reference = col_character()))
+
+money_events_base <- read_delim(file = "Y:/net/ils/matsim-lausitz/v2.0-release/base-case-ctd-10-pct/output-lausitz-v2.0-10pct-base-case-ctd-commit-430893a/lausitz-v2.0-10pct-base-case-ctd.output_personMoneyEvents.tsv.gz",
+  delim = ";", col_types = cols(
+    time = col_double(),
+    person = col_character(),
+    amount = col_double(),
+    purpose = col_character(),
+    transactionPartner = col_character(),
+    reference = col_character()))
 
 ############################################# analysis ####################################################
 
@@ -38,13 +55,13 @@ filtered_policy <- money_events_policy %>%
 
 # get sum of fares. multiply negative values with -1 to avoid knot in brain
 sum_fares_policy <- filtered_policy %>% 
-  filter(amount < 0) %>% 
+  filter(!str_detect(purpose, "refund")) %>%
   mutate(amount=amount * -1) %>%
   summarise(total = sum(amount)) %>% 
   pull(total)
 
 sum_refunds_policy <- filtered_policy %>% 
-  filter(amount >= 0) %>% 
+  filter(str_detect(purpose, "refund")) %>% 
   summarise(total = sum(amount)) %>% 
   pull(total)
 
@@ -57,13 +74,13 @@ filtered_base <- money_events_base %>%
 
 # get sum of fares. multiply negative values with -1 to avoid knot in brain
 sum_fares_base <- filtered_base %>% 
-  filter(amount < 0) %>% 
+  filter(!str_detect(purpose, "refund")) %>% 
   mutate(amount=amount * -1) %>%
   summarise(total = sum(amount)) %>% 
   pull(total)
 
 sum_refunds_base <- filtered_base %>% 
-  filter(amount >= 0) %>% 
+  filter(str_detect(purpose, "refund")) %>%
   summarise(total = sum(amount)) %>% 
   pull(total)
 

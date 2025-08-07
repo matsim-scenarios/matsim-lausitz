@@ -82,7 +82,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		this.output = output;
 	}
 
-	private PtLineAnalysis() {
+	public PtLineAnalysis() {
 	}
 
 	public static void main(String[] args) {
