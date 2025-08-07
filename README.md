@@ -3,9 +3,10 @@
 [![build](https://github.com/matsim-scenarios/matsim-lausitz/actions/workflows/build.yaml/badge.svg)](https://github.com/matsim-scenarios/matsim-lausitz/actions/workflows/build.yaml)
 ![license](https://img.shields.io/github/license/matsim-scenarios/matsim-lausitz.svg)
 ![JDK](https://img.shields.io/badge/JDK-17+-green.svg)
+[![DOI (v2024.2)](https://zenodo.org/badge/DOI/10.5281/zenodo.13983108.svg)](https://doi.org/10.5281/zenodo.13983108)
 
 
-![MATSim network and agents](scenarios/visualization.png "MATSim network and agents")
+![MATSim network and agents](visualization.png "MATSim network and agents")
 
 
 ### About this project
@@ -14,7 +15,7 @@ This repository provides an open MATSim transport model for Lausitz, provided by
 
 <a rel="TU Berlin" href="https://www.vsp.tu-berlin.de"><img src="https://svn.vsp.tu-berlin.de/repos/public-svn/ueber_uns/logo/TU_BERLIN_Logo_Lang_RGB_SR_rot.svg" width="25%"/></a>
 
-This scenario contains a 25pct sample of the Lausitz and its surrounding area; road capacities are accordingly reduced. The scenario is calibrated taking into consideration the traffic counts, modal split and mode-specific trip distance distributions.
+This scenario contains a 10pct sample of the Lausitz and its surrounding area; road capacities are accordingly reduced. The scenario is calibrated taking into consideration the traffic counts, modal split and mode-specific trip distance distributions.
 
 ### Licenses
 
