@@ -35,7 +35,8 @@ public class PtAndDrtFareModule extends AbstractModule {
 
 		Stream.concat(fareZoneBased.stream(), distanceBased.stream())
 			  .map(c -> (PtFareParams) c)
-//		       (yy these casts would not be necessary with typed getters above)
+			// (yy these casts would not be necessary with typed getters above)
+			//	typed getters are added in matsim-libs PR4167. -sm0825
 			  .sorted(Comparator.comparing(PtFareParams::getOrder))
 			  .forEach(p -> {
 				  if (p instanceof FareZoneBasedPtFareParams fareZoneBasedPtFareParams) {
