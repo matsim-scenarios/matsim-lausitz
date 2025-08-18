@@ -53,6 +53,10 @@ public class GeneralOdAnalysis implements MATSimAppCommand {
 
 		List<SimpleFeature> features = shp.isDefined() ? shp.readFeatures() : null;
 
+		if (features == null) {
+			throw new NullPointerException();
+		}
+
 		try (CSVPrinter printer = csv.createPrinter(output)) {
 			printer.printRecord("from_x", "from_y", "to_x", "to_y", "departure_time", "main_mode", "from_area", "to_area", "between_act_area", "between_act_x", "between_act_y", "between_act_end_time");
 			for (Person person : population.getPersons().values()) {
@@ -74,14 +78,14 @@ public class GeneralOdAnalysis implements MATSimAppCommand {
 					String betweenArea = null;
 
 					AtomicReference<Activity> act = new AtomicReference<>();
-					AtomicReference<String> intermediateArea = new AtomicReference<>();
+					AtomicReference<SimpleFeature> intermediateArea = new AtomicReference<>();
 
 					if (intermediateActivities == LausitzScenario.FunctionalityHandling.ENABLED) {
-//						we are always interested in the last intermediate = interaction act
+//						we are always interested in the last intermediate = interaction act in the smallest area. e.g. cottbus
 //						e.g. case: agent travels from hoyerswerda to cottbus by train
 //						starts from somewhere in hoy and has pt interaction in hoy main station
-//						also has pt interaction in cott main station before travelling to final dest in cott
-//						we want to know about the interaction act closest to destination
+//						also has pt interaction in cott main station before travelling to final dest in cott_expanded (cottbus city borders with buffer)
+//						we want to know about the interaction act closest to destination in cott in this case
 
 //						filter for acts in trip, filter for acts in area, continuously update act
 //						trip.getTripElements() does not contain the start and end act!
@@ -90,12 +94,24 @@ public class GeneralOdAnalysis implements MATSimAppCommand {
 							.map(e -> (Activity) e)
 							.filter(a -> determineInsideArea(a.getCoord(), features) != null)
 							.forEach(activity -> {
-								act.set(activity);
-								intermediateArea.set(determineInsideArea(activity.getCoord(), features));
+								String areaName = determineInsideArea(activity.getCoord(), features);
+
+								if (areaName != null) {
+	//								there should be only one element if features are named uniquely
+									SimpleFeature feature = features.stream().filter(f -> f.getAttribute("name").equals(areaName)).toList().getFirst();
+
+	//								update intermediateArea if they start with same substring (e.g. cottbus) and if area is smaller than old intermediateArea
+									if (intermediateArea.get() != null &&
+										areaName.substring(0, 7).equals(intermediateArea.get().getAttribute("name").toString().substring(0, 7)) &&
+										((Geometry) feature.getDefaultGeometry()).getArea() < ((Geometry) intermediateArea.get().getDefaultGeometry()).getArea()) {
+										intermediateArea.set(feature);
+										act.set(activity);
+									}
+								}
 							});
 
 						if (act.get() != null) {
-							betweenArea = intermediateArea.get();
+							betweenArea = intermediateArea.get().getAttribute("name").toString();
 						}
 					}
 
