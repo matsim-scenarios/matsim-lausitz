@@ -269,7 +269,8 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 				idx.add(i);
 			}
 		}
-		return Map.of("policy", trips.where(Selection.with(idx.toIntArray())), "base", baseTrips.where(Selection.with(idx.toIntArray())));
+		trips = trips.where(Selection.with(idx.toIntArray()));
+		return Map.of("policy", trips, "base", baseTrips.where(baseTripIdColumn.isIn(tripIdColumn)));
 	}
 
 	private Table filterTripsWithDrt(Table trips, Table drtLegs, PtLineAnalysis ptLineAnalysis) {
