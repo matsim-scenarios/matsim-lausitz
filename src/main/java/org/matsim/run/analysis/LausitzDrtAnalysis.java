@@ -225,14 +225,16 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		trips = filterTripsWithDrt(trips, drtLegs, ptLineAnalysis);
 
 //		filter trips of base case for comparison
-		StringColumn tripIdColumn = trips.stringColumn(TRIP_ID);
-		StringColumn baseTripIdColumn = baseTrips.stringColumn(TRIP_ID);
-
-		baseTrips = baseTrips.where(baseTripIdColumn.isIn(tripIdColumn));
+//		apparently we cannot filter like this: baseTrips = baseTrips.where(baseTripIdColumn.isIn(tripIdColumn));
+//		in the case of agents stucking, it causes a crash of the whole analysis.
+//		rather use filterBaseTrips() and exclude the person from analysis
+		Map<String, Table> tripTables = filterBaseTrips(trips, baseTrips);
+		trips = tripTables.get("policy");
+		baseTrips = tripTables.get("base");
 
 //		the number of trips in both filtered tables should be the same
 		if (baseTrips.rowCount() != trips.rowCount()) {
-			log.fatal("Number of trips in filtered base case trips table ({}) and pt policy case trips table ({}) is not equal!" +
+			log.fatal("Number of trips in filtered base case trips table ({}) and drt policy case trips table ({}) is not equal!" +
 				" Analysis cannot be continued.", baseTrips.rowCount(), trips.rowCount());
 			return 2;
 		}
@@ -247,6 +249,27 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 //		write mode shares to csv
 		ptLineAnalysis.writeBaseModeShares(baseTrips, DRT_PREFIX);
 		return 0;
+	}
+
+	private Map<String, Table> filterBaseTrips(Table trips, Table baseTrips) {
+		IntList idx = new IntArrayList();
+
+		StringColumn tripIdColumn = trips.stringColumn(TRIP_ID);
+		StringColumn baseTripIdColumn = baseTrips.stringColumn(TRIP_ID);
+
+		for (int i = 0; i < trips.rowCount(); i++) {
+			String id = tripIdColumn.get(i);
+
+			if (baseTrips.where(baseTripIdColumn.isEqualTo(id)).rowCount() == 0) {
+				log.info("Trip with id {} is present in policy trips table, but not in base trips table. Most probably the agent stucks in the base case. " +
+					"Trip {} will be ignored for this analysis.", id, id);
+			} else if (baseTrips.where(baseTripIdColumn.isEqualTo(id)).rowCount() > 1) {
+				log.fatal("There are {} trips with id {} in the base case. Duplicate ids should never exist! Aborting.", baseTrips.where(baseTripIdColumn.isEqualTo(id)).rowCount(), id);
+			} else {
+				idx.add(i);
+			}
+		}
+		return Map.of("policy", trips.where(Selection.with(idx.toIntArray())), "base", baseTrips.where(Selection.with(idx.toIntArray())));
 	}
 
 	private Table filterTripsWithDrt(Table trips, Table drtLegs, PtLineAnalysis ptLineAnalysis) {
