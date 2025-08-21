@@ -16,6 +16,8 @@ import org.matsim.application.options.CsvOptions;
 import org.matsim.application.options.InputOptions;
 import org.matsim.application.options.OutputOptions;
 import org.matsim.core.api.experimental.events.EventsManager;
+import org.matsim.core.config.Config;
+import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.events.EventsUtils;
 import org.matsim.core.events.MatsimEventsReader;
 import org.matsim.core.utils.io.IOUtils;
@@ -42,7 +44,8 @@ import static tech.tablesaw.aggregate.AggregateFunctions.*;
 @CommandSpec(requireRunDirectory = true,
 	produces = {"pt_persons.csv", "pt_persons_home_locations.csv", "pt_persons_income_groups.csv", "pt_persons_age_groups.csv",
 		"mean_travel_stats.csv", "pt_persons_trav_time.csv", "pt_persons_traveled_distance.csv", "pt_persons_base_modal_share.csv",
-		"pt_persons_mean_score_per_income_group.csv", "pt_persons_executed_score.csv", "all_persons_income_groups.csv", "all_persons_age_groups.csv"
+		"pt_persons_mean_score_per_income_group.csv", "pt_persons_executed_score.csv", "all_persons_income_groups.csv", "all_persons_age_groups.csv",
+		"all_persons_aggregated_stats.csv", "pt_persons_aggregated_stats.csv", "all_trips_aggregated_stats.csv", "pt_trips_aggregated_stats.csv"
 	}
 )
 
@@ -75,6 +78,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	private static final String TRIP_ID = "trip_id";
 	private static final String BASE_SUFFIX = "_base";
 	private static final String COUNT_PERSON = "Count [person]";
+	private static final String PT_PERSONS_PREFIX = "pt_persons_";
+	private static final String INCOME_DEP_BETA_MONEY = "incomeDepBetaMoney";
 
 	PtLineAnalysis(List<Integer> incomeGroups, List<Integer> ageGroups, OutputOptions output) {
 		this.incomeGroups = incomeGroups;
@@ -110,6 +115,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		String tripsPath = globFile(input.getRunDirectory(), "*output_trips.csv.gz").toString();
 		String basePersonsPath = globFile(basePath, "*output_persons.csv.gz").toString();
 		String baseTripsPath = globFile(basePath, "*output_trips.csv.gz").toString();
+		String configPath = globFile(input.getRunDirectory(), "*output_config.xml").toString();
 
 		Table persons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(personsPath))
 			.columnTypesPartial(Map.of(PERSON, ColumnType.TEXT, SCORE, ColumnType.DOUBLE, INCOME, ColumnType.DOUBLE))
@@ -133,7 +139,27 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		writeIncomeDistr(persons, incomeLabels, "all_persons_income_groups.csv", null);
 		writeAgeDistr(persons, "all_persons_age_groups.csv", null);
 
+		//		read base persons
+		Table basePersons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(basePersonsPath))
+			.columnTypesPartial(Map.of(PERSON, ColumnType.TEXT, SCORE, ColumnType.DOUBLE, INCOME, ColumnType.DOUBLE))
+			.sample(false)
+			.separator(CsvOptions.detectDelimiter(basePersonsPath)).build());
 
+		Table basePersonsWithoutFreight = basePersons.where(basePersons.textColumn(PERSON).isIn(persons.textColumn(PERSON)));
+
+		//		the number of persons in both filtered person tables should be the same
+		if (basePersonsWithoutFreight.rowCount() != persons.rowCount()) {
+			log.fatal("Number of persons in base case persons table without freight trips ({}) and pt policy case persons table without freight trips ({}) is not equal! " +
+				"Analysis cannot be continued.", basePersonsWithoutFreight.rowCount(), persons.rowCount());
+			return 2;
+		}
+
+//		get general marg ut of money from cfg
+		Config config = ConfigUtils.loadConfig(configPath);
+		double generalBetaMoney = config.scoring().getMarginalUtilityOfMoney();
+
+//		calc and write sum of scores, mean score etc. for all agents to csv
+		calcAndWritePersonAggregatedStats(persons, basePersonsWithoutFreight, generalBetaMoney, "all_persons_");
 
 		Map<String, ColumnType> columnTypes = new HashMap<>(Map.of(PERSON, ColumnType.TEXT,
 			TRAV_TIME, ColumnType.STRING, "dep_time", ColumnType.STRING, MAIN_MODE, ColumnType.STRING,
@@ -143,25 +169,30 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		TextColumn personColumn = persons.textColumn(PERSON);
 		persons = persons.where(personColumn.isIn(ptPersons.keySet()));
 
-		//		read base persons and filter them
-		Table basePersons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(basePersonsPath))
-			.columnTypesPartial(Map.of(PERSON, ColumnType.TEXT, SCORE, ColumnType.DOUBLE, INCOME, ColumnType.DOUBLE))
-			.sample(false)
-			.separator(CsvOptions.detectDelimiter(basePersonsPath)).build());
-
+//		filter for pt line users in base persons
 		TextColumn basePersonColumn = basePersons.textColumn(PERSON);
 		basePersons = basePersons.where(basePersonColumn.isIn(ptPersons.keySet()));
 
-		writeComparisonTable(persons, basePersons, SCORE, PERSON, "pt_persons_");
+		//		the number of persons in both filtered person tables should be the same
+		if (basePersons.rowCount() != persons.rowCount()) {
+			log.fatal("Number of persons in base case persons table for pt line users ({}) and pt policy case persons table for pt line users ({}) is not equal!" +
+				"Analysis cannot be continued.", basePersons, persons.rowCount());
+			return 2;
+		}
+
+//		calc and write sum of scores, mean score etc. for pt line users to csv
+		calcAndWritePersonAggregatedStats(persons, basePersons, generalBetaMoney, PT_PERSONS_PREFIX);
+
+		writeComparisonTable(persons, basePersons, SCORE, PERSON, PT_PERSONS_PREFIX);
 
 //		print csv file with home coords of new pt line agents
-		writeHomeLocations(persons, "pt_persons_");
+		writeHomeLocations(persons, PT_PERSONS_PREFIX);
 
 //		write income distr of new pt line agents
-		writeIncomeDistr(persons, incomeLabels, null, "pt_persons_");
+		writeIncomeDistr(persons, incomeLabels, null, PT_PERSONS_PREFIX);
 
 //		write age distr of new pt line agents
-		writeAgeDistr(persons, null, "pt_persons_");
+		writeAgeDistr(persons, null, PT_PERSONS_PREFIX);
 
 		for (int i = 0; i < basePersons.columnCount(); i++) {
 			Column column = basePersons.column(i);
@@ -176,7 +207,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			.joinOn(INCOME_GROUP).inner(basePersonsIncomeGroup.summarize(SCORE + BASE_SUFFIX, mean).by(INCOME_GROUP));
 
 //		write scores per income group
-		writeScorePerIncomeGroupDistr(scoresPerIncomeGroup, incomeLabels, "pt_persons_");
+		writeScorePerIncomeGroupDistr(scoresPerIncomeGroup, incomeLabels, PT_PERSONS_PREFIX);
 
 		Table trips = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(tripsPath))
 			.columnTypesPartial(columnTypes)
@@ -187,6 +218,23 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			.columnTypesPartial(columnTypes)
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(baseTripsPath)).build());
+
+		Table freightTrips = trips.where(trips.stringColumn(TRIP_ID).containsString("commercialPersonTraffic")
+			.or(trips.stringColumn(TRIP_ID).containsString("freight"))
+			.or(trips.stringColumn(TRIP_ID).containsString("goodsTraffic")));
+
+		Table tripsWithoutFreight = trips.where(trips.stringColumn(TRIP_ID).isNotIn(freightTrips.stringColumn(TRIP_ID)));
+		Table baseTripsWithoutFreight = baseTrips.where(baseTrips.stringColumn(TRIP_ID).isIn(tripsWithoutFreight.stringColumn(TRIP_ID)));
+
+		//		the number of trips in both filtered tables should be the same
+		if (baseTripsWithoutFreight.rowCount() != tripsWithoutFreight.rowCount()) {
+			log.fatal("Number of trips in base case trips table without freight ({}) and pt policy case trips table without freight ({}) is not equal!" +
+				" Analysis cannot be continued.", baseTripsWithoutFreight.rowCount(), tripsWithoutFreight.rowCount());
+			return 2;
+		}
+
+//		calc and write sums and diffs of tt for all trips to csv
+		calcAndWriteTripAggregatedStats(tripsWithoutFreight, baseTripsWithoutFreight, "all_trips_");
 
 //		filter for trips with new pt line only
 		TextColumn personTripsColumn = trips.textColumn(PERSON);
@@ -224,16 +272,83 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			return 2;
 		}
 
+		//		calc and write sums and diffs of tt for pt line users to csv
+		calcAndWriteTripAggregatedStats(trips, baseTrips, "pt_trips_");
+
 //		calc and write mean stats for policy and base case
 		calcAndWriteMeanStats(trips, persons, baseTrips, basePersons, "pt line");
 
 //		write tables for comparison of travel time and distance
-		writeComparisonTable(trips, baseTrips, TRAV_TIME, TRIP_ID, "pt_persons_");
-		writeComparisonTable(trips, baseTrips, TRAV_DIST, TRIP_ID, "pt_persons_");
+		writeComparisonTable(trips, baseTrips, TRAV_TIME, TRIP_ID, PT_PERSONS_PREFIX);
+		writeComparisonTable(trips, baseTrips, TRAV_DIST, TRIP_ID, PT_PERSONS_PREFIX);
 
 //		write mode shares to csv
-		writeBaseModeShares(baseTrips, "pt_persons_");
+		writeBaseModeShares(baseTrips, PT_PERSONS_PREFIX);
 		return 0;
+	}
+
+	void calcAndWriteTripAggregatedStats(Table trips, Table baseTrips, String prefix) throws IOException {
+		double sumTravelTime = calcSumOfStringColumn(trips.stringColumn(TRAV_TIME));
+		double sumBaseTravelTime = calcSumOfStringColumn(baseTrips.stringColumn(TRAV_TIME));
+
+		//		write stats to csv
+		DecimalFormat f = new DecimalFormat("0.00", new DecimalFormatSymbols(Locale.ENGLISH));
+
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(prefix + "aggregated_stats.csv").toString()), getCsvFormat())) {
+			printer.printRecord("\" policy case sum travel times [s]\"", f.format(sumTravelTime));
+			printer.printRecord("\" base case sum travel times [s]\"", f.format(sumBaseTravelTime));
+			printer.printRecord("\" diff sum travel times [s]\"", f.format(sumBaseTravelTime - sumTravelTime));
+		}
+	}
+
+	private double calcSumOfStringColumn(StringColumn stringColumn) {
+		double total = 0;
+
+		for (int i = 0; i < stringColumn.size(); i++) {
+//			travel time is saved in hh:mm:ss format, thus read as string
+			double value = parseTimeManually(stringColumn.get(i));
+			total += value;
+		}
+		return total;
+	}
+
+	void calcAndWritePersonAggregatedStats(Table persons, Table basePersons, double generalBetaMoney, String prefix) throws IOException {
+		DoubleColumn scoreColumn = persons.doubleColumn(SCORE);
+		DoubleColumn baseScoreColumn = basePersons.doubleColumn(SCORE);
+		DoubleColumn incomeColumn = persons.doubleColumn(INCOME);
+
+		double sumScores = scoreColumn.sum();
+		double sumBaseScores = baseScoreColumn.sum();
+		double meanScore = scoreColumn.mean();
+		double meanBaseScore = baseScoreColumn.mean();
+		double meanIncome = incomeColumn.mean();
+
+		if (!persons.containsColumn(INCOME_DEP_BETA_MONEY)) {
+			persons.addColumns(DoubleColumn.create(INCOME_DEP_BETA_MONEY));
+
+			for (int i = 0; i < persons.rowCount(); i++) {
+				Row row = persons.row(i);
+
+				double income = row.getDouble(INCOME);
+				row.setDouble(INCOME_DEP_BETA_MONEY, generalBetaMoney * (meanIncome / income));
+			}
+		}
+
+		double meanIncomeDepUtilityOfMoney = persons.doubleColumn(INCOME_DEP_BETA_MONEY).mean();
+
+		//		write stats to csv
+		DecimalFormat f = new DecimalFormat("0.00", new DecimalFormatSymbols(Locale.ENGLISH));
+
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(prefix + "aggregated_stats.csv").toString()), getCsvFormat())) {
+			printer.printRecord("\" policy case sum scores [util]\"", f.format(sumScores));
+			printer.printRecord("\" base case sum scores [util]\"", f.format(sumBaseScores));
+			printer.printRecord("\" diff sum scores [util]\"", f.format(sumScores - sumBaseScores));
+			printer.printRecord("\" case mean score [util]\"", f.format(meanScore));
+			printer.printRecord("\" base case mean score [util]\"", f.format(meanBaseScore));
+			printer.printRecord("\" diff mean score [util]\"", f.format(meanScore - meanBaseScore));
+			printer.printRecord("\" mean income [€]\"", f.format(meanIncome));
+			printer.printRecord("\" mean income dependent utility of money [util/€]\"", f.format(meanIncomeDepUtilityOfMoney));
+		}
 	}
 
 	void calcAndWriteMeanStats(Table trips, Table persons, Table baseTrips, Table basePersons, String policy) throws IOException {
