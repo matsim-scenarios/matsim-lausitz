@@ -65,15 +65,15 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 	private List<Double> distGroups;
 
 	private static final String INCOME_GROUP = "incomeGroup";
-	private static final String PERSON = "person";
+	static final String PERSON = "person";
 	private static final String SHARE = "share";
 	private static final String SCORE = "executed_score";
 	private static final String INCOME = "income";
-	private static final String TRAV_TIME = "trav_time";
-	private static final String TRAV_DIST = "traveled_distance";
+	static final String TRAV_TIME = "trav_time";
+	static final String TRAV_DIST = "traveled_distance";
 	private static final String EUCL_DIST = "euclidean_distance";
-	private static final String MAIN_MODE = "main_mode";
-	private static final String TRIP_ID = "trip_id";
+	static final String MAIN_MODE = "main_mode";
+	static final String TRIP_ID = "trip_id";
 	private static final String BASE_SUFFIX = "_base";
 	private static final String DIST_GROUP = "dist_group";
 	private static final String DEPARTURE_H = "departureHour";
@@ -258,8 +258,8 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		calcAndWriteModalShares(drtServiceAreaTrips);
 
 //		aggregate and write OD-relations for drt service sub-area(s)
-		aggregateAndWriteDrtODRelations(drtLegs, drtServiceArea);
-
+		aggregateAndWriteDrtODRelations(drtLegs, drtServiceArea, output, "drt_legs_zones_od.csv",
+			"fromX", "fromY", "toX", "toY", DEPARTURE_TIME);
 
 //		filter for trips with drt only
 		trips = filterTripsWithDrt(trips, drtLegs, ptLineAnalysis);
@@ -342,11 +342,11 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		return trips.where(Selection.with(idx.toIntArray()));
 	}
 
-	private void aggregateAndWriteDrtODRelations(Table drtLegs, ShpOptions drtServiceArea) {
-		drtLegs = addOriginAndDestinationZoneIds(drtLegs, drtServiceArea);
+	void aggregateAndWriteDrtODRelations(Table tripsOrLegs, ShpOptions drtServiceArea, OutputOptions outputOpt, String outFileName, String fromColNameX, String fromColNameY, String toColNameX, String toColNameY, String depTimeColName) {
+		tripsOrLegs = addOriginAndDestinationZoneIds(tripsOrLegs, drtServiceArea, fromColNameX, fromColNameY, toColNameX, toColNameY);
 
 //		extract hours from departure time
-		DoubleColumn departureTimes = drtLegs.doubleColumn(DEPARTURE_TIME);
+		DoubleColumn departureTimes = tripsOrLegs.doubleColumn(depTimeColName);
 		int[] hours = new int[departureTimes.size()];
 
 		for (int i = 0; i < departureTimes.size(); i++) {
@@ -359,15 +359,15 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		}
 
 		IntColumn hourCol = IntColumn.create(DEPARTURE_H, hours);
-		drtLegs.addColumns(hourCol);
+		tripsOrLegs.addColumns(hourCol);
 
-		Table grouped = drtLegs
+		Table grouped = tripsOrLegs
 			.summarize(DEPARTURE_H, count)
-			.by(drtLegs.stringColumn(ORIG_ZONE_ID), drtLegs.stringColumn(DEST_ZONE_ID), hourCol);
+			.by(tripsOrLegs.stringColumn(ORIG_ZONE_ID), tripsOrLegs.stringColumn(DEST_ZONE_ID), hourCol);
 
 // Get all unique origins and destinations
-		StringColumn origins = drtLegs.stringColumn(ORIG_ZONE_ID).unique();
-		StringColumn destinations = drtLegs.stringColumn(DEST_ZONE_ID).unique();
+		StringColumn origins = tripsOrLegs.stringColumn(ORIG_ZONE_ID).unique();
+		StringColumn destinations = tripsOrLegs.stringColumn(DEST_ZONE_ID).unique();
 
 // Create full range of hours 0–23
 		IntColumn departureHour = IntColumn.create(DEPARTURE_H);
@@ -426,10 +426,10 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		}
 
 //Aggregate values into new rows
-		Table aggregatedDrtServiceAreas = Table.create("aggregatedDrtServiceAreas");
-		aggregatedDrtServiceAreas.addColumns(origDest, newOrigin, newDest);
+		Table aggregatedAreas = Table.create("aggregatedAreas");
+		aggregatedAreas.addColumns(origDest, newOrigin, newDest);
 		for (IntColumn col : hourColumns.values()) {
-			aggregatedDrtServiceAreas.addColumns(col);
+			aggregatedAreas.addColumns(col);
 		}
 
 		Set<String> seenKeys = new HashSet<>();
@@ -453,25 +453,25 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 				seenKeys.add(key);
 			} else {
 				// Find the index of this row in the pivot table
-				rowIndex = aggregatedDrtServiceAreas.stringColumn("origDest").indexOf(key);
+				rowIndex = aggregatedAreas.stringColumn("origDest").indexOf(key);
 				IntColumn col = hourColumns.get(hour);
 				col.set(rowIndex, count);
 			}
 		}
-		aggregatedDrtServiceAreas.removeColumns(origDest);
-		aggregatedDrtServiceAreas.write().csv(output.getPath("drt_legs_zones_od.csv").toFile());
+		aggregatedAreas.removeColumns(origDest);
+		aggregatedAreas.write().csv(outputOpt.getPath(outFileName).toFile());
 	}
 
-	private static Table addOriginAndDestinationZoneIds(Table drtLegs, ShpOptions drtServiceArea) {
-		StringColumn originZoneId = StringColumn.create(ORIG_ZONE_ID, new String[drtLegs.rowCount()]);
-		StringColumn destinationZoneId = StringColumn.create(DEST_ZONE_ID, new String[drtLegs.rowCount()]);
+	private static Table addOriginAndDestinationZoneIds(Table legsOrTrips, ShpOptions drtServiceArea, String fromColNameX, String fromColNameY, String toColNameX, String toColNameY) {
+		StringColumn originZoneId = StringColumn.create(ORIG_ZONE_ID, new String[legsOrTrips.rowCount()]);
+		StringColumn destinationZoneId = StringColumn.create(DEST_ZONE_ID, new String[legsOrTrips.rowCount()]);
 
 //		add from and to zone id to drt legs
-		for (int i = 0; i < drtLegs.rowCount(); i++) {
-			Row row = drtLegs.row(i);
+		for (int i = 0; i < legsOrTrips.rowCount(); i++) {
+			Row row = legsOrTrips.row(i);
 
-			Coord from = new Coord(row.getDouble("fromX"), row.getDouble("fromY"));
-			Coord to = new Coord(row.getDouble("toX"), row.getDouble("toY"));
+			Coord from = new Coord(row.getDouble(fromColNameX), row.getDouble(fromColNameY));
+			Coord to = new Coord(row.getDouble(toColNameX), row.getDouble(toColNameY));
 
 			double origSurface = 0.;
 			double destSurface = 0.;
@@ -515,8 +515,8 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 				}
 			}
 		}
-		drtLegs.addColumns(originZoneId, destinationZoneId);
-		return drtLegs;
+		legsOrTrips.addColumns(originZoneId, destinationZoneId);
+		return legsOrTrips;
 	}
 
 	private void calcAndWriteModalShares(Table drtServiceAreaTrips) {
