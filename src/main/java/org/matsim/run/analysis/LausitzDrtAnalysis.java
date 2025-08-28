@@ -289,9 +289,39 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		ptLineAnalysis.writeComparisonTable(trips, baseTrips, TRAV_TIME, TRIP_ID, DRT_PREFIX);
 		ptLineAnalysis.writeComparisonTable(trips, baseTrips, TRAV_DIST, TRIP_ID, DRT_PREFIX);
 
+		Table baseTripsOfTrueDrtTrips = filterForBaseTripsOfTrueDrtTrips(trips, baseTrips);
+
 //		write mode shares to csv
-		ptLineAnalysis.writeBaseModeShares(baseTrips, DRT_PREFIX);
+		ptLineAnalysis.writeBaseModeShares(baseTripsOfTrueDrtTrips, DRT_PREFIX);
 		return 0;
+	}
+
+	private Table filterForBaseTripsOfTrueDrtTrips(Table trips, Table baseTrips) {
+		IntList idx = new IntArrayList();
+
+		StringColumn mainModeColumn = trips.stringColumn(MAIN_MODE);
+
+		for (int i = 0; i < trips.rowCount(); i++) {
+			String mainMode = mainModeColumn.get(i);
+
+			if (mainMode.equals(TransportMode.drt)) {
+				idx.add(i);
+			}
+		}
+
+		trips = trips.where(Selection.with(idx.toIntArray()));
+
+		StringColumn tripIdColumn = trips.stringColumn(TRIP_ID);
+		StringColumn baseTripIdColumn = baseTrips.stringColumn(TRIP_ID);
+		baseTrips = baseTrips.where(baseTripIdColumn.isIn(tripIdColumn));
+
+		//		the number of trips in both filtered tables should be the same
+		if (baseTrips.rowCount() != trips.rowCount()) {
+			log.fatal("Number of trips in filtered base case trips table ({}) and drt policy case trips table ({}) is not equal!" +
+				" Analysis cannot be continued.", baseTrips.rowCount(), trips.rowCount());
+			throw new IllegalStateException();
+		}
+		return baseTrips;
 	}
 
 	private Map<String, Table> filterBaseTrips(Table trips, Table baseTrips) {
