@@ -23,6 +23,7 @@ import org.matsim.core.utils.geometry.geotools.MGC;
 import org.matsim.core.utils.gis.GeoFileWriter;
 import org.matsim.core.utils.io.IOUtils;
 import org.matsim.run.DrtAndIntermodalityOptions;
+import org.matsim.run.scenarios.LausitzScenario;
 import picocli.CommandLine;
 import tech.tablesaw.api.*;
 import tech.tablesaw.columns.Column;
@@ -35,6 +36,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 import static org.matsim.application.ApplicationUtils.globFile;
+import static org.matsim.run.analysis.PtLineAnalysis.*;
 import static tech.tablesaw.aggregate.AggregateFunctions.*;
 
 @CommandLine.Command(name = "drt", description = "Analyze and compare agents who use new drt service from " +
@@ -63,6 +65,8 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 	private Path basePath;
 	@CommandLine.Option(names = "--dist-groups", split = ",", description = "List of distances for binning", defaultValue = "0,1000,2000,5000,10000,20000")
 	private List<Double> distGroups;
+	@CommandLine.Option(names = "--drt-fare", description = "this run param decides whether or not a drt fare was charged in the analyzed run.", required = true)
+	private LausitzScenario.FunctionalityHandling fareHandling;
 
 	private static final String INCOME_GROUP = "incomeGroup";
 	static final String PERSON = "person";
@@ -99,11 +103,19 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		String configPath = globFile(input.getRunDirectory(), "*output_config.xml").toString();
 		String basePersonsPath = globFile(basePath, "*output_persons.csv.gz").toString();
 		String baseTripsPath = globFile(basePath, "*output_trips.csv.gz").toString();
+		String personMoneyEventsPath = globFile(input.getRunDirectory(), "*output_personMoneyEvents.tsv.gz").toString();
+
+		Table personMoneyEvents = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(personMoneyEventsPath))
+			.columnTypesPartial(Map.of("time", ColumnType.DOUBLE, PERSON, ColumnType.TEXT, AMOUNT, ColumnType.DOUBLE, PURPOSE, ColumnType.STRING))
+			.sample(false)
+			.separator(CsvOptions.detectDelimiter(personMoneyEventsPath)).build());
 
 		Table fullPersons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(personsPath))
 			.columnTypesPartial(Map.of(PERSON, ColumnType.TEXT, SCORE, ColumnType.DOUBLE, INCOME, ColumnType.DOUBLE))
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(personsPath)).build());
+
+//		########################################################### person specific analysis ##################################################################
 
 		Map<String, Range<Integer>> incomeLabels = ptLineAnalysis.getLabels(incomeGroups);
 		incomeLabels.put(incomeGroups.getLast() + "+", Range.of(incomeGroups.getLast(), 9999999));
@@ -117,6 +129,14 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 
 		//		add income group column to persons table for further analysis
 		fullPersons = ptLineAnalysis.addIncomeGroupColumnToTable(fullPersons, incomeLabels);
+
+		//		get general marg ut of money from cfg
+		Config config = ConfigUtils.loadConfig(configPath);
+		double generalBetaMoney = config.scoring().getMarginalUtilityOfMoney();
+
+//		calc meanIncome for calculation of person specific beta money and further analysis
+		DoubleColumn incomeColumn = fullPersons.doubleColumn(INCOME);
+		double meanIncome = incomeColumn.mean();
 
 //		write general income and age distr
 		ptLineAnalysis.writeIncomeDistr(fullPersons, incomeLabels, "all_persons_income_groups.csv", null);
@@ -137,12 +157,11 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 			return 2;
 		}
 
-//		get general marg ut of money from cfg
-		Config config = ConfigUtils.loadConfig(configPath);
-		double generalBetaMoney = config.scoring().getMarginalUtilityOfMoney();
+		//		add person specific marg ut of money column and score diff column
+		fullPersons = ptLineAnalysis.addPersonSpecificMarginalUtilityOfMoneyColumnAndScoreDiffColumnToTable(fullPersons, basePersonsWithoutFreight, generalBetaMoney, meanIncome);
 
 		//		calc and write sum of scores, mean score etc. for all agents to csv
-		ptLineAnalysis.calcAndWritePersonAggregatedStats(fullPersons, basePersonsWithoutFreight, generalBetaMoney, "all_persons_");
+		ptLineAnalysis.calcAndWritePersonAggregatedStats(fullPersons, basePersonsWithoutFreight,"all_persons_", meanIncome);
 
 		Map<String, ColumnType> columnTypes = new HashMap<>(Map.of(PERSON, ColumnType.TEXT,
 			TRAV_TIME, ColumnType.STRING, "dep_time", ColumnType.STRING, MAIN_MODE, ColumnType.STRING,
@@ -162,8 +181,12 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		TextColumn basePersonColumn = basePersons.textColumn(PERSON);
 		basePersons = basePersons.where(basePersonColumn.isIn(drtLegs.textColumn(PERSON_ID)));
 
+		//		calc meanIncome for pt line users
+		DoubleColumn incomeDrtUsersColumn = persons.doubleColumn(INCOME);
+		double meanIncomeDrtUsers = incomeDrtUsersColumn.mean();
+
 		//		calc and write sum of scores, mean score etc. for drt users to csv
-		ptLineAnalysis.calcAndWritePersonAggregatedStats(persons, basePersons, generalBetaMoney, DRT_PREFIX);
+		ptLineAnalysis.calcAndWritePersonAggregatedStats(persons, basePersons, DRT_PREFIX, meanIncomeDrtUsers);
 
 		ptLineAnalysis.writeComparisonTable(persons, basePersons, SCORE, PERSON, DRT_PREFIX);
 
@@ -191,6 +214,8 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 //		write scores per income group
 		ptLineAnalysis.writeScorePerIncomeGroupDistr(scoresPerIncomeGroup, incomeLabels, DRT_PREFIX);
 
+//		########################################################### trip specific analysis ##################################################################
+
 		Table trips = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(tripsPath))
 			.columnTypesPartial(columnTypes)
 			.sample(false)
@@ -217,6 +242,12 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 				" Analysis cannot be continued.", baseTripsWithoutFreight.rowCount(), tripsWithoutFreight.rowCount());
 			return 2;
 		}
+
+//		add stats to trips: velocity, monetary cost, (dis)utility and diff of the former to base case
+		Map<String, Table> addedStatsTables = ptLineAnalysis.addTripBasedStats(tripsWithoutFreight, baseTripsWithoutFreight,
+			config, fullPersons, personMoneyEvents, fareHandling);
+		tripsWithoutFreight = addedStatsTables.get(POLICY);
+		baseTripsWithoutFreight = addedStatsTables.get(BASE);
 
 //		calc and write sums and diffs of tt for all trips to csv
 		ptLineAnalysis.calcAndWriteTripAggregatedStats(tripsWithoutFreight, baseTripsWithoutFreight, "all_trips_");

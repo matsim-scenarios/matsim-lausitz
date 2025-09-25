@@ -22,6 +22,7 @@ public class LausitzDrtDashboard implements Dashboard {
 	private final String basePath;
 	private final String crs;
 	private final double scaleFactor;
+	private final LausitzScenario.FunctionalityHandling fareHandling;
 	private static final String SHARE = "share";
 	private static final String ABSOLUTE = "Count [person]";
 	private static final String INCOME_GROUP = "incomeGroup";
@@ -30,13 +31,14 @@ public class LausitzDrtDashboard implements Dashboard {
 	private static final String MAIN_MODE = "main_mode";
 	private static final String SOURCE = "source";
 
-	public LausitzDrtDashboard(String basePath, String crs, double scaleFactor) {
+	public LausitzDrtDashboard(String basePath, String crs, double scaleFactor, LausitzScenario.FunctionalityHandling fareHandling) {
 		if (!basePath.endsWith(SLASH)) {
 			basePath += SLASH;
 		}
 		this.basePath = basePath;
 		this.crs = crs;
 		this.scaleFactor = scaleFactor;
+		this.fareHandling = fareHandling;
 	}
 
 	@Override
@@ -45,7 +47,7 @@ public class LausitzDrtDashboard implements Dashboard {
 		header.description = "Shows statistics about agents, who used the newly implemented drt service " +
 			"and compares to the trips of those agents in the base case.";
 
-		String[] args = new ArrayList<>(List.of("--base-path", basePath)).toArray(new String[0]);
+		String[] args = new ArrayList<>(List.of("--base-path", basePath, "--drt-fare", fareHandling.toString())).toArray(new String[0]);
 
 		layout.row("first")
 			.el(Tile.class, (viz, data) -> {
