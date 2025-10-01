@@ -113,6 +113,12 @@
 			</exclusions>
 		</dependency>
 
+		<dependency>
+			<groupId>org.matsim.contrib</groupId>
+			<artifactId>small-scale-traffic-generation</artifactId>
+			<version>${matsim.version}</version>
+		</dependency>
+
 
 		<!-- Custom dependencies -->
 		<dependency>
