@@ -59,7 +59,13 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
-		String pattern = "*" + prefix + "output_events.xml.gz";
+		String pattern;
+		if (!prefix.isEmpty()) {
+			pattern = "*" + prefix + "output_events_filtered.xml.gz";
+		} else {
+			pattern = "*output_events.xml.gz";
+		}
+
 		String baseEventsFile = globFile(basePath, pattern).toString();
 		String baseNetworkFile = globFile(basePath, "*output_network.xml.gz").toString();
 		String basePopulationFile = globFile(basePath, "*output_plans.xml.gz").toString();
