@@ -182,7 +182,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		double utilityDeltaAggr = 0.;
 
 //			write agent wise output
-		String outputAgentWise = inputPath.resolve("output_agent_wise_cost_comparison_to_base.tsv").toString();
+		String outputAgentWise = inputPath.resolve(prefix + "output_agent_wise_cost_comparison_to_base.tsv").toString();
 
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputAgentWise), getCsvFormat())) {
 			printer.printRecord("personId", "betaMoney",
@@ -243,7 +243,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		}
 
 //			write aggregated output
-		String outputAggr = inputPath.resolve("output_aggregated_cost_comparison_to_base.tsv").toString();
+		String outputAggr = inputPath.resolve(prefix + "output_aggregated_cost_comparison_to_base.tsv").toString();
 
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputAggr), getCsvFormat())) {
 			printer.printRecord("subtotalFareCostBaseAggr", "subtotalFareCostPolicyAggr", "carCostBaseAggr", "carCostPolicyAggr",
@@ -254,7 +254,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		}
 
 //			write mean output
-		String outputMean = inputPath.resolve("output_mean_cost_comparison_to_base.tsv").toString();
+		String outputMean = inputPath.resolve(prefix + "output_mean_cost_comparison_to_base.tsv").toString();
 
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputMean), getCsvFormat())) {
 			printer.printRecord("subtotalFareCostBaseMean", "subtotalFareCostPolicyMean", "subtotalFareCostDeltaMean",
