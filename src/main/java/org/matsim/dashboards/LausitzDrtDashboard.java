@@ -45,7 +45,7 @@ public class LausitzDrtDashboard implements Dashboard {
 		header.description = "Shows statistics about agents, who used the newly implemented drt service " +
 			"and compares to the trips of those agents in the base case.";
 
-		String[] args = new ArrayList<>(List.of("--base-path", basePath, "--drt-fare")).toArray(new String[0]);
+		String[] args = new ArrayList<>(List.of("--base-path", basePath)).toArray(new String[0]);
 
 		layout.row("first")
 			.el(Tile.class, (viz, data) -> {
