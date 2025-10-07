@@ -68,14 +68,12 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 	private boolean trips;
 	@CommandLine.Option(names = "--emissions", defaultValue = "false", description = "create emission dashboard")
 	private boolean emissions;
-	@CommandLine.Option(names = "--base-dir", description = "dir of base run for pt-line and drt dashbord. required if you want one of those dashboards.")
-	private String baseDir;
+	@CommandLine.Option(names = "--base-run", description = "dir of base run for pt-line and drt dashboard. required if you want one of those dashboards.")
+	private String baseRunDir;
 	@CommandLine.Option(names = "--pt-line", defaultValue = "false", description = "create lausitz pt line dashboard")
 	private boolean ptLine;
 	@CommandLine.Option(names = "--drt", defaultValue = "false", description = "create lausitz drt dashboard")
 	private boolean drt;
-	@CommandLine.Option(names = "--drt-fare", description = "this run param decides whether or not a drt fare was charged in the analyzed run.", required = true)
-	private LausitzScenario.FunctionalityHandling fareHandling;
 
 	private static final String FILE_TYPE = "_before_emissions.xml";
 
@@ -161,11 +159,11 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 
 			if (drt) {
 				new DrtDashboardProvider().getDashboards(config, sw).forEach(sw::addDashboard);
-				sw.addDashboard(new LausitzDrtDashboard(baseDir, config.global().getCoordinateSystem(), sw.getConfigGroup().sampleSize, fareHandling));
+				sw.addDashboard(new LausitzDrtDashboard(baseRunDir, config.global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
 			}
 
 			if (ptLine) {
-				sw.addDashboard(new PtLineDashboard(baseDir));
+				sw.addDashboard(new PtLineDashboard(baseRunDir));
 			}
 
 			try {

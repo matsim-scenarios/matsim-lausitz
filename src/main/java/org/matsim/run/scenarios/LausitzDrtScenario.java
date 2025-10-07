@@ -82,7 +82,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 //		add LausitzDrtDashboard. this cannot be done in DrtOptions as we need super.basePath.
 		sw = SimWrapper.create(scenario.getConfig());
 		sw.addDashboard(new LausitzDrtDashboard(baseRunDir,
-			scenario.getConfig().global().getCoordinateSystem(), sw.getConfigGroup().sampleSize, drtOpt.getFareHandling()));
+			scenario.getConfig().global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
 	}
 
 	@Override

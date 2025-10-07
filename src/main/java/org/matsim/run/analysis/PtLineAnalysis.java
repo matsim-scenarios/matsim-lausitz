@@ -8,7 +8,6 @@ import org.apache.commons.lang3.Range;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
-import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.events.PersonEntersVehicleEvent;
 import org.matsim.api.core.v01.events.handler.PersonEntersVehicleEventHandler;
 import org.matsim.application.CommandSpec;
@@ -19,11 +18,9 @@ import org.matsim.application.options.OutputOptions;
 import org.matsim.core.api.experimental.events.EventsManager;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
-import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.events.EventsUtils;
 import org.matsim.core.events.MatsimEventsReader;
 import org.matsim.core.utils.io.IOUtils;
-import org.matsim.run.scenarios.LausitzScenario;
 import picocli.CommandLine;
 import tech.tablesaw.api.*;
 import tech.tablesaw.columns.Column;
@@ -48,7 +45,9 @@ import static tech.tablesaw.aggregate.AggregateFunctions.*;
 	produces = {"pt_persons.csv", "pt_persons_home_locations.csv", "pt_persons_income_groups.csv", "pt_persons_age_groups.csv",
 		"mean_travel_stats.csv", "pt_persons_trav_time.csv", "pt_persons_traveled_distance.csv", "pt_persons_base_modal_share.csv",
 		"pt_persons_mean_score_per_income_group.csv", "pt_persons_executed_score.csv", "all_persons_income_groups.csv", "all_persons_age_groups.csv",
-		"all_persons_aggregated_stats.csv", "pt_persons_aggregated_stats.csv", "all_trips_aggregated_stats.csv", "pt_trips_aggregated_stats.csv"
+		"all_persons_aggregated_stats.csv", "pt_persons_aggregated_stats.csv", "all_trips_aggregated_stats.csv", "pt_trips_aggregated_stats.csv",
+		"relevant_trips_processed.csv.gz", "relevant_base_trips_processed.csv.gz", "relevant_pt_line_trips_processed.csv.gz", "relevant_base_trips_of_pt_line_trips_processed.csv.gz",
+		"persons_processed.csv.gz"
 	}
 )
 
@@ -88,12 +87,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	private static final String SCORE_DIFF = "executed_score_diff";
 	private static final String TRAV_VEL = "trav_velocity";
 	private static final String TRAV_VEL_DIFF = "trav_velocity_diff";
-	private static final String MON_COST = "monetary_cost";
-	private static final String UT_NON_MON = "utility_non_monetary";
-	private static final String UT_TOTAL = "utility_total";
-	private static final String MON_COST_DIFF = "monetary_cost_diff";
-	private static final String UT_NON_MON_DIFF = "utility_non_monetary_diff";
-	private static final String UT_TOTAL_DIFF = "utility_total_diff";
+	private static final String MON_SCORE = "monetized_score";
+	private static final String WILL_PAY = "willingness_to_pay";
 	private static final String TRIP_NUMBER = "trip_number";
 	private static final String DEP_TIME = "dep_time";
 	static final String AMOUNT = "amount";
@@ -136,12 +131,6 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		String basePersonsPath = globFile(basePath, "*output_persons.csv.gz").toString();
 		String baseTripsPath = globFile(basePath, "*output_trips.csv.gz").toString();
 		String configPath = globFile(input.getRunDirectory(), "*output_config.xml").toString();
-		String personMoneyEventsPath = globFile(input.getRunDirectory(), "*output_personMoneyEvents.tsv.gz").toString();
-
-		Table personMoneyEvents = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(personMoneyEventsPath))
-			.columnTypesPartial(Map.of("time", ColumnType.DOUBLE, PERSON, ColumnType.TEXT, AMOUNT, ColumnType.DOUBLE, PURPOSE, ColumnType.STRING))
-			.sample(false)
-			.separator(CsvOptions.detectDelimiter(personMoneyEventsPath)).build());
 
 		Table fullPersons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(personsPath))
 			.columnTypesPartial(Map.of(PERSON, ColumnType.TEXT, SCORE, ColumnType.DOUBLE, INCOME, ColumnType.DOUBLE))
@@ -163,9 +152,10 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		//		add income group column to persons table for further analysis
 		fullPersons = addIncomeGroupColumnToTable(fullPersons, incomeLabels);
 
-		//		get general marg ut of money from cfg
+		//		get general marg ut of money + beta performing from cfg
 		Config config = ConfigUtils.loadConfig(configPath);
 		double generalBetaMoney = config.scoring().getMarginalUtilityOfMoney();
+		double betaPerforming = config.scoring().getPerforming_utils_hr();
 
 //		calc meanIncome for calculation of person specific beta money and further analysis
 		DoubleColumn incomeColumn = fullPersons.doubleColumn(INCOME);
@@ -191,7 +181,10 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		}
 
 		//		add person specific marg ut of money column and score diff column
-		fullPersons = addPersonSpecificMarginalUtilityOfMoneyColumnAndScoreDiffColumnToTable(fullPersons, basePersonsWithoutFreight, generalBetaMoney, meanIncome);
+		fullPersons = addPersonSpecificMarginalUtilityOfMoneyColumnAndScoreDiffColumnToTable(fullPersons, basePersonsWithoutFreight, generalBetaMoney,
+			meanIncome, betaPerforming);
+
+		fullPersons.write().csv(output.getPath("persons_processed.csv.gz").toFile());
 
 //		calc and write sum of scores, mean score etc. for all agents to csv
 		calcAndWritePersonAggregatedStats(fullPersons, basePersonsWithoutFreight, "all_persons_", meanIncome);
@@ -274,32 +267,26 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			return 2;
 		}
 
-		//		DONE: we may need the personmoney events for the pt and drt fare stuff
-//		DONE: calc monetary cost of each trip based on mode
-//		DONE: calc (dis)utility component (without cost) of each trip based on mode
-//		DONE: calc total (dis)utility of each trip
-//		DONE: the above for base and policy
-//		DONE: calc diff of disutility base and policy
-		//		DONE: add for policy and base:trip velocity; for policy: diff to base of tt, distance, velocity
-//		Done: calc means of all new columns
-
 //		add stats to trips: velocity, monetary cost, (dis)utility and diff of the former to base case
-		Map<String, Table> addedStatsTables = addTripBasedStats(tripsWithoutFreight, baseTripsWithoutFreight,
-			config, fullPersons, personMoneyEvents, LausitzScenario.FunctionalityHandling.DISABLED);
+		Map<String, Table> addedStatsTables = addTripBasedStats(tripsWithoutFreight, baseTripsWithoutFreight);
 		tripsWithoutFreight = addedStatsTables.get(POLICY);
 		baseTripsWithoutFreight = addedStatsTables.get(BASE);
+
+		//		write trips tables with added information to csv
+		tripsWithoutFreight.write().csv(output.getPath("relevant_trips_processed.csv.gz").toFile());
+		baseTripsWithoutFreight.write().csv(output.getPath("relevant_base_trips_processed.csv.gz").toFile());
 
 //		calc and write sums and diffs of tt for all trips to csv
 		calcAndWriteTripAggregatedStats(tripsWithoutFreight, baseTripsWithoutFreight, "all_trips_");
 
 //		filter for trips with new pt line only
-		TextColumn personTripsColumn = trips.textColumn(PERSON);
-		trips = trips.where(personTripsColumn.isIn(ptPersons.keySet()));
+		TextColumn personTripsColumn = tripsWithoutFreight.textColumn(PERSON);
+		tripsWithoutFreight = tripsWithoutFreight.where(personTripsColumn.isIn(ptPersons.keySet()));
 
 		IntList idx = new IntArrayList();
 
-		for (int i = 0; i < trips.rowCount(); i++) {
-			Row row = trips.row(i);
+		for (int i = 0; i < tripsWithoutFreight.rowCount(); i++) {
+			Row row = tripsWithoutFreight.row(i);
 
 			Double tripStart = parseTimeManually(row.getString(DEP_TIME));
 //			waiting time already included in travel time
@@ -313,180 +300,72 @@ public class PtLineAnalysis implements MATSimAppCommand {
 				}
 			}
 		}
-		trips = trips.where(Selection.with(idx.toIntArray()));
+		tripsWithoutFreight = tripsWithoutFreight.where(Selection.with(idx.toIntArray()));
 
 //		filter trips of base case for comparison
-		StringColumn tripIdColumn = trips.stringColumn(TRIP_ID);
-		StringColumn baseTripIdColumn = baseTrips.stringColumn(TRIP_ID);
+		StringColumn tripIdColumn = tripsWithoutFreight.stringColumn(TRIP_ID);
+		StringColumn baseTripIdColumn = baseTripsWithoutFreight.stringColumn(TRIP_ID);
 
-		baseTrips = baseTrips.where(baseTripIdColumn.isIn(tripIdColumn));
+		baseTripsWithoutFreight = baseTripsWithoutFreight.where(baseTripIdColumn.isIn(tripIdColumn));
 
 //		the number of trips in both filtered tables should be the same
-		if (baseTrips.rowCount() != trips.rowCount()) {
+		if (baseTripsWithoutFreight.rowCount() != tripsWithoutFreight.rowCount()) {
 			log.fatal("Number of trips in filtered base case trips table ({}) and pt policy case trips table ({}) is not equal!" +
-				" Analysis cannot be continued.", baseTrips.rowCount(), trips.rowCount());
+				" Analysis cannot be continued.", baseTripsWithoutFreight.rowCount(), tripsWithoutFreight.rowCount());
 			return 2;
 		}
 
+		//		write trips tables with added information to csv
+		tripsWithoutFreight.write().csv(output.getPath("relevant_pt_line_trips_processed.csv.gz").toFile());
+		baseTripsWithoutFreight.write().csv(output.getPath("relevant_base_trips_of_pt_line_trips_processed.csv.gz").toFile());
+
 		//		calc and write sums and diffs of tt for pt line users to csv
-		calcAndWriteTripAggregatedStats(trips, baseTrips, "pt_trips_");
+		calcAndWriteTripAggregatedStats(tripsWithoutFreight, baseTripsWithoutFreight, "pt_trips_");
 
 //		calc and write mean stats for policy and base case
-		calcAndWriteMeanStats(trips, persons, baseTrips, basePersons, "pt line");
+		calcAndWriteMeanStats(tripsWithoutFreight, persons, baseTripsWithoutFreight, basePersons, "pt line");
 
 //		write tables for comparison of travel time and distance
-		writeComparisonTable(trips, baseTrips, TRAV_TIME, TRIP_ID, PT_PERSONS_PREFIX);
-		writeComparisonTable(trips, baseTrips, TRAV_DIST, TRIP_ID, PT_PERSONS_PREFIX);
+		writeComparisonTable(tripsWithoutFreight, baseTripsWithoutFreight, TRAV_TIME, TRIP_ID, PT_PERSONS_PREFIX);
+		writeComparisonTable(tripsWithoutFreight, baseTripsWithoutFreight, TRAV_DIST, TRIP_ID, PT_PERSONS_PREFIX);
 
 //		write mode shares to csv
-		writeBaseModeShares(baseTrips, PT_PERSONS_PREFIX);
+		writeBaseModeShares(baseTripsWithoutFreight, PT_PERSONS_PREFIX);
 		return 0;
 	}
 
-	Map<String, Table> addTripBasedStats(Table trips, Table baseTrips, Config config, Table persons,
-										 Table personMoneyEvents, LausitzScenario.FunctionalityHandling drtFareHandling) {
-
-		Map<String, ScoringConfigGroup.ModeParams> modeParams = config.scoring().getModes();
-		double betaTransfer = config.scoring().getUtilityOfLineSwitch();
-
+	Map<String, Table> addTripBasedStats(Table trips, Table baseTrips) {
 		Map<String, Table> tripsTables = Map.of(POLICY, trips, BASE, baseTrips);
 
+		log.info("start adding {} to trips tables.", TRAV_VEL);
+
 //		calc and add monetary cost, utility to each trip
-		for (Table table : tripsTables.values()) {
-			table.addColumns(DoubleColumn.create(TRAV_VEL), DoubleColumn.create(MON_COST), DoubleColumn.create(UT_NON_MON), DoubleColumn.create(UT_TOTAL));
+		for (Map.Entry<String, Table> e : tripsTables.entrySet()) {
+			Table table = e.getValue();
+			table.addColumns(DoubleColumn.create(TRAV_VEL));
 
 			for (int i = 0; i < table.rowCount(); i++) {
 				Row row = table.row(i);
 
-				String mode = row.getString(MAIN_MODE);
-				String person = row.getText(PERSON);
-				String tripId = row.getString(TRIP_ID);
-				String departureTime = row.getString(DEP_TIME);
 				String travelTime = row.getString(TRAV_TIME);
 				double travelDist = row.getDouble(TRAV_DIST);
 
-//				first: add travel velocity to trip
-				row.setDouble(TRAV_VEL, travelDist / parseTimeManually(travelTime));
-
-				Table personOfTrip = persons.where(persons.textColumn(PERSON).isEqualTo(person));
-
-				if (personOfTrip.rowCount() != 1) {
-					log.fatal("Tried to filter persons table for person {} and found {} matches instead of 1.", person, personOfTrip.rowCount());
-					throw new IllegalStateException();
+//				first: add travel velocity to trip. avoid division by 0.
+				if (travelTime.equals("00:00:00")) {
+					row.setDouble(TRAV_VEL, 0.0);
+				} else {
+					row.setDouble(TRAV_VEL, travelDist / parseTimeManually(travelTime));
 				}
-
-				double personSpecificBetaMoney = personOfTrip.doubleColumn(INCOME_DEP_BETA_MONEY).get(0);
-
-				if (!modeParams.containsKey(mode)) {
-					log.fatal("Mode {} was not simulated in this model, this should not happen!", mode);
-					throw new IllegalStateException();
-				}
-
-//				monetary cost [€/trip] = dailyMonetaryConstant / numberTripsWithMode + monetaryDistanceRateMode * distance + fare + fareRefund/numberPtOrDrtTrips
-				ScoringConfigGroup.ModeParams params = modeParams.get(mode);
-
-//				filter trips table 1) for the person and 2) for the mode
-				Table tripsOfPerson = table.where(table.textColumn(PERSON).isEqualTo(person));
-				Table tripsOfPersonWithMode = tripsOfPerson.where(tripsOfPerson.stringColumn(MAIN_MODE).isEqualTo(mode));
-
-				int numModeTrips = tripsOfPersonWithMode.rowCount();
-
-				double dailyMonetaryCostComponent = params.getDailyMonetaryConstant() / numModeTrips;
-				double monetaryDistanceCostComponent = params.getMonetaryDistanceRate() * row.getDouble(TRAV_DIST);
-				double fareCostComponent = 0;
-
-				if (mode.equals(TransportMode.pt) || mode.equals(TransportMode.drt)) {
-//					for pt/drt fare refunds we also have to take the trips with the other mode into account.
-//					if not, we will calculate more refund than actually paid in the following
-//					example: person with 3 trips, 1 pt and 2 drt. daily refund of 6€. when calculating cost for pt: 1 pt trip = 6€ refund/trip.
-//					when calculating cost for drt: 2 drt trips = 3€ refund / trip = 6€ refund.
-//					in total: 6€ pt refund + 6€ drt refund = 12€ refund != 6€ refund which was actually paid.
-					numModeTrips = tripsOfPerson.where(tripsOfPerson.stringColumn(MAIN_MODE).isIn(TransportMode.pt, TransportMode.drt)).rowCount();
-					log.info(numModeTrips);
-
-//					filter personMoneyEvents for 1) person and 2) current trip
-					Table fareEventsOfPerson = personMoneyEvents
-						.where(personMoneyEvents.textColumn(PERSON).isEqualTo(person));
-
-					fareEventsOfPerson.write().csv("C:/Users/Simon/Desktop/wd/2025-09-22/testNewDrtAnalysis/policy/fareEvents_person.csv");
-
-					log.info(departureTime);
-					log.info(travelTime);
-					log.info(tripId);
-
-					log.info(parseTimeManually(departureTime));
-					log.info(parseTimeManually(travelTime));
-					log.info(parseTimeManually(departureTime) + parseTimeManually(travelTime));
-
-//					TODO: sth is worng with the following syntax, I cant see why, mb too tired.
-//					java.lang.IllegalStateException: Column 05:59:08 is not present in table
-//
-
-					Table fareForCurrentTrip = fareEventsOfPerson
-						.where(fareEventsOfPerson.doubleColumn("time")
-							.isBetweenInclusive(parseTimeManually(departureTime), parseTimeManually(row.getString(departureTime)) + parseTimeManually(travelTime)));
-
-//					we need to differ between pt and drt here because drt fare could be switched off
-					switch (mode) {
-						case TransportMode.pt:
-							if (fareForCurrentTrip.rowCount() != 1) {
-								log.fatal("When trying to filter for personMoneyEvent for pt trip {} {} events were filtered " +
-									"from global personMoneyEvents file, but 1 event is expected.", tripId, fareForCurrentTrip.rowCount());
-								throw new IllegalArgumentException();
-							}
-							fareCostComponent += fareForCurrentTrip.doubleColumn(AMOUNT).get(0);
-							break;
-						case TransportMode.drt:
-							if (drtFareHandling == LausitzScenario.FunctionalityHandling.ENABLED && fareForCurrentTrip.rowCount() == 1) {
-								fareCostComponent += fareForCurrentTrip.doubleColumn(AMOUNT).get(0);
-							} else if (drtFareHandling == LausitzScenario.FunctionalityHandling.ENABLED && fareForCurrentTrip.rowCount() != 1) {
-								log.fatal("When trying to filter for personMoneyEvent for drt/pt with drt trip {} {} events were filtered " +
-									"from global personMoneyEvents file, but 1 event is expected.", tripId, fareForCurrentTrip.rowCount());
-								throw new IllegalArgumentException();
-							}
-							break;
-						default:
-							throw new IllegalStateException();
-					}
-
-//					check for potential fare refunds
-					Table fareRefundsOfPerson = fareEventsOfPerson
-						.where(fareEventsOfPerson.stringColumn(PURPOSE).eval(("refund")::contains));
-
-					if (fareRefundsOfPerson.rowCount() == 1) {
-						fareCostComponent += fareRefundsOfPerson.doubleColumn(AMOUNT).get(0) / numModeTrips;
-					} else if (fareRefundsOfPerson.rowCount() > 1) {
-						log.fatal("Person {} has {} (should only have one) fare refund events. This should not happen.", person, fareRefundsOfPerson.rowCount());
-						throw new IllegalArgumentException();
-					}
-				}
-				double monetaryCostTrip = dailyMonetaryCostComponent + monetaryDistanceCostComponent + fareCostComponent;
-
-//				utility [utils/trip] = ASC + margUtTrav * tt + betaTransfer * 0/1
-				double transferUtilityComponent = 0;
-
-//				check if there has been a pt transfer
-				if (Arrays.stream(row.getString("modes").split("-")).filter(s -> s.equals(TransportMode.pt)).count() > 1) {
-					transferUtilityComponent += betaTransfer;
-				}
-				double utilityNonMonetaryTrip = params.getConstant() + params.getMarginalUtilityOfTraveling() * parseTimeManually(travelTime) / 3600 + transferUtilityComponent;
-
-//				total trip utility [utils/trip] = sum(monetary cost component * personSpecificUtMoney) + utility
-				double totalUtilityTrip = dailyMonetaryCostComponent * personSpecificBetaMoney +
-					monetaryDistanceCostComponent * personSpecificBetaMoney + fareCostComponent * personSpecificBetaMoney;
-
-				row.setDouble(MON_COST, monetaryCostTrip);
-				row.setDouble(UT_NON_MON, utilityNonMonetaryTrip);
-				row.setDouble(UT_TOTAL, totalUtilityTrip);
 			}
 		}
+		log.info("start adding diffs between base and policy case for {}, {} and {} to policy trips table.", TRAV_DIST_DIFF, TRAV_TIME_DIFF, TRAV_VEL_DIFF);
 
-//		add diffs of monetary cost, utilities, travDist, tt, travVel to base case for each policy trip
+//		add diffs to base case for each policy trip
 		for (Map.Entry<String, Table> e : tripsTables.entrySet()) {
 			if (e.getKey().equals(POLICY)) {
 				Table table = e.getValue();
-				table.addColumns(DoubleColumn.create(TRAV_DIST_DIFF), DoubleColumn.create(TRAV_TIME_DIFF), DoubleColumn.create(TRAV_VEL_DIFF),
-					DoubleColumn.create(MON_COST_DIFF), DoubleColumn.create(UT_NON_MON_DIFF), DoubleColumn.create(UT_TOTAL_DIFF));
+
+				table.addColumns(DoubleColumn.create(TRAV_DIST_DIFF), DoubleColumn.create(TRAV_TIME_DIFF), DoubleColumn.create(TRAV_VEL_DIFF));
 
 				for (int i = 0; i < table.rowCount(); i++) {
 					Row row = table.row(i);
@@ -495,9 +374,6 @@ public class PtLineAnalysis implements MATSimAppCommand {
 					String travelTime = row.getString(TRAV_TIME);
 					double travelDist = row.getDouble(TRAV_DIST);
 					double travelVel = row.getDouble(TRAV_VEL);
-					double monetaryCostTripPolicy = row.getDouble(MON_COST);
-					double utilityNonMonetaryTripPolicy = row.getDouble(UT_NON_MON);
-					double totalUtilityTripPolicy = row.getDouble(UT_TOTAL);
 
 					Table baseTable = tripsTables.get(BASE);
 
@@ -512,24 +388,18 @@ public class PtLineAnalysis implements MATSimAppCommand {
 					String travelTimeBase = baseTable.stringColumn(TRAV_TIME).get(0);
 					double travelDistBase = baseTable.doubleColumn(TRAV_DIST).get(0);
 					double travelVelBase = baseTable.doubleColumn(TRAV_VEL).get(0);
-					double monetaryCostTripBase = baseTable.doubleColumn(MON_COST).get(0);
-					double utilityNonMonetaryTripBase = baseTable.doubleColumn(UT_NON_MON).get(0);
-					double totalUtilityTripBase = baseTable.doubleColumn(UT_TOTAL).get(0);
 
 					row.setDouble(TRAV_DIST_DIFF, travelDist - travelDistBase);
 					row.setDouble(TRAV_TIME_DIFF, parseTimeManually(travelTime) - parseTimeManually(travelTimeBase));
 					row.setDouble(TRAV_VEL_DIFF, travelVel - travelVelBase);
-					row.setDouble(MON_COST_DIFF, monetaryCostTripPolicy - monetaryCostTripBase);
-					row.setDouble(UT_NON_MON_DIFF, utilityNonMonetaryTripPolicy - utilityNonMonetaryTripBase);
-					row.setDouble(UT_TOTAL_DIFF, totalUtilityTripPolicy - totalUtilityTripBase);
 				}
 			}
 		}
 		return tripsTables;
 	}
 
-	Table addPersonSpecificMarginalUtilityOfMoneyColumnAndScoreDiffColumnToTable(Table persons, Table basePersons, double generalBetaMoney, double meanIncome) {
-		persons.addColumns(DoubleColumn.create(INCOME_DEP_BETA_MONEY), DoubleColumn.create(SCORE_DIFF));
+	Table addPersonSpecificMarginalUtilityOfMoneyColumnAndScoreDiffColumnToTable(Table persons, Table basePersons, double generalBetaMoney, double meanIncome, double betaPerforming) {
+		persons.addColumns(DoubleColumn.create(INCOME_DEP_BETA_MONEY), DoubleColumn.create(SCORE_DIFF), DoubleColumn.create(WILL_PAY), DoubleColumn.create(MON_SCORE));
 
 		for (int i = 0; i < persons.rowCount(); i++) {
 			Row row = persons.row(i);
@@ -545,10 +415,16 @@ public class PtLineAnalysis implements MATSimAppCommand {
 				throw new IllegalArgumentException();
 			}
 			double scoreBase = basePersonsFiltered.doubleColumn(SCORE).get(0);
+			double scoreDiff = scorePolicy - scoreBase;
 
 			double income = row.getDouble(INCOME);
-			row.setDouble(INCOME_DEP_BETA_MONEY, generalBetaMoney * (meanIncome / income));
-			row.setDouble(SCORE_DIFF, scorePolicy - scoreBase);
+			double betaMoney = generalBetaMoney * (meanIncome / income);
+			double willToPay = betaPerforming / betaMoney;
+
+			row.setDouble(INCOME_DEP_BETA_MONEY, betaMoney);
+			row.setDouble(WILL_PAY, willToPay);
+			row.setDouble(SCORE_DIFF, scoreDiff);
+			row.setDouble(MON_SCORE, scoreDiff / betaMoney);
 		}
 		return persons;
 	}
@@ -582,12 +458,15 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		DoubleColumn scoreColumn = persons.doubleColumn(SCORE);
 		DoubleColumn baseScoreColumn = basePersons.doubleColumn(SCORE);
 		DoubleColumn scoreDiffColumn = persons.doubleColumn(SCORE_DIFF);
+		DoubleColumn monetizedScoreDiffColumn = persons.doubleColumn(MON_SCORE);
 
 		double sumScores = scoreColumn.sum();
 		double sumBaseScores = baseScoreColumn.sum();
+		double sumMonetizedScores = monetizedScoreDiffColumn.sum();
 		double meanScore = scoreColumn.mean();
 		double meanBaseScore = baseScoreColumn.mean();
 		double meanScoreDiff = scoreDiffColumn.mean();
+		double meanMonetizedScores = monetizedScoreDiffColumn.mean();
 
 		double meanIncomeDepUtilityOfMoney = persons.doubleColumn(INCOME_DEP_BETA_MONEY).mean();
 
@@ -598,11 +477,13 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			printer.printRecord("\" base case sum scores [util]\"", f.format(sumBaseScores));
 			printer.printRecord("\" policy case sum scores [util]\"", f.format(sumScores));
 			printer.printRecord("\" diff sum scores [util]\"", f.format(sumScores - sumBaseScores));
+			printer.printRecord("\" diff sum monetized scores [€]\"", f.format(sumMonetizedScores));
 			printer.printRecord("\" base case mean score [util]\"", f.format(meanBaseScore));
 			printer.printRecord("\" case mean score [util]\"", f.format(meanScore));
 			printer.printRecord("\" diff mean score [util]\"", f.format(meanScoreDiff));
 			printer.printRecord("\" mean income [€]\"", f.format(meanIncome));
 			printer.printRecord("\" mean income dependent utility of money [util/€]\"", f.format(meanIncomeDepUtilityOfMoney));
+			printer.printRecord("\" mean score diff monetized [€]\"", f.format(meanMonetizedScores));
 		}
 	}
 
@@ -621,12 +502,6 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		double meanTravelDistanceDiff = calcMean(trips.column(TRAV_DIST_DIFF));
 		double meanVelocityDiff = calcMean(trips.column(TRAV_VEL_DIFF));
 		double meanScoreDiff = calcMean(persons.column(SCORE_DIFF));
-
-		if (meanTravelTimePolicy <= 0 || meanTravelTimeBase <= 0) {
-			log.fatal("Mean travel time for either base ({}) or policy case ({}) are zero. Mean travel velocity cannot" +
-				"be calculated! Divison by 0 not possible!", meanTravelTimeBase, meanTravelTimePolicy);
-			throw new IllegalArgumentException();
-		}
 
 //		write mean stats to csv
 		DecimalFormat f = new DecimalFormat("0.00", new DecimalFormatSymbols(Locale.ENGLISH));
