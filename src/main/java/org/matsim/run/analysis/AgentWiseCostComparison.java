@@ -49,8 +49,9 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 	private List<Path> inputPaths;
 	@CommandLine.Option(names = "--base-path", description = "Path to run directory of base case.", required = true)
 	private Path basePath;
-	@CommandLine.Option(names = "--prefix", description = "Prefix for filtered events output file, optional.", defaultValue = "")
-	private String prefix;
+	@CommandLine.Option(names = "--prefix", description = "Prefix for filtered events output file, optional. This can be a list of multiple prefixes. " +
+		"Number of prefixes has to be equal to number of inputPaths and the list of prefixes has to have the same order as inputPaths.", split = ",")
+	private List<String> prefixList = new ArrayList<>();
 
 	private static final String POLICY = "policy";
 	private static final String BASE = "base";
@@ -61,31 +62,26 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
-		String pattern;
-		if (!prefix.isEmpty()) {
-			pattern = "*" + prefix + "output_events_filtered.xml.gz";
-		} else {
-			pattern = "*output_events.xml.gz";
+		if (!prefixList.isEmpty() && prefixList.size() != inputPaths.size()) {
+			log.error("The numbers of prefixes {} and input paths {} do not match.", prefixList, inputPaths);
+			return 2;
 		}
 
-		String baseEventsFile = globFile(basePath, pattern).toString();
+		List<String> patterns = new ArrayList<>();
+
+		if (!prefixList.isEmpty()) {
+			for (String prefix : prefixList) {
+				patterns.add("*" + prefix + "output_events_filtered.xml.gz");
+			}
+		} else {
+			patterns.add("*output_events.xml.gz");
+		}
+
 		String baseNetworkFile = globFile(basePath, "*output_network.xml.gz").toString();
 		String basePopulationFile = globFile(basePath, "*output_plans.xml.gz").toString();
 		String baseConfigFile = globFile(basePath, "*output_config.xml").toString();
 
-		//			read base case events
-		Map<Id<Person>, SimulationData> baseFareDataMap = new HashMap<>();
 		Network baseNetwork = NetworkUtils.readNetwork(baseNetworkFile);
-		FareEventHandler baseHandler = new FareEventHandler(baseFareDataMap, baseNetwork);
-
-		EventsManager baseManager = EventsUtils.createEventsManager();
-		baseManager.addHandler(baseHandler);
-		baseManager.initProcessing();
-
-		MatsimEventsReader baseReader = new MatsimEventsReader(baseManager);
-		baseReader.readFile(baseEventsFile);
-		baseManager.finishProcessing();
-
 		Config config = ConfigUtils.loadConfig(baseConfigFile);
 		Population basePopulation = PopulationUtils.readPopulation(basePopulationFile);
 
@@ -124,57 +120,95 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 			.filter(p -> p.getAttributes().getAttribute("subpopulation").equals("person"))
 			.forEach(person -> betaMoneyMap.put(person.getId(), generalBetaMoney * (meanIncome / PersonUtils.getIncome(person))));
 
-		for (Path inputPath : inputPaths) {
-			log.info("Running on {}", inputPath);
-//			read policy case events
-			String eventsFile = globFile(inputPath, pattern).toString();
-			String networkFile = globFile(inputPath, "*output_network.xml.gz").toString();
+		Map<String, Map<Id<Person>, SimulationData>> pattern2DataMap = new HashMap<>();
 
-			Network network = NetworkUtils.readNetwork(networkFile);
-			Map<Id<Person>, SimulationData> policyFareDataMap = new HashMap<>();
+		for (String pattern : patterns) {
+			String baseEventsFile = globFile(basePath, pattern).toString();
 
-			EventsManager manager = EventsUtils.createEventsManager();
-			manager.addHandler(new FareEventHandler(policyFareDataMap, network));
-			MatsimEventsReader policyReader = new MatsimEventsReader(manager);
-			policyReader.readFile(eventsFile);
-			manager.finishProcessing();
+//			read base case events
+			Map<Id<Person>, SimulationData> baseFareDataMap = new HashMap<>();
+			FareEventHandler baseHandler = new FareEventHandler(baseFareDataMap, baseNetwork);
+			EventsManager baseManager = EventsUtils.createEventsManager();
+			baseManager.addHandler(baseHandler);
+			baseManager.initProcessing();
 
-//			bring base and policy maps together
-			Map<Id<Person>, Map<String, SimulationData>> combinedData = new HashMap<>();
+			MatsimEventsReader baseReader = new MatsimEventsReader(baseManager);
+			baseReader.readFile(baseEventsFile);
+			baseManager.finishProcessing();
 
-			for (Map.Entry<Id<Person>, SimulationData> entry : baseFareDataMap.entrySet()) {
-				combinedData.put(entry.getKey(), new HashMap<>());
-				combinedData.get(entry.getKey()).put(BASE, entry.getValue());
+			pattern2DataMap.put(pattern, baseFareDataMap);
+		}
+
+		if (patterns.size() == 1) {
+			String pattern = patterns.getFirst();
+
+			Map<Id<Person>, SimulationData> baseFareDataMap = pattern2DataMap.get(pattern);
+
+			for (Path inputPath : inputPaths) {
+				processBaseAndPolicyData(inputPath, pattern, baseFareDataMap, betaMoneyMap, carDailyMonetaryConstant, carMonetaryDistanceRate, rideMonetaryDistanceRate);
 			}
+		} else if (patterns.size() > 1) {
+			for (String pattern : patterns) {
+				Map<Id<Person>, SimulationData> baseFareDataMap = pattern2DataMap.get(pattern);
 
-			for (Map.Entry<Id<Person>, SimulationData> entry : policyFareDataMap.entrySet()) {
-//				if combined map does not contain policy person, the person did not use car or pt or ride in base case
-//				thus, we add base case agent with 0 values
-				if (!combinedData.containsKey(entry.getKey())) {
-					combinedData.put(entry.getKey(), new HashMap<>());
-					combinedData.get(entry.getKey()).put(BASE, new SimulationData(entry.getKey(), 0., new ArrayList<>(), new ArrayList<>(), 0., 0., 0.));
-				}
-				combinedData.get(entry.getKey()).put(POLICY, entry.getValue());
+				Path correspondingPath = inputPaths.get(patterns.indexOf(pattern));
+				processBaseAndPolicyData(correspondingPath, pattern, baseFareDataMap, betaMoneyMap, carDailyMonetaryConstant, carMonetaryDistanceRate, rideMonetaryDistanceRate);
 			}
-
-//			the remaining fare data maps in combinedFareData with 1 entry only are agents who used car/pt/ride in base case
-//			but no car/pt/drt/ride in policy. we add null values for them in policy case
-			for (Map.Entry<Id<Person>, Map<String, SimulationData>> entry : combinedData.entrySet()) {
-				if (entry.getValue().size() == 1) {
-					combinedData.get(entry.getKey()).put(POLICY, new SimulationData(entry.getKey(), 0., new ArrayList<>(), new ArrayList<>(), 0., 0., 0.));
-				} else if (entry.getValue().isEmpty() || entry.getValue().size() > 2) {
-					log.fatal("Size of fare data element map should be 1 or 2 but is {}! Please check your data.", entry.getValue().size());
-					return 2;
-				}
-			}
-
-			writeCsvs(inputPath, combinedData, betaMoneyMap, carDailyMonetaryConstant, carMonetaryDistanceRate, rideMonetaryDistanceRate);
 		}
 		return 0;
 	}
 
+	private void processBaseAndPolicyData(Path inputPath, String pattern, Map<Id<Person>, SimulationData> baseFareDataMap,
+										  Map<Id<Person>, Double> betaMoneyMap, double carDailyMonetaryConstant, double carMonetaryDistanceRate,
+										  double rideMonetaryDistanceRate) throws IOException {
+		log.info("Running on {}", inputPath);
+//			read policy case events
+		String eventsFile = globFile(inputPath, pattern).toString();
+		String networkFile = globFile(inputPath, "*output_network.xml.gz").toString();
+
+		Network network = NetworkUtils.readNetwork(networkFile);
+		Map<Id<Person>, SimulationData> policyFareDataMap = new HashMap<>();
+
+		EventsManager manager = EventsUtils.createEventsManager();
+		manager.addHandler(new FareEventHandler(policyFareDataMap, network));
+		MatsimEventsReader policyReader = new MatsimEventsReader(manager);
+		policyReader.readFile(eventsFile);
+		manager.finishProcessing();
+
+		//			bring base and policy maps together
+		Map<Id<Person>, Map<String, SimulationData>> combinedData = new HashMap<>();
+
+		for (Map.Entry<Id<Person>, SimulationData> entry : baseFareDataMap.entrySet()) {
+			combinedData.put(entry.getKey(), new HashMap<>());
+			combinedData.get(entry.getKey()).put(BASE, entry.getValue());
+		}
+
+		for (Map.Entry<Id<Person>, SimulationData> entry : policyFareDataMap.entrySet()) {
+//				if combined map does not contain policy person, the person did not use car or pt or ride in base case
+//				thus, we add base case agent with 0 values
+			if (!combinedData.containsKey(entry.getKey())) {
+				combinedData.put(entry.getKey(), new HashMap<>());
+				combinedData.get(entry.getKey()).put(BASE, new SimulationData(entry.getKey(), 0., new ArrayList<>(), new ArrayList<>(), 0., 0., 0.));
+			}
+			combinedData.get(entry.getKey()).put(POLICY, entry.getValue());
+		}
+
+//			the remaining fare data maps in combinedFareData with 1 entry only are agents who used car/pt/ride in base case
+//			but no car/pt/drt/ride in policy. we add null values for them in policy case
+		for (Map.Entry<Id<Person>, Map<String, SimulationData>> entry : combinedData.entrySet()) {
+			if (entry.getValue().size() == 1) {
+				combinedData.get(entry.getKey()).put(POLICY, new SimulationData(entry.getKey(), 0., new ArrayList<>(), new ArrayList<>(), 0., 0., 0.));
+			} else if (entry.getValue().isEmpty() || entry.getValue().size() > 2) {
+				log.fatal("Size of fare data element map should be 1 or 2 but is {}! Please check your data.", entry.getValue().size());
+				throw new IllegalStateException();
+			}
+		}
+
+		writeCsvs(inputPath, combinedData, betaMoneyMap, carDailyMonetaryConstant, carMonetaryDistanceRate, rideMonetaryDistanceRate, pattern);
+	}
+
 	private void writeCsvs(Path inputPath, Map<Id<Person>, Map<String, SimulationData>> combinedData, Map<Id<Person>, Double> betaMoneyMap,
-						   double carDailyMonetaryConstant, double carMonetaryDistanceRate, double rideMonetaryDistanceRate) throws IOException {
+						   double carDailyMonetaryConstant, double carMonetaryDistanceRate, double rideMonetaryDistanceRate, String pattern) throws IOException {
 		double subtotalFareCostBaseAggr = 0.;
 		double subtotalFareCostPolicyAggr = 0.;
 		double subtotalFareCostDeltaAggr = 0.;
@@ -190,6 +224,9 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		double utilityBaseAggr = 0.;
 		double utilityPolicyAggr = 0.;
 		double utilityDeltaAggr = 0.;
+
+//		reverse engineer prefix for output
+		String prefix = pattern.split("/*", 2)[1].split("output")[0];
 
 //			write agent wise output
 		String outputAgentWise = inputPath.resolve(prefix + "output_agent_wise_cost_comparison_to_base.tsv").toString();
