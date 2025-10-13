@@ -38,8 +38,9 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 	private Path agentsPath;
 	@CommandLine.Parameters(arity = "1..*", description = "Path to run output directories.")
 	private List<Path> inputPaths;
-	@CommandLine.Option(names = "--prefix", description = "Prefix for filtered events output file, optional.", defaultValue = "")
-	private String prefix;
+	@CommandLine.Option(names = "--prefix", description = "Prefix for filtered events output file, optional. This can be a list of multiple prefixes. " +
+		"Number of prefixes has to be equal to number of inputPaths and the list of prefixes has to have the same order as inputPaths.", split = ",")
+	private List<String> prefixList = new ArrayList<>();
 
 	public static void main(String[] args) {
 		new FilterEventsForSpecificAgents().execute(args);
@@ -47,9 +48,19 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
+		if (!prefixList.isEmpty() && prefixList.size() != inputPaths.size()) {
+			log.fatal("If you want to provide a list of prefixes, the number of prefixes has to be equal to the number of input paths." +
+				" One prefix per input path.");
+			return 2;
+		}
 
 		for (Path runDir : inputPaths) {
 			log.info("Running on {}", runDir);
+
+			String prefix = "";
+			if (!prefixList.isEmpty()) {
+				prefix = prefixList.get(inputPaths.indexOf(runDir));
+			}
 
 			String eventsFile = globFile(runDir, "*output_events.xml.gz").toString();
 
@@ -60,7 +71,7 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 			//		read csv file with agentIds
 			Set<Id<Person>> agentSet = readPersonsCsv(absoluteAgentsPath.toString());
 
-			filterAndWriteEvents(eventsFile, agentSet, new ArrayList<>(), runDir.toString());
+			filterAndWriteEvents(eventsFile, agentSet, new ArrayList<>(), runDir.toString(), prefix);
 		}
 
 		return 0;
@@ -88,7 +99,7 @@ public class FilterEventsForSpecificAgents implements MATSimAppCommand {
 		return agentSet;
 	}
 
-	private void filterAndWriteEvents(String eventsFile, Set<Id<Person>> agentSet, List<Event> filteredEvents, String runDir) throws IOException {
+	private void filterAndWriteEvents(String eventsFile, Set<Id<Person>> agentSet, List<Event> filteredEvents, String runDir, String prefix) throws IOException {
 		EventsManager manager = EventsUtils.createEventsManager();
 		manager.addHandler(new PersonFilterEventsHandler(agentSet, filteredEvents));
 		manager.initProcessing();
