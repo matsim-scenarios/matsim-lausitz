@@ -32,8 +32,21 @@ print("If the prefix string is empty, the global file will be read.")
 setwd(run_dir_fixed)
 print(paste("Running analysis on run dir", getwd()))
 
-trips_policy_path <- list.files(path=paste0(run_dir_fixed,"/analysis/analysis/"), pattern="relevant_trips_processed\\.csv\\.gz$", full.names = TRUE)
-trips_base_path <- list.files(path=paste0(run_dir_fixed,"/analysis/analysis/"), pattern="relevant_base_trips_processed\\.csv\\.gz$", full.names = TRUE)
+# determine trips file pattern based on prefix. either drt case ore pt case.
+read_prefix <- ""
+base_pattern <- "relevant_base_trips_processed\\.csv\\.gz$"
+
+if (prefix != "") {
+  if (str_detect(prefix, "pt-line")==TRUE) {
+    read_prefix <- "_pt_line"
+  } else {
+    read_prefix <- "_drt"
+  }
+  base_pattern <- paste0("relevant_base_trips_of",read_prefix,"_trips_processed\\.csv\\.gz$")
+}
+
+trips_policy_path <- list.files(path=paste0(run_dir_fixed,"/analysis/analysis/"), pattern=paste0("relevant",read_prefix,"_trips_processed\\.csv\\.gz$"), full.names = TRUE)
+trips_base_path <- list.files(path=paste0(run_dir_fixed,"/analysis/analysis/"), pattern=base_pattern, full.names = TRUE)
 aggregated_cost_path <- list.files(path=run_dir_fixed, pattern=paste0("^", prefix, "output_aggregated_cost_comparison_to_base\\.tsv$"), full.names = TRUE)
 
 # read trips table
@@ -64,8 +77,13 @@ policy <- list(bike= list(ASC=-2.2217257149145353, mg_ut_trav_h=-4.0), car = lis
 base <- list(bike= list(ASC=-2.2217257149145353, mg_ut_trav_h=-4.0), car = list(ASC=0.29066953938829737, mg_ut_trav_h=0.0),
                pt = list(ASC=-2.458426826223411, mg_ut_trav_h=0.0), ride = list(ASC=-0.3899210734374805, mg_ut_trav_h=-12.0),
                walk = list(ASC=0.0, mg_ut_trav_h=0.0), drt = list(ASC=-2.458426826223411, mg_ut_trav_h=0.0))
+diff <- list(bike= list(ASC=-2.2217257149145353, mg_ut_trav_h=-4.0), car = list(ASC=0.29066953938829737, mg_ut_trav_h=0.0),
+             pt = list(ASC=-2.458426826223411, mg_ut_trav_h=0.0), ride = list(ASC=-0.3899210734374805, mg_ut_trav_h=-12.0),
+             walk = list(ASC=0.0, mg_ut_trav_h=0.0), drt = list(ASC=-2.458426826223411, mg_ut_trav_h=0.0))
 
 # calc policy aggregated values
+policy_asc_aggr <- 0
+policy_ut_trav <- 0
 for (mode in names(policy)) {
   trips_mode <- trips %>% 
     filter(main_mode==mode)
@@ -84,9 +102,13 @@ for (mode in names(policy)) {
   }
   
   policy[[mode]] <- c(policy[[mode]], list(tt=tt_sum_mode, ut_trav=ut_trav_mode, asc_sum=asc_sum_mode))
+  policy_asc_aggr <- policy_asc_aggr + asc_sum_mode
+  policy_ut_trav <- policy_ut_trav + ut_trav_mode
 }
 
 # calc base aggregated values
+base_asc_aggr <- 0
+base_ut_trav <- 0
 for (mode in names(base)) {
   trips_mode <- trips %>%
     filter(main_mode_base==mode)
@@ -105,10 +127,12 @@ for (mode in names(base)) {
   }
 
   base[[mode]] <- c(base[[mode]], list(tt=tt_sum_mode, ut_trav=ut_trav_mode, asc_sum=asc_sum_mode))
+  base_asc_aggr <- base_asc_aggr + asc_sum_mode
+  base_ut_trav <- base_ut_trav + ut_trav_mode
 }
 
 # add all necessary values to a df
-aggregated <- data.frame(
+aggregated_modes <- data.frame(
   mode=c("bike","bike","car","car","pt","pt","ride","ride","walk","walk","drt","drt"),
   case=c("base","policy","base","policy","base","policy","base","policy","base","policy","base","policy"),
   tt_aggr_s=c(base[["bike"]][["tt"]],policy[["bike"]][["tt"]],base[["car"]][["tt"]],policy[["car"]][["tt"]],
@@ -126,8 +150,21 @@ aggregated <- data.frame(
          aggregated_cost$subtotalFareCostBaseAggr,aggregated_cost$subtotalFareCostPolicyAggr)
 )
 
+# sum up implicit utility over all modes
+base_implicit_ut_aggr <- base_asc_aggr + base_ut_trav
+policy_implicit_ut_aggr <- policy_asc_aggr + policy_ut_trav
+
+aggregated_utility <- data.frame(
+  case=c("base","policy","diff_policy_minus_base"),
+  asc_aggr_util=c(base_asc_aggr,policy_asc_aggr,policy_asc_aggr-base_asc_aggr),
+  ut_trav_aggr_util=c(base_ut_trav,policy_ut_trav,policy_ut_trav-base_ut_trav),
+  implicit_ut_util=c(base_implicit_ut_aggr,policy_implicit_ut_aggr,policy_implicit_ut_aggr-base_implicit_ut_aggr)
+)
+
 if (prefix != "") {
-  write_csv(aggregated, file=paste0(prefix,"aggregated_economic_evaluation.csv"))
+  write_csv(aggregated_modes, file=paste0(prefix, "aggregated_economical_evaluation.csv"))
+  write_csv(aggregated_utility, file=paste0(prefix, "aggregated_utility_evaluation.csv"))
 } else {
-  write_csv(aggregated, file="all-trips.aggregated_economic_evaluation.csv")
+  write_csv(aggregated_modes, file="all-trips.aggregated_economical_evaluation.csv")
+  write_csv(aggregated_utility, file="all-trips.aggregated_utility_evaluation.csv")
 }
