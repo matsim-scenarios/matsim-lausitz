@@ -89,7 +89,7 @@ trips_with_ut <- trips %>%
          impl_ut = asc + dist_ut,
          asc_base = base[[main_mode_base]][["ASC"]],
          dist_ut_base = base[[main_mode_base]][["mg_ut_trav_h"]] * (trav_time_base_s / 3600),
-         impl_ut_base = asc + dist_ut
+         impl_ut_base = asc_base + dist_ut_base
   ) %>%
   ungroup()
 
@@ -142,7 +142,7 @@ for (mode in names(base)) {
   tt_sum_mode <- sum(trips_mode$trav_time_base_s)
   ut_trav_mode <- sum(trips_mode$dist_ut_base)
   asc_sum_mode <- sum(trips_mode$asc_base)
-  impl_ut_mode <- sum(trips_mode$impl_ut)
+  impl_ut_mode <- sum(trips_mode$impl_ut_base)
 
   base[[mode]] <- c(base[[mode]], list(tt=tt_sum_mode, ut_trav=ut_trav_mode, asc_sum=asc_sum_mode))
   base_asc_aggr <- base_asc_aggr + asc_sum_mode
