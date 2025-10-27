@@ -81,54 +81,73 @@ diff <- list(bike= list(ASC=-2.2217257149145353, mg_ut_trav_h=-4.0), car = list(
              pt = list(ASC=-2.458426826223411, mg_ut_trav_h=0.0), ride = list(ASC=-0.3899210734374805, mg_ut_trav_h=-12.0),
              walk = list(ASC=0.0, mg_ut_trav_h=0.0), drt = list(ASC=-2.458426826223411, mg_ut_trav_h=0.0))
 
+# add utility components to each trip
+trips_with_ut <- trips %>%
+  rowwise() %>%
+  mutate(asc = policy[[main_mode]][["ASC"]],
+         dist_ut = policy[[main_mode]][["mg_ut_trav_h"]] * (trav_time_s / 3600),
+         impl_ut = asc + dist_ut,
+         asc_base = base[[main_mode_base]][["ASC"]],
+         dist_ut_base = base[[main_mode_base]][["mg_ut_trav_h"]] * (trav_time_base_s / 3600),
+         impl_ut_base = asc + dist_ut
+  ) %>%
+  ungroup()
+
 # calc policy aggregated values
 policy_asc_aggr <- 0
-policy_ut_trav <- 0
+policy_ut_trav_aggr <- 0
+policy_impl_ut_aggr <- 0
 for (mode in names(policy)) {
-  trips_mode <- trips %>% 
+  trips_mode <- trips_with_ut %>%
     filter(main_mode==mode)
   
   trip_count <- nrow(trips_mode)
   tt_sum_mode <- 0
   ut_trav_mode <- 0
   asc_sum_mode <- 0
+  impl_ut_mode <- 0
   
   if (trip_count==0) {
     print(paste("For mode", mode, "0 trips have been filtered in policy case. Will treat this as 0s travel time."))
-  } else {
-    tt_sum_mode <- sum(trips_mode$trav_time_s)
-    ut_trav_mode <- tt_sum_mode * (policy[[mode]][["mg_ut_trav_h"]] / 3600)
-    asc_sum_mode <- trip_count * policy[[mode]][["ASC"]]
   }
+
+  tt_sum_mode <- sum(trips_mode$trav_time_s)
+  ut_trav_mode <- sum(trips_mode$dist_ut)
+  asc_sum_mode <- sum(trips_mode$asc)
+  impl_ut_mode <- sum(trips_mode$impl_ut)
   
   policy[[mode]] <- c(policy[[mode]], list(tt=tt_sum_mode, ut_trav=ut_trav_mode, asc_sum=asc_sum_mode))
   policy_asc_aggr <- policy_asc_aggr + asc_sum_mode
-  policy_ut_trav <- policy_ut_trav + ut_trav_mode
+  policy_ut_trav_aggr <- policy_ut_trav_aggr + ut_trav_mode
+  policy_impl_ut_aggr <- policy_impl_ut_aggr + impl_ut_mode
 }
 
 # calc base aggregated values
 base_asc_aggr <- 0
-base_ut_trav <- 0
+base_ut_trav_aggr <- 0
+base_impl_ut_aggr <- 0
 for (mode in names(base)) {
-  trips_mode <- trips %>%
+  trips_mode <- trips_with_ut %>%
     filter(main_mode_base==mode)
 
   trip_count <- nrow(trips_mode)
   tt_sum_mode <- 0
   ut_trav_mode <- 0
   asc_sum_mode <- 0
+  impl_ut_mode <- 0
 
   if (trip_count==0) {
     print(paste("For mode", mode, "0 trips have been filtered in base case. Will treat this as 0s travel time."))
-  } else {
-    tt_sum_mode <- sum(trips_mode$trav_time_base_s)
-    ut_trav_mode <- tt_sum_mode * (base[[mode]][["mg_ut_trav_h"]] / 3600)
-    asc_sum_mode <- trip_count * base[[mode]][["ASC"]]
   }
+  tt_sum_mode <- sum(trips_mode$trav_time_base_s)
+  ut_trav_mode <- sum(trips_mode$dist_ut_base)
+  asc_sum_mode <- sum(trips_mode$asc_base)
+  impl_ut_mode <- sum(trips_mode$impl_ut)
 
   base[[mode]] <- c(base[[mode]], list(tt=tt_sum_mode, ut_trav=ut_trav_mode, asc_sum=asc_sum_mode))
   base_asc_aggr <- base_asc_aggr + asc_sum_mode
-  base_ut_trav <- base_ut_trav + ut_trav_mode
+  base_ut_trav_aggr <- base_ut_trav_aggr + ut_trav_mode
+  base_impl_ut_aggr <- base_impl_ut_aggr + impl_ut_mode
 }
 
 # add all necessary values to a df
@@ -150,21 +169,19 @@ aggregated_modes <- data.frame(
          aggregated_cost$subtotalFareCostBaseAggr,aggregated_cost$subtotalFareCostPolicyAggr)
 )
 
-# sum up implicit utility over all modes
-base_implicit_ut_aggr <- base_asc_aggr + base_ut_trav
-policy_implicit_ut_aggr <- policy_asc_aggr + policy_ut_trav
-
 aggregated_utility <- data.frame(
   case=c("base","policy","diff_policy_minus_base"),
   asc_aggr_util=c(base_asc_aggr,policy_asc_aggr,policy_asc_aggr-base_asc_aggr),
-  ut_trav_aggr_util=c(base_ut_trav,policy_ut_trav,policy_ut_trav-base_ut_trav),
-  implicit_ut_util=c(base_implicit_ut_aggr,policy_implicit_ut_aggr,policy_implicit_ut_aggr-base_implicit_ut_aggr)
+  ut_trav_aggr_util=c(base_ut_trav_aggr, policy_ut_trav_aggr, policy_ut_trav_aggr-base_ut_trav_aggr),
+  implicit_ut_util=c(base_impl_ut_aggr,policy_impl_ut_aggr,policy_impl_ut_aggr-base_impl_ut_aggr)
 )
 
 if (prefix != "") {
+  write_csv(trips_with_ut, file=paste0(prefix, "agent_wise_economical_evaluation.csv"))
   write_csv(aggregated_modes, file=paste0(prefix, "aggregated_economical_evaluation.csv"))
   write_csv(aggregated_utility, file=paste0(prefix, "aggregated_utility_evaluation.csv"))
 } else {
+  write_csv(trips_with_ut, file="all-trips.agent_wise_economical_evaluation.csv")
   write_csv(aggregated_modes, file="all-trips.aggregated_economical_evaluation.csv")
   write_csv(aggregated_utility, file="all-trips.aggregated_utility_evaluation.csv")
 }
