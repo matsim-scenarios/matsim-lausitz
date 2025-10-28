@@ -132,21 +132,22 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 			String baseEventsFile = globFile(basePath, pattern).toString();
 
 //			read base case events
-			Map<Id<Person>, SimulationData> baseFareDataMap = new HashMap<>();
+			Map<Id<Person>, SimulationData> baseDataMap = new HashMap<>();
 
-			memorizeScoresFromPlans( basePopulation, baseFareDataMap );
+			memorizeScoresFromPlans( basePopulation, baseDataMap );
 
-
-			UtilityEventHandler baseHandler = new UtilityEventHandler(baseFareDataMap, baseNetwork, baseVehicles, modeParams.keySet());
+			UtilityEventHandler baseHandler = new UtilityEventHandler(baseDataMap, baseNetwork, baseVehicles, modeParams.keySet());
 			EventsManager baseManager = EventsUtils.createEventsManager();
 			baseManager.addHandler(baseHandler);
+			baseManager.addHandler( new ActivityDetectionHandler( baseDataMap ) );
+			baseManager.addHandler( new ModeDetectionHandler( baseDataMap ) );
 			baseManager.initProcessing();
 
 			MatsimEventsReader baseReader = new MatsimEventsReader(baseManager);
 			baseReader.readFile(baseEventsFile);
 			baseManager.finishProcessing();
 
-			pattern2DataMap.put(pattern, baseFareDataMap);
+			pattern2DataMap.put(pattern, baseDataMap);
 		}
 
 		if (eventsFiles.size() == 1) {
@@ -199,11 +200,10 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 
 		memorizeScoresFromPlans( population, policyDataMap );
 
-
 		EventsManager manager = EventsUtils.createEventsManager();
 		manager.addHandler(new UtilityEventHandler(policyDataMap, network, vehicles, modeParams.keySet()));
-//		manager.addHandler( new ModeDetectionHandler(policyDataMap) );
-//		manager.addHandler( new ActivityDetectionHandler( policyDataMap ) );
+		manager.addHandler( new ModeDetectionHandler(policyDataMap) );
+		manager.addHandler( new ActivityDetectionHandler( policyDataMap ) );
 		MatsimEventsReader policyReader = new MatsimEventsReader(manager);
 		policyReader.readFile(eventsFile);
 		manager.finishProcessing();
@@ -362,14 +362,14 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 
 				double personSpecificBetaMoney = betaMoneyMap.get(entry.getKey());
 
-				Map<String, Double> policyModeDailyCost = new HashMap<>();
-				Map<String, Double> policyModeDistanceUtility = new HashMap<>();
-				Map<String, Double> policyModeTimeUtility = new HashMap<>();
-				Map<String, Double> policyModeASC = new HashMap<>();
-				Map<String, Double> baseModeDailyCost = new HashMap<>();
-				Map<String, Double> baseModeDistanceUtility = new HashMap<>();
-				Map<String, Double> baseModeTimeUtility = new HashMap<>();
-				Map<String, Double> baseModeASC = new HashMap<>();
+				Map<String, Double> policyModeDailyCost = new LinkedHashMap<>();
+				Map<String, Double> policyModeDistanceUtility = new LinkedHashMap<>();
+				Map<String, Double> policyModeTimeUtility = new LinkedHashMap<>();
+				Map<String, Double> policyModeASC = new LinkedHashMap<>();
+				Map<String, Double> baseModeDailyCost = new LinkedHashMap<>();
+				Map<String, Double> baseModeDistanceUtility = new LinkedHashMap<>();
+				Map<String, Double> baseModeTimeUtility = new LinkedHashMap<>();
+				Map<String, Double> baseModeASC = new LinkedHashMap<>();
 				for (Map.Entry<String, ScoringConfigGroup.ModeParams> e : sortedModeParams.entrySet()) {
 					policyModeDailyCost.put(e.getKey(), calcDailyModeCost(policyData, e.getValue()));
 					policyModeDistanceUtility.put(e.getKey(), calcModeDistanceUtility(policyData, e.getValue()));
@@ -613,6 +613,43 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 			return dailyModeLegCount * modeParams.getConstant();
 		} else {
 			return 0.;
+		}
+	}
+
+	//	I do not understand what this handler is necessary for -sm1025
+	// you can put everything into one event handler.  or you have different ones. kai
+	private static final class ModeDetectionHandler implements PersonDepartureEventHandler {
+		private final Map<Id<Person>, SimulationData> dataMap;
+		public ModeDetectionHandler( Map<Id<Person>, SimulationData> simulationData ){
+			this.dataMap = simulationData;
+		}
+		@Override public void handleEvent( PersonDepartureEvent event ){
+			this.dataMap.putIfAbsent( event.getPersonId(), new SimulationData( event.getPersonId() ) );
+			SimulationData simulationData = this.dataMap.get( event.getPersonId() );
+			simulationData.addToModeList( event.getLegMode() );
+//			if ( isTestPerson( event.getPersonId() ) ){
+//				log.warn( "personId={}; just added mode={}; new mode list={}", event.getPersonId(), event.getLegMode(), String.join( "-", simulationData.modeList ) );
+//			}
+		}
+	}
+
+	private static final class ActivityDetectionHandler implements ActivityStartEventHandler {
+
+		private final Map<Id<Person>, SimulationData> dataMap;
+		public ActivityDetectionHandler( Map<Id<Person>, SimulationData> dataMap ){
+			this.dataMap = dataMap;
+		}
+		@Override public void handleEvent( ActivityStartEvent event ){
+			final String actType = event.getActType();
+			if ( TripStructureUtils.isStageActivityType( actType ) ) {
+				return;
+			}
+			this.dataMap.putIfAbsent( event.getPersonId(), new SimulationData( event.getPersonId() ) );
+			SimulationData simulationData = this.dataMap.get( event.getPersonId() );
+			simulationData.addToActivityList( actType );
+			if ( isTestPerson( event.getPersonId() ) ){
+				log.warn( "personId={}; just added activity={}; new activity list={}", event.getPersonId(), actType, String.join( " | ", simulationData.activites ) );
+			}
 		}
 	}
 
