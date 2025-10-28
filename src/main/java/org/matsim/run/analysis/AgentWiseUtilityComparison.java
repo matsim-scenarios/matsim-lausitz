@@ -84,6 +84,8 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 		Network baseNetwork = NetworkUtils.readNetwork(baseNetworkFile);
 		Config config = ConfigUtils.loadConfig(baseConfigFile);
 		Population basePopulation = PopulationUtils.readPopulation(basePopulationFile);
+		cleanPopulation( basePopulation );
+
 //		we need vehicles to track distances of modes in link leave events. link leave events do not have attr mode.
 		Vehicles baseVehicles = VehicleUtils.createVehiclesContainer();
 		new MatsimVehicleReader.VehicleReader(baseVehicles).readFile(baseVehiclesFile);
@@ -131,6 +133,10 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 
 //			read base case events
 			Map<Id<Person>, SimulationData> baseFareDataMap = new HashMap<>();
+
+			memorizeScoresFromPlans( basePopulation, baseFareDataMap );
+
+
 			UtilityEventHandler baseHandler = new UtilityEventHandler(baseFareDataMap, baseNetwork, baseVehicles, modeParams.keySet());
 			EventsManager baseManager = EventsUtils.createEventsManager();
 			baseManager.addHandler(baseHandler);
@@ -161,6 +167,17 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 		}
 		return 0;
 	}
+	private static void cleanPopulation( Population basePopulation ){
+		List<Id<Person>> personsToRemove = new ArrayList<>();
+		for( Person person : basePopulation.getPersons().values() ){
+			if ( !"person".equals( PopulationUtils.getSubpopulation(person) ) ) {
+				personsToRemove.add( person.getId() );
+			}
+		}
+		for( Id<Person> personId : personsToRemove ){
+			basePopulation.removePerson( personId );
+		}
+	}
 
 	private static void processBaseAndPolicyData(Path inputPath, String pattern, Map<Id<Person>, SimulationData> baseDataMap,
 										  Map<Id<Person>, Double> betaMoneyMap, Map<String, ScoringConfigGroup.ModeParams> modeParams) throws IOException {
@@ -169,12 +186,19 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 		String eventsFile = globFile(inputPath, pattern).toString();
 		String networkFile = globFile(inputPath, "*output_network.xml.gz").toString();
 		String vehiclesFile = globFile(inputPath, "*output_vehicles.xml.gz").toString();
+		String populationFile = globFile(inputPath, "*output_plans.xml.gz").toString();
+
 
 		Network network = NetworkUtils.readNetwork(networkFile);
 		Vehicles vehicles = VehicleUtils.createVehiclesContainer();
 		new MatsimVehicleReader(vehicles).readFile(vehiclesFile);
+		Population population = PopulationUtils.readPopulation(populationFile);
+		cleanPopulation( population );
 
 		Map<Id<Person>, SimulationData> policyDataMap = new HashMap<>();
+
+		memorizeScoresFromPlans( population, policyDataMap );
+
 
 		EventsManager manager = EventsUtils.createEventsManager();
 		manager.addHandler(new UtilityEventHandler(policyDataMap, network, vehicles, modeParams.keySet()));
@@ -221,6 +245,12 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 //		}
 
 		writeCsvs(inputPath, combinedData, betaMoneyMap, modeParams, pattern);
+	}
+	private static void memorizeScoresFromPlans( Population population, Map<Id<Person>, SimulationData> policyDataMap ){
+		for( Person person : population.getPersons().values() ){
+			policyDataMap.putIfAbsent( person.getId(), new SimulationData( person.getId() ) );
+			policyDataMap.get( person.getId() ).scoreFromPlan = person.getSelectedPlan().getScore();
+		}
 	}
 
 	private static void writeCsvs(Path inputPath, Map<Id<Person>, Map<String, SimulationData>> combinedData, Map<Id<Person>, Double> betaMoneyMap,
@@ -323,6 +353,9 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 			for (Map.Entry<Id<Person>, Map<String, SimulationData>> entry : combinedData.entrySet()) {
 				SimulationData baseData = entry.getValue().get(BASE);
 				SimulationData policyData = entry.getValue().get(POLICY);
+
+				double scoreFromPlansDelta = policyData.scoreFromPlan - baseData.scoreFromPlan;
+
 				double subtotalFareBase = baseData.dailyFareCost + baseData.dailyFareRefund;
 				double subtotalFarePolicy = policyData.dailyFareCost + policyData.dailyFareRefund;
 				double subtotalFareDelta = subtotalFarePolicy - subtotalFareBase;
@@ -459,16 +492,16 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 //						utilityBase, utilityPolicy, utilityDelta
 //								   );
 
-//				if ( isTestPerson( entry.getKey() ) ) {
-//					log.warn("personId={}; utilityDelta={}", entry.getKey(), utilityDelta );
-//					log.warn( "baseActivities={}", baseActivities );
-//					log.warn( "policyActivites={}", policyActivities );
-//					log.warn( "baseModes={}", baseModes );
-//					log.warn( "policyModes={}", policyModes );
+				if ( isTestPerson( entry.getKey() ) ) {
+					log.warn("personId={}; scoreFromPlansDelta={}", entry.getKey(), scoreFromPlansDelta );
+					log.warn( "baseActivities={}", baseActivities );
+					log.warn( "policyActivites={}", policyActivities );
+					log.warn( "baseModes={}", baseModes );
+					log.warn( "policyModes={}", policyModes );
 //					log.warn("carCostDelta={}; rideCostDelta={}; fareDelta={}; refundDelta={}", carCostDelta, rideCostDelta, fareDelta, refundDelta );
-//					log.warn("about to exit ...");
-//					System.exit(-1);
-//				}
+					log.warn("about to exit ...");
+					System.exit(-1);
+				}
 
 //				subtotalFareCostBaseAggr += subtotalFareBase;
 //				subtotalFareCostPolicyAggr += subtotalFarePolicy;
@@ -529,7 +562,10 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 
 	private static double calcDailyModeCost(SimulationData data, ScoringConfigGroup.ModeParams modeParams) {
 		String mode = modeParams.getMode();
-		double dailyModeDistance = data.dailyModeDistances.get(mode);
+		Double dailyModeDistance = data.dailyModeDistances.get(mode);
+		if ( dailyModeDistance==null ) {
+			return 0.;
+		}
 
 		if (dailyModeDistance > 0.) {
 			return modeParams.getDailyMonetaryConstant() + dailyModeDistance * modeParams.getMonetaryDistanceRate();
@@ -540,7 +576,10 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 
 	private static double calcModeDistanceUtility(SimulationData data, ScoringConfigGroup.ModeParams modeParams) {
 		String mode = modeParams.getMode();
-		double dailyModeDistance = data.dailyModeDistances.get(mode);
+		Double dailyModeDistance = data.dailyModeDistances.get(mode);
+		if ( dailyModeDistance==null ) {
+			return 0.;
+		}
 
 		if (dailyModeDistance > 0.) {
 			return dailyModeDistance * modeParams.getMarginalUtilityOfDistance();
@@ -551,7 +590,10 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 
 	private static double calcModeTravelUtility(SimulationData data, ScoringConfigGroup.ModeParams modeParams) {
 		String mode = modeParams.getMode();
-		double dailyModeTravelTime = data.dailyModeTravelTimes.get(mode);
+		Double dailyModeTravelTime = data.dailyModeTravelTimes.get(mode);
+		if ( dailyModeTravelTime==null ) {
+			return 0.;
+		}
 
 		if (dailyModeTravelTime > 0.) {
 			return dailyModeTravelTime / 3600 * modeParams.getMarginalUtilityOfTraveling();
@@ -562,7 +604,10 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 
 	private static double calcModeASCUtility(SimulationData data, ScoringConfigGroup.ModeParams modeParams) {
 		String mode = modeParams.getMode();
-		int dailyModeLegCount = data.dailyModeLegCount.get(mode);
+		Integer dailyModeLegCount = data.dailyModeLegCount.get(mode);
+		if ( dailyModeLegCount==null ) {
+			return 0;
+		}
 
 		if (dailyModeLegCount > 0) {
 			return dailyModeLegCount * modeParams.getConstant();
@@ -571,45 +616,6 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 		}
 	}
 
-//	private static double calcDailyRideCost(SimulationData data, double rideMonetaryDistanceRate) {
-//		return data.dailyRideDistance * rideMonetaryDistanceRate;
-//	}
-
-//	I do not understand what this handler is necessary for -sm1025
-	private static final class ModeDetectionHandler implements PersonDepartureEventHandler {
-		private final Map<Id<Person>, SimulationData> dataMap;
-		public ModeDetectionHandler( Map<Id<Person>, SimulationData> simulationData ){
-			this.dataMap = simulationData;
-		}
-		@Override public void handleEvent( PersonDepartureEvent event ){
-			this.dataMap.putIfAbsent( event.getPersonId(), new SimulationData( event.getPersonId() ) );
-			SimulationData simulationData = this.dataMap.get( event.getPersonId() );
-			simulationData.addToModeList( event.getLegMode() );
-//			if ( isTestPerson( event.getPersonId() ) ){
-//				log.warn( "personId={}; just added mode={}; new mode list={}", event.getPersonId(), event.getLegMode(), String.join( "-", simulationData.modeList ) );
-//			}
-		}
-	}
-
-	private static final class ActivityDetectionHandler implements ActivityStartEventHandler {
-
-		private final Map<Id<Person>, SimulationData> dataMap;
-		public ActivityDetectionHandler( Map<Id<Person>, SimulationData> dataMap ){
-			this.dataMap = dataMap;
-		}
-		@Override public void handleEvent( ActivityStartEvent event ){
-			final String actType = event.getActType();
-			if ( TripStructureUtils.isStageActivityType( actType ) ) {
-				return;
-			}
-			this.dataMap.putIfAbsent( event.getPersonId(), new SimulationData( event.getPersonId() ) );
-			SimulationData simulationData = this.dataMap.get( event.getPersonId() );
-			simulationData.addToActivityList( actType );
-			if ( isTestPerson( event.getPersonId() ) ){
-				log.warn( "personId={}; just added activity={}; new activity list={}", event.getPersonId(), actType, String.join( " | ", simulationData.activites ) );
-			}
-		}
-	}
 
 	private static final class UtilityEventHandler implements PersonMoneyEventHandler, VehicleEntersTrafficEventHandler, VehicleLeavesTrafficEventHandler,
 		LinkLeaveEventHandler, TeleportationArrivalEventHandler, PersonDepartureEventHandler {
@@ -733,6 +739,7 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 //		purposes are the fare purposes, e.g. "pt fare" or "pt or drt fare". we do not really need them. -sm1025
 
 		private final Id<Person> personId;
+		public Double scoreFromPlan;
 		private double dailyFareCost;
 		private List<String> purposes = new ArrayList<>();
 		private List<String> fareTypes = new ArrayList<>();
