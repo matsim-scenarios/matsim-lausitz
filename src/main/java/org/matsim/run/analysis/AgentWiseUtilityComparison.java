@@ -5,7 +5,6 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Id;
-import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.events.*;
 import org.matsim.api.core.v01.events.handler.*;
 import org.matsim.api.core.v01.network.Network;
@@ -40,8 +39,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.matsim.application.ApplicationUtils.globFile;
 
 @CommandLine.Command(name = "monetary-utility", description = "List and compare fare, dailyRefund and utility values for agents in base and policy case.")
-public class AgentWiseCostComparison implements MATSimAppCommand {
-	private static final Logger log = LogManager.getLogger(AgentWiseCostComparison.class);
+public class AgentWiseUtilityComparison implements MATSimAppCommand {
+	private static final Logger log = LogManager.getLogger(AgentWiseUtilityComparison.class);
 
 	@CommandLine.Parameters(arity = "1..*", description = "Path to run output directories for which analysis should be performed.")
 	private List<Path> inputPaths;
@@ -57,7 +56,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 	private static final String BASE = "base";
 
 	public static void main(String[] args) {
-		new AgentWiseCostComparison().execute(args);
+		new AgentWiseUtilityComparison().execute(args);
 	}
 
 	@Override
@@ -132,7 +131,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 
 //			read base case events
 			Map<Id<Person>, SimulationData> baseFareDataMap = new HashMap<>();
-			FareEventHandler baseHandler = new FareEventHandler(baseFareDataMap, baseNetwork, baseVehicles, modeParams.keySet());
+			UtilityEventHandler baseHandler = new UtilityEventHandler(baseFareDataMap, baseNetwork, baseVehicles, modeParams.keySet());
 			EventsManager baseManager = EventsUtils.createEventsManager();
 			baseManager.addHandler(baseHandler);
 			baseManager.initProcessing();
@@ -178,7 +177,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		Map<Id<Person>, SimulationData> policyDataMap = new HashMap<>();
 
 		EventsManager manager = EventsUtils.createEventsManager();
-		manager.addHandler(new FareEventHandler(policyDataMap, network, vehicles, modeParams.keySet()));
+		manager.addHandler(new UtilityEventHandler(policyDataMap, network, vehicles, modeParams.keySet()));
 //		manager.addHandler( new ModeDetectionHandler(policyDataMap) );
 //		manager.addHandler( new ActivityDetectionHandler( policyDataMap ) );
 		MatsimEventsReader policyReader = new MatsimEventsReader(manager);
@@ -249,28 +248,54 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		String outputAgentWise = inputPath.resolve(prefix + "output_agent_wise_cost_comparison_to_base.tsv").toString();
 
 //		TODO: we need daily fare disut, daily "normal" cost disut, daily travel disutility, daily distance disut, daily transfer disut
-//		EVERYTHING IN UTIL!!!
 		List<String> headers = new ArrayList<>();
 		headers.add("personId");
-		headers.add("betaMoney_util_eu");
-		headers.add("fareBase_eu");
-		headers.add("farePolicy_eu");
-		headers.add("fareDelta_eu");
-		headers.add("refundBase_eu");
-		headers.add("refundPolicy_eu");
-		headers.add("refundDelta_eu");
-		headers.add("subtotalFareBase_eu");
-		headers.add("subtotalFarePolicy_eu");
-		headers.add("subtotalFareDelta_eu");
+		headers.add("betaMoney_util_per_eu");
+		headers.add("fareUtilityBase_util");
+		headers.add("fareUtilityPolicy_util");
+		headers.add("fareUtilityDelta_util");
+		headers.add("refundUtilityBase_util");
+		headers.add("refundUtilityPolicy_util");
+		headers.add("refundUtilityDelta_util");
+		headers.add("subtotalFareUtilityBase_util");
+		headers.add("subtotalFareUtilityPolicy_util");
+		headers.add("subtotalFareUtilityDelta_util");
 		headers.add("farePurposeBase");
 		headers.add("farePurposesPolicy");
 		headers.add("fareTypesBase");
 		headers.add("fareTypesPolicy");
+		headers.add("subtotalDailyCostUtilityBase_util");
+		headers.add("subtotalDailyCostUtilityPolicy_util");
+		headers.add("subtotalDailyCostUtilityDelta_util");
 
-		for (String m : modeParams.keySet()) {
-//			TODO: add concatenation of mode and util components for policy and base
-			headers.add()
+//		convert modeParams to TreeMap to ensure same iteration order every time we iterate
+		Map<String, ScoringConfigGroup.ModeParams> sortedModeParams = new TreeMap<>(modeParams);
+
+		for (String m : sortedModeParams.keySet()) {
+			headers.add(m + "TravelUtilityBase_util");
+			headers.add(m + "TravelUtilityPolicy_util");
+			headers.add(m + "DistanceUtilityBase_util");
+			headers.add(m + "DistanceUtilityPolicy_util");
+			headers.add(m + "ASCUtilityBase_util");
+			headers.add(m + "ASCUtilityPolicy_util");
+			headers.add(m + "SubtotalTravelUtilityBase_util");
+			headers.add(m + "SubtotalTravelUtilityPolicy_util");
 		}
+		headers.add("agentTravelUtilityBase_util");
+		headers.add("agentTravelUtilityPolicy_util");
+		headers.add("agentTravelUtilityDelta_util");
+		headers.add("agentDistanceUtilityBase_util");
+		headers.add("agentDistanceUtilityPolicy_util");
+		headers.add("agentDistanceUtilityDelta_util");
+		headers.add("agentASCUtilityBase_util");
+		headers.add("agentASCUtilityPolicy_util");
+		headers.add("agentASCUtilityDelta_util");
+		headers.add("agentSubtotalTravelUtilityBase_util");
+		headers.add("agentSubtotalTravelUtilityPolicy_util");
+		headers.add("agentSubtotalTravelUtilityDelta_util");
+		headers.add("agentTotalUtilityBase_util");
+		headers.add("agentTotalUtilityPolicy_util");
+		headers.add("agentTotalUtilityDelta_util");
 
 		CSVFormat format = CSVFormat.DEFAULT.builder()
 			.setQuote(null)
@@ -282,24 +307,24 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputAgentWise), format)) {
 
 //			TODO: delete this header after header creation above is complete
-			printer.printRecord("personId", "betaMoney_util_eu",
-				"fareBase_eu", "farePolicy_eu", "fareDelta_eu",
-				"refundBase_eu", "refundPolicy_eu", "refundDelta_eu",
-				"subtotalFareBase_eu", "subtotalFarePolicy_eu", "subtotalFareDelta_eu",
-				"farePurposeBases", "farePurposesPolicy",
-				"fareTypesBase", "fareTypesPolicy",
-				"carDistanceBase_m", "carDistancePolicy_m",
-				"carCostBase_eu", "carCostPolicy_eu", "carCostDelta_eu",
-				"rideDistanceBase_m", "rideDistancePolicy_m",
-				"rideCostBase_eu", "rideCostPolicy_eu", "rideCostDelta_eu",
-				"totalCostBase_eu", "totalCostPolicy_eu", "totalCostDelta_eu",
-				"utilityBase_util", "utilityPolicy_util", "utilityDelta_util");
+//			printer.printRecord("personId", "betaMoney_util_eu",
+//				"fareBase_eu", "farePolicy_eu", "fareDelta_eu",
+//				"refundBase_eu", "refundPolicy_eu", "refundDelta_eu",
+//				"subtotalFareBase_eu", "subtotalFarePolicy_eu", "subtotalFareDelta_eu",
+//				"farePurposeBases", "farePurposesPolicy",
+//				"fareTypesBase", "fareTypesPolicy",
+//				"carDistanceBase_m", "carDistancePolicy_m",
+//				"carCostBase_eu", "carCostPolicy_eu", "carCostDelta_eu",
+//				"rideDistanceBase_m", "rideDistancePolicy_m",
+//				"rideCostBase_eu", "rideCostPolicy_eu", "rideCostDelta_eu",
+//				"totalCostBase_eu", "totalCostPolicy_eu", "totalCostDelta_eu",
+//				"utilityBase_util", "utilityPolicy_util", "utilityDelta_util");
 
 			for (Map.Entry<Id<Person>, Map<String, SimulationData>> entry : combinedData.entrySet()) {
 				SimulationData baseData = entry.getValue().get(BASE);
 				SimulationData policyData = entry.getValue().get(POLICY);
-				double subtotalFareBase = baseData.dailyCost + baseData.dailyRefund;
-				double subtotalFarePolicy = policyData.dailyCost + policyData.dailyRefund;
+				double subtotalFareBase = baseData.dailyFareCost + baseData.dailyFareRefund;
+				double subtotalFarePolicy = policyData.dailyFareCost + policyData.dailyFareRefund;
 				double subtotalFareDelta = subtotalFarePolicy - subtotalFareBase;
 
 				double personSpecificBetaMoney = betaMoneyMap.get(entry.getKey());
@@ -312,7 +337,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 				Map<String, Double> baseModeDistanceUtility = new HashMap<>();
 				Map<String, Double> baseModeTimeUtility = new HashMap<>();
 				Map<String, Double> baseModeASC = new HashMap<>();
-				for (Map.Entry<String, ScoringConfigGroup.ModeParams> e : modeParams.entrySet()) {
+				for (Map.Entry<String, ScoringConfigGroup.ModeParams> e : sortedModeParams.entrySet()) {
 					policyModeDailyCost.put(e.getKey(), calcDailyModeCost(policyData, e.getValue()));
 					policyModeDistanceUtility.put(e.getKey(), calcModeDistanceUtility(policyData, e.getValue()));
 					policyModeTimeUtility.put(e.getKey(), calcModeTravelUtility(policyData, e.getValue()));
@@ -326,21 +351,24 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 
 
 //				TODO: make this mode dependent. Rather create map with cost than single doubles?
-				double carCostBase = policyModeDailyCost.get(TransportMode.car);
-				double carCostPolicy = calcDailyModeCost(policyData, carDailyMonetaryConstant, carMonetaryDistanceRate);
-				double carCostDelta = carCostPolicy - carCostBase;
-				double rideCostBase = calcDailyRideCost(baseData, rideMonetaryDistanceRate);
-				double rideCostPolicy = calcDailyRideCost(policyData, rideMonetaryDistanceRate);
-				double rideCostDelta = rideCostPolicy - rideCostBase;
-				double totalCostBase = carCostBase + subtotalFareBase + rideCostBase;
-				double totalCostPolicy = carCostPolicy + subtotalFarePolicy + rideCostPolicy;
-				double totalCostDelta = totalCostPolicy - totalCostBase;
-				double utilityBase = totalCostBase * personSpecificBetaMoney;
-				double utilityPolicy = totalCostPolicy * personSpecificBetaMoney;
-				double utilityDelta = utilityPolicy - utilityBase;
+//				double carCostBase = policyModeDailyCost.get(TransportMode.car);
+//				double carCostPolicy = calcDailyModeCost(policyData, carDailyMonetaryConstant, carMonetaryDistanceRate);
+//				double carCostDelta = carCostPolicy - carCostBase;
+//				double rideCostBase = calcDailyRideCost(baseData, rideMonetaryDistanceRate);
+//				double rideCostPolicy = calcDailyRideCost(policyData, rideMonetaryDistanceRate);
+//				double rideCostDelta = rideCostPolicy - rideCostBase;
+//				double totalCostBase = carCostBase + subtotalFareBase + rideCostBase;
+//				double totalCostPolicy = carCostPolicy + subtotalFarePolicy + rideCostPolicy;
+//				double totalCostDelta = totalCostPolicy - totalCostBase;
+//				double utilityBase = totalCostBase * personSpecificBetaMoney;
+//				double utilityPolicy = totalCostPolicy * personSpecificBetaMoney;
+//				double utilityDelta = utilityPolicy - utilityBase;
 
-				final double fareDelta = policyData.dailyCost - baseData.dailyCost;
-				final double refundDelta = policyData.dailyRefund - baseData.dailyRefund;
+				final double fareDelta = policyData.dailyFareCost - baseData.dailyFareCost;
+				final double refundDelta = policyData.dailyFareRefund - baseData.dailyFareRefund;
+				final double baseDailyCostSum = sum(baseModeDailyCost.values());
+				final double policyDailyCostSum = sum(policyModeDailyCost.values());
+
 
 				final String basePurposes = String.join( "--", baseData.purposes );
 				final String policyPurposes = String.join( "-", policyData.purposes );
@@ -349,45 +377,113 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 				final String baseActivities = String.join( " | ", baseData.activites );
 				final String policyActivities = String.join( " | ", policyData.activites );
 
-				printer.printRecord(entry.getKey().toString(), personSpecificBetaMoney,
-						baseData.dailyCost, policyData.dailyCost, fareDelta,
-						baseData.dailyRefund, policyData.dailyRefund, refundDelta,
-						subtotalFareBase, subtotalFarePolicy, subtotalFareDelta,
-						basePurposes, policyPurposes,
-						String.join("-", baseData.fareTypes), String.join("-", policyData.fareTypes),
-						baseData.dailyCarDistance, policyData.dailyCarDistance,
-						carCostBase, carCostPolicy, carCostDelta,
-						baseData.dailyRideDistance, policyData.dailyRideDistance,
-						rideCostBase, rideCostPolicy, rideCostDelta,
-						totalCostBase, totalCostPolicy, totalCostDelta,
-						utilityBase, utilityPolicy, utilityDelta
-								   );
+				List<Object> recordList = new ArrayList<>();
+				recordList.add(entry.getKey().toString());
+				recordList.add(personSpecificBetaMoney);
+				recordList.add(baseData.dailyFareCost);
+				recordList.add(policyData.dailyFareCost);
+				recordList.add(fareDelta);
+				recordList.add(baseData.dailyFareRefund);
+				recordList.add(policyData.dailyFareRefund);
+				recordList.add(refundDelta);
+				recordList.add(subtotalFareBase);
+				recordList.add(subtotalFarePolicy);
+				recordList.add(subtotalFareDelta);
+				recordList.add(basePurposes);
+				recordList.add(policyPurposes);
+				recordList.add(String.join("-", baseData.fareTypes));
+				recordList.add(String.join("-", policyData.fareTypes));
+				recordList.add(baseDailyCostSum);
+				recordList.add(policyDailyCostSum);
+				recordList.add(policyDailyCostSum - baseDailyCostSum);
 
-				if ( isTestPerson( entry.getKey() ) ) {
-					log.warn("personId={}; utilityDelta={}", entry.getKey(), utilityDelta );
-					log.warn( "baseActivities={}", baseActivities );
-					log.warn( "policyActivites={}", policyActivities );
-					log.warn( "baseModes={}", baseModes );
-					log.warn( "policyModes={}", policyModes );
-					log.warn("carCostDelta={}; rideCostDelta={}; fareDelta={}; refundDelta={}", carCostDelta, rideCostDelta, fareDelta, refundDelta );
-					System.exit(-1);
+				for (String m : sortedModeParams.keySet()) {
+					double baseTimeUtility = baseModeTimeUtility.get(m);
+					double policyTimeUtility = policyModeTimeUtility.get(m);
+					double baseDistanceUtility = baseModeDistanceUtility.get(m);
+					double policyDistanceUtility = policyModeDistanceUtility.get(m);
+					double baseASCUtility = baseModeASC.get(m);
+					double policyASCUtility = policyModeASC.get(m);
+
+					recordList.add(baseTimeUtility);
+					recordList.add(policyTimeUtility);
+					recordList.add(baseDistanceUtility);
+					recordList.add(policyDistanceUtility);
+					recordList.add(baseASCUtility);
+					recordList.add(policyASCUtility);
+					recordList.add(baseTimeUtility + baseDistanceUtility + baseASCUtility);
+					recordList.add(policyTimeUtility + policyDistanceUtility + policyASCUtility);
 				}
 
-				subtotalFareCostBaseAggr += subtotalFareBase;
-				subtotalFareCostPolicyAggr += subtotalFarePolicy;
-				subtotalFareCostDeltaAggr += subtotalFareDelta;
-				carCostBaseAggr += carCostBase;
-				carCostPolicyAggr += carCostPolicy;
-				carCostDeltaAggr += carCostDelta;
-				rideCostBaseAggr += rideCostBase;
-				rideCostPolicyAggr += rideCostPolicy;
-				rideCostDeltaAggr += rideCostDelta;
-				totalCostBaseAggr += totalCostBase;
-				totalCostPolicyAggr += totalCostPolicy;
-				totalCostDeltaAggr += totalCostDelta;
-				utilityBaseAggr += utilityBase;
-				utilityPolicyAggr += utilityPolicy;
-				utilityDeltaAggr += utilityDelta;
+				double baseTravelUtilitySum = sum(baseModeTimeUtility.values());
+				double policyTravelUtilitySum = sum(policyModeTimeUtility.values());
+				double baseDistanceUtilitySum = sum(baseModeDistanceUtility.values());
+				double policyDistanceUtilitySum = sum(policyModeDistanceUtility.values());
+				double baseASCUtilitySum = sum(baseModeASC.values());
+				double policyASCUtilitySum = sum(policyModeASC.values());
+				double baseSubtotalUtility = baseTravelUtilitySum + baseDistanceUtilitySum + baseASCUtilitySum;
+				double policySubtotalUtility = policyTravelUtilitySum + policyDistanceUtilitySum + policyASCUtilitySum;
+
+				double totalUtilityBase = subtotalFareBase + baseDailyCostSum + baseSubtotalUtility;
+				double totalUtilityPolicy = subtotalFarePolicy + policyDailyCostSum + policySubtotalUtility;
+
+				recordList.add(baseTravelUtilitySum);
+				recordList.add(policyTravelUtilitySum);
+				recordList.add(policyTravelUtilitySum - baseTravelUtilitySum);
+				recordList.add(baseDistanceUtilitySum);
+				recordList.add(policyDistanceUtilitySum);
+				recordList.add(policyDistanceUtilitySum - baseDistanceUtilitySum);
+				recordList.add(baseASCUtilitySum);
+				recordList.add(policyASCUtilitySum);
+				recordList.add(policyASCUtilitySum - baseASCUtilitySum);
+				recordList.add(baseSubtotalUtility);
+				recordList.add(policySubtotalUtility);
+				recordList.add(policySubtotalUtility - baseSubtotalUtility);
+				recordList.add(totalUtilityBase);
+				recordList.add(totalUtilityPolicy);
+				recordList.add(totalUtilityPolicy - totalUtilityBase);
+
+				printer.printRecord(recordList.toArray());
+
+//				printer.printRecord(entry.getKey().toString(), personSpecificBetaMoney,
+//						baseData.dailyCost, policyData.dailyCost, fareDelta,
+//						baseData.dailyRefund, policyData.dailyRefund, refundDelta,
+//						subtotalFareBase, subtotalFarePolicy, subtotalFareDelta,
+//						basePurposes, policyPurposes,
+//						String.join("-", baseData.fareTypes), String.join("-", policyData.fareTypes),
+//						baseData.dailyCarDistance, policyData.dailyCarDistance,
+//						carCostBase, carCostPolicy, carCostDelta,
+//						baseData.dailyRideDistance, policyData.dailyRideDistance,
+//						rideCostBase, rideCostPolicy, rideCostDelta,
+//						totalCostBase, totalCostPolicy, totalCostDelta,
+//						utilityBase, utilityPolicy, utilityDelta
+//								   );
+
+//				if ( isTestPerson( entry.getKey() ) ) {
+//					log.warn("personId={}; utilityDelta={}", entry.getKey(), utilityDelta );
+//					log.warn( "baseActivities={}", baseActivities );
+//					log.warn( "policyActivites={}", policyActivities );
+//					log.warn( "baseModes={}", baseModes );
+//					log.warn( "policyModes={}", policyModes );
+//					log.warn("carCostDelta={}; rideCostDelta={}; fareDelta={}; refundDelta={}", carCostDelta, rideCostDelta, fareDelta, refundDelta );
+//					System.exit(-1);
+//				}
+
+//				subtotalFareCostBaseAggr += subtotalFareBase;
+//				subtotalFareCostPolicyAggr += subtotalFarePolicy;
+//				subtotalFareCostDeltaAggr += subtotalFareDelta;
+//				carCostBaseAggr += carCostBase;
+//				carCostPolicyAggr += carCostPolicy;
+//				carCostDeltaAggr += carCostDelta;
+//				rideCostBaseAggr += rideCostBase;
+//				rideCostPolicyAggr += rideCostPolicy;
+//				rideCostDeltaAggr += rideCostDelta;
+//				totalCostBaseAggr += totalCostBase;
+//				totalCostPolicyAggr += totalCostPolicy;
+//				totalCostDeltaAggr += totalCostDelta;
+//				utilityBaseAggr += utilityBase;
+//				utilityPolicyAggr += utilityPolicy;
+//				utilityDeltaAggr += utilityDelta;
 			}
 		}
 
@@ -421,6 +517,11 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 				utilityBaseAggr / size, utilityPolicyAggr / size, utilityDeltaAggr / size);
 		}
 	}
+
+	private static double sum(Collection<Double> doubles) {
+		return doubles.stream().mapToDouble(Double::doubleValue).sum();
+	}
+
 	private static boolean isTestPerson( Id<Person> personId ){
 		return "297374".equals( personId.toString() );
 	}
@@ -509,7 +610,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		}
 	}
 
-	private static final class FareEventHandler implements PersonMoneyEventHandler, VehicleEntersTrafficEventHandler, VehicleLeavesTrafficEventHandler,
+	private static final class UtilityEventHandler implements PersonMoneyEventHandler, VehicleEntersTrafficEventHandler, VehicleLeavesTrafficEventHandler,
 		LinkLeaveEventHandler, TeleportationArrivalEventHandler, PersonDepartureEventHandler {
 		private final Map<Id<Person>, SimulationData> dataMap;
 		private final Network network;
@@ -519,7 +620,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		private final Map<Id<Vehicle>, Id<Person>> vehicle2DriverInTraffic = new HashMap<>();
 		private final Map<Id<Person>, Double> personDepartures = new HashMap<>();
 
-		FareEventHandler(Map<Id<Person>, SimulationData> dataMap, Network network, Vehicles vehicles, Set<String> modes) {
+		UtilityEventHandler(Map<Id<Person>, SimulationData> dataMap, Network network, Vehicles vehicles, Set<String> modes) {
 			this.dataMap = dataMap;
 			this.network = network;
 			this.vehicles = vehicles;
@@ -606,7 +707,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 //			detect departure time of person. departure events are thrown for network legs and teleported legs as well.
 //			we only care about person agents != freight agents.
 			Id<Person> personId = event.getPersonId();
-			if (personId.toString().contains("goods") || personId.toString().contains("commercial") || personId.toString().contains("freight")) {
+			if (!(personId.toString().contains("goods") || personId.toString().contains("commercial") || personId.toString().contains("freight"))) {
 				personDepartures.put(event.getPersonId(), event.getTime());
 
 				//initialize map for mode distances and tts
@@ -614,6 +715,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 				Map<String, Integer> emptyModeToIntMap = new HashMap<>();
 				for (String m : modes) {
 					emptyModeToDoubleMap.put(m, 0.);
+					emptyModeToIntMap.put(m, 0);
 				}
 
 				dataMap.putIfAbsent(event.getPersonId(),
@@ -630,11 +732,11 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 //		purposes are the fare purposes, e.g. "pt fare" or "pt or drt fare". we do not really need them. -sm1025
 
 		private final Id<Person> personId;
-		private double dailyCost;
+		private double dailyFareCost;
 		private List<String> purposes = new ArrayList<>();
 		private List<String> fareTypes = new ArrayList<>();
 		private final List<String> modeList = new ArrayList<>();
-		private double dailyRefund;
+		private double dailyFareRefund;
 		private final List<String> activites = new ArrayList<>();
 		private Map<String, Double> dailyModeDistances = new HashMap<>();
 		private Map<String, Double> dailyModeTravelTimes = new HashMap<>();
@@ -647,12 +749,13 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		SimulationData(Id<Person> personId, double dailyCost, List<String> purposes, List<String> fareTypes, double dailyRefund,
 					   Map<String, Double> dailyModeDistances, Map<String, Double> dailyModeTravelTimes, Map<String, Integer> dailyModeLegCount){
 			this.personId = personId;
-			this.dailyCost = dailyCost;
+			this.dailyFareCost = dailyCost;
 			this.purposes = purposes;
 			this.fareTypes = fareTypes;
-			this.dailyRefund = dailyRefund;
+			this.dailyFareRefund = dailyRefund;
 			this.dailyModeDistances = dailyModeDistances;
 			this.dailyModeTravelTimes = dailyModeTravelTimes;
+			this.dailyModeLegCount = dailyModeLegCount;
 		}
 
 		public SimulationData addToModeList( String legMode ){
@@ -663,12 +766,12 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		// yyyy all methods below here should now be adapted such that the modify the existing object instead of always generating a new one. kai, oct'25
 		// (this has now been done, but the previous version should still be deleted)
 		private SimulationData updateDailyCost(double amount) {
-			this.dailyCost += amount;
+			this.dailyFareCost += amount;
 			return this;
 		}
 
 		private SimulationData updateDailyRefund(double refund) {
-			this.dailyRefund += refund;
+			this.dailyFareRefund += refund;
 			return this;
 		}
 
