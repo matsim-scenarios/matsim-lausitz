@@ -1,18 +1,14 @@
 package org.matsim.run.analysis;
 
+import com.opencsv.exceptions.CsvChainedException;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Contract;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.TransportMode;
-import org.matsim.api.core.v01.events.LinkLeaveEvent;
-import org.matsim.api.core.v01.events.PersonMoneyEvent;
-import org.matsim.api.core.v01.events.VehicleEntersTrafficEvent;
-import org.matsim.api.core.v01.events.VehicleLeavesTrafficEvent;
-import org.matsim.api.core.v01.events.handler.LinkLeaveEventHandler;
-import org.matsim.api.core.v01.events.handler.PersonMoneyEventHandler;
-import org.matsim.api.core.v01.events.handler.VehicleEntersTrafficEventHandler;
-import org.matsim.api.core.v01.events.handler.VehicleLeavesTrafficEventHandler;
+import org.matsim.api.core.v01.events.*;
+import org.matsim.api.core.v01.events.handler.*;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Population;
@@ -28,6 +24,7 @@ import org.matsim.core.events.MatsimEventsReader;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PersonUtils;
 import org.matsim.core.population.PopulationUtils;
+import org.matsim.core.router.TripStructureUtils;
 import org.matsim.vehicles.Vehicle;
 import picocli.CommandLine;
 
@@ -39,7 +36,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.matsim.application.ApplicationUtils.globFile;
-import static org.matsim.run.analysis.PtLineAnalysis.getCsvFormat;
 
 @CommandLine.Command(name = "monetary-utility", description = "List and compare fare, dailyRefund and utility values for agents in base and policy case.")
 public class AgentWiseCostComparison implements MATSimAppCommand {
@@ -47,8 +43,10 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 
 	@CommandLine.Parameters(arity = "1..*", description = "Path to run output directories for which analysis should be performed.")
 	private List<Path> inputPaths;
+
 	@CommandLine.Option(names = "--base-path", description = "Path to run directory of base case.", required = true)
 	private Path basePath;
+
 	@CommandLine.Option(names = "--prefix", description = "Prefix for filtered events output file, optional. This can be a list of multiple prefixes. " +
 		"Number of prefixes has to be equal to number of inputPaths and the list of prefixes has to have the same order as inputPaths.", split = ",")
 	private List<String> prefixList = new ArrayList<>();
@@ -67,14 +65,14 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 			return 2;
 		}
 
-		List<String> patterns = new ArrayList<>();
+		List<String> eventsFiles = new ArrayList<>();
 
 		if (!prefixList.isEmpty()) {
 			for (String prefix : prefixList) {
-				patterns.add("*" + prefix + "output_events_filtered.xml.gz");
+				eventsFiles.add("*" + prefix + "output_events_filtered.xml.gz");
 			}
 		} else {
-			patterns.add("*output_events.xml.gz");
+			eventsFiles.add("*output_events.xml.gz");
 		}
 
 		String baseNetworkFile = globFile(basePath, "*output_network.xml.gz").toString();
@@ -122,7 +120,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 
 		Map<String, Map<Id<Person>, SimulationData>> pattern2DataMap = new HashMap<>();
 
-		for (String pattern : patterns) {
+		for (String pattern : eventsFiles) {
 			String baseEventsFile = globFile(basePath, pattern).toString();
 
 //			read base case events
@@ -139,26 +137,26 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 			pattern2DataMap.put(pattern, baseFareDataMap);
 		}
 
-		if (patterns.size() == 1) {
-			String pattern = patterns.getFirst();
+		if (eventsFiles.size() == 1) {
+			String pattern = eventsFiles.getFirst();
 
 			Map<Id<Person>, SimulationData> baseFareDataMap = pattern2DataMap.get(pattern);
 
 			for (Path inputPath : inputPaths) {
 				processBaseAndPolicyData(inputPath, pattern, baseFareDataMap, betaMoneyMap, carDailyMonetaryConstant, carMonetaryDistanceRate, rideMonetaryDistanceRate);
 			}
-		} else if (patterns.size() > 1) {
-			for (String pattern : patterns) {
+		} else if (eventsFiles.size() > 1) {
+			for (String pattern : eventsFiles) {
 				Map<Id<Person>, SimulationData> baseFareDataMap = pattern2DataMap.get(pattern);
 
-				Path correspondingPath = inputPaths.get(patterns.indexOf(pattern));
+				Path correspondingPath = inputPaths.get(eventsFiles.indexOf(pattern));
 				processBaseAndPolicyData(correspondingPath, pattern, baseFareDataMap, betaMoneyMap, carDailyMonetaryConstant, carMonetaryDistanceRate, rideMonetaryDistanceRate);
 			}
 		}
 		return 0;
 	}
 
-	private void processBaseAndPolicyData(Path inputPath, String pattern, Map<Id<Person>, SimulationData> baseFareDataMap,
+	private static void processBaseAndPolicyData(Path inputPath, String pattern, Map<Id<Person>, SimulationData> baseFareDataMap,
 										  Map<Id<Person>, Double> betaMoneyMap, double carDailyMonetaryConstant, double carMonetaryDistanceRate,
 										  double rideMonetaryDistanceRate) throws IOException {
 		log.info("Running on {}", inputPath);
@@ -167,10 +165,12 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		String networkFile = globFile(inputPath, "*output_network.xml.gz").toString();
 
 		Network network = NetworkUtils.readNetwork(networkFile);
-		Map<Id<Person>, SimulationData> policyFareDataMap = new HashMap<>();
+		Map<Id<Person>, SimulationData> policyDataMap = new HashMap<>();
 
 		EventsManager manager = EventsUtils.createEventsManager();
-		manager.addHandler(new FareEventHandler(policyFareDataMap, network));
+		manager.addHandler(new FareEventHandler(policyDataMap, network));
+		manager.addHandler( new ModeDetectionHandler(policyDataMap) );
+		manager.addHandler( new ActivityDetectionHandler( policyDataMap ) );
 		MatsimEventsReader policyReader = new MatsimEventsReader(manager);
 		policyReader.readFile(eventsFile);
 		manager.finishProcessing();
@@ -183,7 +183,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 			combinedData.get(entry.getKey()).put(BASE, entry.getValue());
 		}
 
-		for (Map.Entry<Id<Person>, SimulationData> entry : policyFareDataMap.entrySet()) {
+		for (Map.Entry<Id<Person>, SimulationData> entry : policyDataMap.entrySet()) {
 //				if combined map does not contain policy person, the person did not use car or pt or ride in base case
 //				thus, we add base case agent with 0 values
 			if (!combinedData.containsKey(entry.getKey())) {
@@ -207,7 +207,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		writeCsvs(inputPath, combinedData, betaMoneyMap, carDailyMonetaryConstant, carMonetaryDistanceRate, rideMonetaryDistanceRate, pattern);
 	}
 
-	private void writeCsvs(Path inputPath, Map<Id<Person>, Map<String, SimulationData>> combinedData, Map<Id<Person>, Double> betaMoneyMap,
+	private static void writeCsvs(Path inputPath, Map<Id<Person>, Map<String, SimulationData>> combinedData, Map<Id<Person>, Double> betaMoneyMap,
 						   double carDailyMonetaryConstant, double carMonetaryDistanceRate, double rideMonetaryDistanceRate, String pattern) throws IOException {
 		double subtotalFareCostBaseAggr = 0.;
 		double subtotalFareCostPolicyAggr = 0.;
@@ -231,7 +231,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 //			write agent wise output
 		String outputAgentWise = inputPath.resolve(prefix + "output_agent_wise_cost_comparison_to_base.tsv").toString();
 
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputAgentWise), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputAgentWise), PtLineAnalysis.getCsvFormat())) {
 			printer.printRecord("personId", "betaMoney_util_eu",
 				"fareBase_eu", "farePolicy_eu", "fareDelta_eu",
 				"refundBase_eu", "refundPolicy_eu", "refundDelta_eu",
@@ -246,19 +246,19 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 				"utilityBase_util", "utilityPolicy_util", "utilityDelta_util");
 
 			for (Map.Entry<Id<Person>, Map<String, SimulationData>> entry : combinedData.entrySet()) {
-				SimulationData baseFareData = entry.getValue().get(BASE);
-				SimulationData policyFareData = entry.getValue().get(POLICY);
-				double subtotalFareBase = baseFareData.dailyCost + baseFareData.dailyRefund;
-				double subtotalFarePolicy = policyFareData.dailyCost + policyFareData.dailyRefund;
+				SimulationData baseData = entry.getValue().get(BASE);
+				SimulationData policyData = entry.getValue().get(POLICY);
+				double subtotalFareBase = baseData.dailyCost + baseData.dailyRefund;
+				double subtotalFarePolicy = policyData.dailyCost + policyData.dailyRefund;
 				double subtotalFareDelta = subtotalFarePolicy - subtotalFareBase;
 
 				double personSpecificBetaMoney = betaMoneyMap.get(entry.getKey());
 
-				double carCostBase = calcDailyCarCost(baseFareData, carDailyMonetaryConstant, carMonetaryDistanceRate);
-				double carCostPolicy = calcDailyCarCost(policyFareData, carDailyMonetaryConstant, carMonetaryDistanceRate);
+				double carCostBase = calcDailyCarCost(baseData, carDailyMonetaryConstant, carMonetaryDistanceRate);
+				double carCostPolicy = calcDailyCarCost(policyData, carDailyMonetaryConstant, carMonetaryDistanceRate);
 				double carCostDelta = carCostPolicy - carCostBase;
-				double rideCostBase = calcDailyRideCost(baseFareData, rideMonetaryDistanceRate);
-				double rideCostPolicy = calcDailyRideCost(policyFareData, rideMonetaryDistanceRate);
+				double rideCostBase = calcDailyRideCost(baseData, rideMonetaryDistanceRate);
+				double rideCostPolicy = calcDailyRideCost(policyData, rideMonetaryDistanceRate);
 				double rideCostDelta = rideCostPolicy - rideCostBase;
 				double totalCostBase = carCostBase + subtotalFareBase + rideCostBase;
 				double totalCostPolicy = carCostPolicy + subtotalFarePolicy + rideCostPolicy;
@@ -267,19 +267,39 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 				double utilityPolicy = totalCostPolicy * personSpecificBetaMoney;
 				double utilityDelta = utilityPolicy - utilityBase;
 
+				final double fareDelta = policyData.dailyCost - baseData.dailyCost;
+				final double refundDelta = policyData.dailyRefund - baseData.dailyRefund;
+
+				final String basePurposes = String.join( "--", baseData.purposes );
+				final String policyPurposes = String.join( "-", policyData.purposes );
+				final String baseModes = String.join( "--", baseData.modeList );
+				final String policyModes = String.join( "--", policyData.modeList );
+				final String baseActivities = String.join( " | ", baseData.activites );
+				final String policyActivities = String.join( " | ", policyData.activites );
+
 				printer.printRecord(entry.getKey().toString(), personSpecificBetaMoney,
-					baseFareData.dailyCost, policyFareData.dailyCost, policyFareData.dailyCost - baseFareData.dailyCost,
-					baseFareData.dailyRefund, policyFareData.dailyRefund, policyFareData.dailyRefund - baseFareData.dailyRefund,
-					subtotalFareBase, subtotalFarePolicy, subtotalFareDelta,
-					String.join("-", baseFareData.purposes), String.join("-", policyFareData.purposes),
-					String.join("-", baseFareData.fareTypes), String.join("-", policyFareData.fareTypes),
-					baseFareData.dailyCarDistance, policyFareData.dailyCarDistance,
-					carCostBase, carCostPolicy, carCostDelta,
-					baseFareData.dailyRideDistance, policyFareData.dailyRideDistance,
-					rideCostBase, rideCostPolicy, rideCostDelta,
-					totalCostBase, totalCostPolicy, totalCostDelta,
-					utilityBase, utilityPolicy, utilityDelta
-					);
+						baseData.dailyCost, policyData.dailyCost, fareDelta,
+						baseData.dailyRefund, policyData.dailyRefund, refundDelta,
+						subtotalFareBase, subtotalFarePolicy, subtotalFareDelta,
+						basePurposes, policyPurposes,
+						String.join("-", baseData.fareTypes), String.join("-", policyData.fareTypes),
+						baseData.dailyCarDistance, policyData.dailyCarDistance,
+						carCostBase, carCostPolicy, carCostDelta,
+						baseData.dailyRideDistance, policyData.dailyRideDistance,
+						rideCostBase, rideCostPolicy, rideCostDelta,
+						totalCostBase, totalCostPolicy, totalCostDelta,
+						utilityBase, utilityPolicy, utilityDelta
+								   );
+
+				if ( isTestPerson( entry.getKey() ) ) {
+					log.warn("personId={}; utilityDelta={}", entry.getKey(), utilityDelta );
+					log.warn( "baseActivities={}", baseActivities );
+					log.warn( "policyActivites={}", policyActivities );
+					log.warn( "baseModes={}", baseModes );
+					log.warn( "policyModes={}", policyModes );
+					log.warn("carCostDelta={}; rideCostDelta={}; fareDelta={}; refundDelta={}", carCostDelta, rideCostDelta, fareDelta, refundDelta );
+					System.exit(-1);
+				}
 
 				subtotalFareCostBaseAggr += subtotalFareBase;
 				subtotalFareCostPolicyAggr += subtotalFarePolicy;
@@ -302,7 +322,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 //			write aggregated output
 		String outputAggr = inputPath.resolve(prefix + "output_aggregated_cost_comparison_to_base.tsv").toString();
 
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputAggr), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputAggr), PtLineAnalysis.getCsvFormat())) {
 			printer.printRecord("subtotalFareCostBaseAggr", "subtotalFareCostPolicyAggr", "carCostBaseAggr", "carCostPolicyAggr",
 				"rideCostBaseAggr", "rideCostPolicyAggr", "totalCostBaseAggr", "totalCostPolicyAggr", "utilityBaseAggr", "utilityPolicyAggr");
 
@@ -313,7 +333,7 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 //			write mean output
 		String outputMean = inputPath.resolve(prefix + "output_mean_cost_comparison_to_base.tsv").toString();
 
-		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputMean), getCsvFormat())) {
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(outputMean), PtLineAnalysis.getCsvFormat())) {
 			printer.printRecord("subtotalFareCostBaseMean", "subtotalFareCostPolicyMean", "subtotalFareCostDeltaMean",
 				"carCostBaseMean", "carCostPolicyMean", "carCostDeltaMean",
 				"rideCostBaseMean", "rideCostPolicyMean", "rideCostDeltaMean",
@@ -329,8 +349,11 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 				utilityBaseAggr / size, utilityPolicyAggr / size, utilityDeltaAggr / size);
 		}
 	}
+	private static boolean isTestPerson( Id<Person> personId ){
+		return "297374".equals( personId.toString() );
+	}
 
-	private double calcDailyCarCost(SimulationData data, double carDailyMonetaryConstant, double carMonetaryDistanceRate) {
+	private static double calcDailyCarCost(SimulationData data, double carDailyMonetaryConstant, double carMonetaryDistanceRate) {
 		if (data.dailyCarDistance > 0.) {
 			return carDailyMonetaryConstant + data.dailyCarDistance * carMonetaryDistanceRate;
 		} else {
@@ -338,8 +361,43 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		}
 	}
 
-	private double calcDailyRideCost(SimulationData data, double rideMonetaryDistanceRate) {
+	private static double calcDailyRideCost(SimulationData data, double rideMonetaryDistanceRate) {
 		return data.dailyRideDistance * rideMonetaryDistanceRate;
+	}
+
+	private static final class ModeDetectionHandler implements PersonDepartureEventHandler {
+		private final Map<Id<Person>, SimulationData> dataMap;
+		public ModeDetectionHandler( Map<Id<Person>, SimulationData> simulationData ){
+			this.dataMap = simulationData;
+		}
+		@Override public void handleEvent( PersonDepartureEvent event ){
+			this.dataMap.putIfAbsent( event.getPersonId(), new SimulationData( event.getPersonId() ) );
+			SimulationData simulationData = this.dataMap.get( event.getPersonId() );
+			simulationData.addToModeList( event.getLegMode() );
+//			if ( isTestPerson( event.getPersonId() ) ){
+//				log.warn( "personId={}; just added mode={}; new mode list={}", event.getPersonId(), event.getLegMode(), String.join( "-", simulationData.modeList ) );
+//			}
+		}
+	}
+
+	private static final class ActivityDetectionHandler implements ActivityStartEventHandler {
+
+		private final Map<Id<Person>, SimulationData> dataMap;
+		public ActivityDetectionHandler( Map<Id<Person>, SimulationData> dataMap ){
+			this.dataMap = dataMap;
+		}
+		@Override public void handleEvent( ActivityStartEvent event ){
+			final String actType = event.getActType();
+			if ( TripStructureUtils.isStageActivityType( actType ) ) {
+				return;
+			}
+			this.dataMap.putIfAbsent( event.getPersonId(), new SimulationData( event.getPersonId() ) );
+			SimulationData simulationData = this.dataMap.get( event.getPersonId() );
+			simulationData.addToActivityList( actType );
+			if ( isTestPerson( event.getPersonId() ) ){
+				log.warn( "personId={}; just added activity={}; new activity list={}", event.getPersonId(), actType, String.join( " | ", simulationData.activites ) );
+			}
+		}
 	}
 
 	private static final class FareEventHandler implements PersonMoneyEventHandler, VehicleEntersTrafficEventHandler, VehicleLeavesTrafficEventHandler,
@@ -426,29 +484,85 @@ public class AgentWiseCostComparison implements MATSimAppCommand {
 		}
 	}
 
-	private record SimulationData(Id<Person> personId, double dailyCost, List<String> purposes, List<String> fareTypes, double dailyRefund,
-								  double dailyCarDistance, double dailyRideDistance) {
+	private static class SimulationData {
+		// ("record" scheint mir hier nicht so sinnvoll; das legt ja bei jeder Änderung ein neues Objekt an.  M.E. besser eine normale static class.  kai, oct'25)
+
+		// yyyy possibly, "purposes" was just another name for "activities".  Should be cleaned up.  kai, oct'25
+
+		private final Id<Person> personId;
+		private double dailyCost;
+		private List<String> purposes = new ArrayList<>();
+		private List<String> fareTypes = new ArrayList<>();
+		private final List<String> modeList = new ArrayList<>();
+		private double dailyRefund;
+		private double dailyCarDistance;
+		private double dailyRideDistance;
+		private final List<String> activites = new ArrayList<>();
+
+		SimulationData( Id<Person> personId ){
+			this.personId = personId;
+		}
+
+		SimulationData(Id<Person> personId, double dailyCost, List<String> purposes, List<String> fareTypes, double dailyRefund,
+					   double dailyCarDistance, double dailyRideDistance){
+			this.personId = personId;
+			this.dailyCost = dailyCost;
+			this.purposes = purposes;
+			this.fareTypes = fareTypes;
+			this.dailyRefund = dailyRefund;
+			this.dailyCarDistance = dailyCarDistance;
+			this.dailyRideDistance = dailyRideDistance;
+		}
+
+		public SimulationData addToModeList( String legMode ){
+			modeList.add( legMode );
+			return this;
+		}
+
+		// yyyy all methods below here should now be adapted such that the modify the existing object instead of always generating a new one. kai, oct'25
+		// (this has now been done, but the previous version should still be deleted)
 		private SimulationData updateDailyCost(double amount) {
-			return new SimulationData(this.personId, this.dailyCost + amount, this.purposes, this.fareTypes, this.dailyRefund, this.dailyCarDistance, this.dailyRideDistance);
+//			return new SimulationData(this.personId, this.dailyCost + amount, this.purposes, this.fareTypes, this.dailyRefund, this.dailyCarDistance, this.dailyRideDistance);
+			this.dailyCost += amount;
+			return this;
 		}
+
 		private SimulationData updateDailyRefund(double refund) {
-			return new SimulationData(this.personId, this.dailyCost, this.purposes, this.fareTypes, this.dailyRefund + refund, this.dailyCarDistance, this.dailyRideDistance);
+//			return new SimulationData(this.personId, this.dailyCost, this.purposes, this.fareTypes, this.dailyRefund + refund, this.dailyCarDistance, this.dailyRideDistance);
+			this.dailyRefund += refund;
+			return this;
 		}
+
 		private SimulationData updateDailyCarDistance(double distance) {
-			return new SimulationData(this.personId, this.dailyCost, this.purposes, this.fareTypes, this.dailyRefund, this.dailyCarDistance + distance, this.dailyRideDistance);
+//			return new SimulationData(this.personId, this.dailyCost, this.purposes, this.fareTypes, this.dailyRefund, this.dailyCarDistance + distance, this.dailyRideDistance);
+			this.dailyCarDistance += distance;
+			return this;
 		}
+
 		private SimulationData updateDailyRideDistance(double distance) {
-			return new SimulationData(this.personId, this.dailyCost, this.purposes, this.fareTypes, this.dailyRefund, this.dailyCarDistance, this.dailyRideDistance + distance);
+//			return new SimulationData(this.personId, this.dailyCost, this.purposes, this.fareTypes, this.dailyRefund, this.dailyCarDistance, this.dailyRideDistance + distance);
+			this.dailyRideDistance += distance;
+			return this;
 		}
+
 		private SimulationData updatePurposeList(String purpose) {
-			List<String> updatedPurposes = new ArrayList<>(this.purposes);
-			updatedPurposes.add(purpose);
-			return new SimulationData(this.personId, this.dailyCost, updatedPurposes, this.fareTypes, this.dailyRefund, this.dailyCarDistance, this.dailyRideDistance);
+//			List<String> updatedPurposes = new ArrayList<>(this.purposes);
+//			updatedPurposes.add(purpose);
+//			return new SimulationData(this.personId, this.dailyCost, updatedPurposes, this.fareTypes, this.dailyRefund, this.dailyCarDistance, this.dailyRideDistance);
+			this.purposes.add( purpose) ;
+			return this;
 		}
+
 		private SimulationData updateFareTypesList(String type) {
-			List<String> updatedFareTypes = new ArrayList<>(this.fareTypes);
-			updatedFareTypes.add(type);
-			return new SimulationData(this.personId, this.dailyCost, this.purposes, updatedFareTypes, this.dailyRefund, this.dailyCarDistance, this.dailyRideDistance);
+//			List<String> updatedFareTypes = new ArrayList<>(this.fareTypes);
+//			updatedFareTypes.add(type);
+//			return new SimulationData(this.personId, this.dailyCost, this.purposes, updatedFareTypes, this.dailyRefund, this.dailyCarDistance, this.dailyRideDistance);
+			this.fareTypes.add( type );
+			return this;
+		}
+		public SimulationData addToActivityList( String actType ){
+			this.activites.add( actType );
+			return this;
 		}
 	}
 }
