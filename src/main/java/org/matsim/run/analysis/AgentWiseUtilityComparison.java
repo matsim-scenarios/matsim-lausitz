@@ -153,10 +153,10 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 			}
 		} else if (eventsFiles.size() > 1) {
 			for (String pattern : eventsFiles) {
-				Map<Id<Person>, SimulationData> baseFareDataMap = pattern2DataMap.get(pattern);
+				Map<Id<Person>, SimulationData> baseDataMap = pattern2DataMap.get(pattern);
 
 				Path correspondingPath = inputPaths.get(eventsFiles.indexOf(pattern));
-				processBaseAndPolicyData(correspondingPath, pattern, baseFareDataMap, betaMoneyMap, modeParams);
+				processBaseAndPolicyData(correspondingPath, pattern, baseDataMap, betaMoneyMap, modeParams);
 			}
 		}
 		return 0;
@@ -466,6 +466,7 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 //					log.warn( "baseModes={}", baseModes );
 //					log.warn( "policyModes={}", policyModes );
 //					log.warn("carCostDelta={}; rideCostDelta={}; fareDelta={}; refundDelta={}", carCostDelta, rideCostDelta, fareDelta, refundDelta );
+//					log.warn("about to exit ...");
 //					System.exit(-1);
 //				}
 
@@ -763,8 +764,6 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 			return this;
 		}
 
-		// yyyy all methods below here should now be adapted such that the modify the existing object instead of always generating a new one. kai, oct'25
-		// (this has now been done, but the previous version should still be deleted)
 		private SimulationData updateDailyCost(double amount) {
 			this.dailyFareCost += amount;
 			return this;
@@ -776,16 +775,19 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 		}
 
 		private SimulationData updateDailyModeDistance(String mode, double distance) {
+			dailyModeDistances.putIfAbsent( mode, 0. );
 			this.dailyModeDistances.put(mode, dailyModeDistances.get(mode) + distance);
 			return this;
 		}
 
 		private SimulationData updateDailyModeTravelTime(String mode, double travelTime) {
+			dailyModeTravelTimes.putIfAbsent( mode, 0. );
 			this.dailyModeTravelTimes.put(mode, dailyModeTravelTimes.get(mode) + travelTime);
 			return this;
 		}
 
 		private SimulationData updateDailyModeLegCount(String mode) {
+			dailyModeLegCount.putIfAbsent( mode, 0 );
 			this.dailyModeLegCount.put(mode, dailyModeLegCount.get(mode) + 1);
 			return this;
 		}
