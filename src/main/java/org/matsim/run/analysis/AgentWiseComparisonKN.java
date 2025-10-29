@@ -4,6 +4,7 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.events.*;
 import org.matsim.api.core.v01.events.handler.*;
@@ -82,61 +83,14 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 //		}
 
 		String baseNetworkFile = globFile(basePath, "*output_network.xml.gz").toString();
-		String basePopulationFile = globFile(basePath, "*output_experienced_plans.xml.gz").toString();
+		String basePopulationFileName = globFile(basePath, "*output_experienced_plans.xml.gz").toString();
 		String baseConfigFile = globFile(basePath, "*output_config.xml").toString();
 //		String baseVehiclesFile = globFile(basePath, "*output_vehicles.xml.gz").toString();
 
 		Network baseNetwork = NetworkUtils.readNetwork(baseNetworkFile);
 		Config config = ConfigUtils.loadConfig(baseConfigFile);
-		Population basePopulation = PopulationUtils.readPopulation(basePopulationFile);
-		cleanPopulation( basePopulation );
 
-//		we need vehicles to track distances of modes in link leave events. link leave events do not have attr mode.
-//		Vehicles baseVehicles = VehicleUtils.createVehiclesContainer();
-//		new MatsimVehicleReader.VehicleReader(baseVehicles).readFile(baseVehiclesFile);
-
-//		The following assumes that betaMoney and mode params are the same for base and policy.
-//		if we want to implement policies involving changes in the below values, we have to do the calculation in the big for loop below.
-//		ScoringConfigGroup.ModeParams carParams = config.scoring().getModes().get(TransportMode.car);
-//		ScoringConfigGroup.ModeParams rideParams = config.scoring().getModes().get(TransportMode.ride);
-		Map<String, ScoringConfigGroup. ModeParams> modeParams = config.scoring().getModes();
-
-		double generalBetaMoney = config.scoring().getMarginalUtilityOfMoney();
-
-//		double carDailyMonetaryConstant = carParams.getDailyMonetaryConstant();
-//		double carMonetaryDistanceRate = carParams.getMonetaryDistanceRate();
-//		double rideMonetaryDistanceRate = rideParams.getMonetaryDistanceRate();
-
-		Table table = Table.create( StringColumn.create( HeadersKN.personId )
-				, DoubleColumn.create( HeadersKN.income )
-				, DoubleColumn.create( HeadersKN.score )
-				, DoubleColumn.create( HeadersKN.ttime )
-								  );
-
-		for( Person person : basePopulation.getPersons().values() ){
-			table.stringColumn( HeadersKN.personId ).append( person.getId().toString() );
-			table.doubleColumn( HeadersKN.income ).append( PersonUtils.getIncome( person ) );
-			table.doubleColumn( HeadersKN.score ).append( person.getSelectedPlan().getScore() );
-			{
-				double sumTtime = 0.;
-				for( Leg leg : TripStructureUtils.getLegs( person.getSelectedPlan() ) ){
-					sumTtime += leg.getTravelTime().seconds();
-				}
-				table.doubleColumn( HeadersKN.ttime ).append( sumTtime );
-			}
-		}
-
-		String personId = null;
-		table.doubleColumn( "abc" ).set( table.stringColumn( HeadersKN.personId ).isEqualTo( personId ), value );
-
-		double avIncome = table.doubleColumn( HeadersKN.income ).mean();
-		table.addColumns( table.doubleColumn( HeadersKN.income ).multiply( 1. / avIncome ).setName( HeadersKN.utlOfMoney ) );
-
-		log.info("##############################################################################################################################");
-		log.info("Mean monthly income of person agents: {}€", avIncome);
-		log.info("##############################################################################################################################");
-
-
+		final Table table = processPopulationAndGenerateTable( basePopulationFileName, config );
 
 		Map<String, Map<Id<Person>, SimulationData>> pattern2DataMap = new HashMap<>();
 
@@ -145,8 +99,6 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 
 //			read base case events
 			Map<Id<Person>, SimulationData> baseDataMap = new HashMap<>();
-
-			memorizeScoresFromPlans( basePopulation, baseDataMap );
 
 			UtilityEventHandler baseHandler = new UtilityEventHandler(baseDataMap, baseNetwork, baseVehicles, modeParams.keySet());
 			EventsManager baseManager = EventsUtils.createEventsManager();
@@ -179,6 +131,38 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 			}
 		}
 		return 0;
+	}
+	@NotNull private static Table processPopulationAndGenerateTable( String basePopulationFileName, Config config ){
+		Population basePopulation = PopulationUtils.readPopulation( basePopulationFileName );
+		cleanPopulation( basePopulation );
+
+		Table table = Table.create( StringColumn.create( HeadersKN.personId )
+				, DoubleColumn.create( HeadersKN.income )
+				, DoubleColumn.create( HeadersKN.score )
+				, DoubleColumn.create( HeadersKN.ttime )
+								  );
+
+		for( Person person : basePopulation.getPersons().values() ){
+			table.stringColumn( HeadersKN.personId ).append( person.getId().toString() );
+			table.doubleColumn( HeadersKN.income ).append( PersonUtils.getIncome( person ) );
+			table.doubleColumn( HeadersKN.score ).append( person.getSelectedPlan().getScore() );
+			{
+				double sumTtime = 0.;
+				for( Leg leg : TripStructureUtils.getLegs( person.getSelectedPlan() ) ){
+					sumTtime += leg.getTravelTime().seconds();
+				}
+				table.doubleColumn( HeadersKN.ttime ).append( sumTtime );
+			}
+		}
+
+		double avIncome = table.doubleColumn( HeadersKN.income ).mean();
+		table.addColumns( table.doubleColumn( HeadersKN.income )
+							   .multiply( config.scoring().getMarginalUtilityOfMoney() / avIncome ).setName( HeadersKN.utlOfMoney ) );
+
+		log.info("##############################################################################################################################");
+		log.info("Mean monthly income of person agents: {}€", avIncome);
+		log.info("##############################################################################################################################");
+		return table;
 	}
 	private static void cleanPopulation( Population basePopulation ){
 		List<Id<Person>> personsToRemove = new ArrayList<>();
@@ -258,13 +242,6 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 
 		writeCsvs(inputPath, combinedData, betaMoneyMap, modeParams, pattern);
 	}
-	private static void memorizeScoresFromPlans( Population population, Map<Id<Person>, SimulationData> policyDataMap ){
-		for( Person person : population.getPersons().values() ){
-			policyDataMap.putIfAbsent( person.getId(), new SimulationData( person.getId() ) );
-			policyDataMap.get( person.getId() ).scoreFromPlan = person.getSelectedPlan().getScore();
-		}
-	}
-
 	private static void writeCsvs(Path inputPath, Map<Id<Person>, Map<String, SimulationData>> combinedData, Map<Id<Person>, Double> betaMoneyMap,
 								  Map<String, ScoringConfigGroup.ModeParams> modeParams, String pattern) throws IOException {
 		double subtotalFareCostBaseAggr = 0.;
