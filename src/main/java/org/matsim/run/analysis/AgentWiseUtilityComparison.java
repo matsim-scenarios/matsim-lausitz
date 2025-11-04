@@ -23,6 +23,7 @@ import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PersonUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.router.TripStructureUtils;
+import org.matsim.run.DrtAndIntermodalityOptions;
 import org.matsim.vehicles.MatsimVehicleReader;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleUtils;
@@ -94,7 +95,14 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 //		if we want to implement policies involving changes in the below values, we have to do the calculation in the big for loop below.
 //		ScoringConfigGroup.ModeParams carParams = config.scoring().getModes().get(TransportMode.car);
 //		ScoringConfigGroup.ModeParams rideParams = config.scoring().getModes().get(TransportMode.ride);
+//		add drt mode params because there is no drt in base case.
+		new DrtAndIntermodalityOptions().addDrtModeParamsBasedOnPtModeParams(config.scoring());
 		Map<String, ScoringConfigGroup. ModeParams> modeParams = config.scoring().getModes();
+//		remove freight / truck modeParams
+		modeParams.keySet().stream()
+			.filter(m -> m.toLowerCase().contains("freight") || m.toLowerCase().contains("truck"))
+			.toList()
+			.forEach(modeParams::remove);
 
 		double generalBetaMoney = config.scoring().getMarginalUtilityOfMoney();
 
@@ -134,13 +142,13 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 //			read base case events
 			Map<Id<Person>, SimulationData> baseDataMap = new HashMap<>();
 
-			memorizeScoresFromPlans( basePopulation, baseDataMap );
+//			memorizeScoresFromPlans( basePopulation, baseDataMap );
 
 			UtilityEventHandler baseHandler = new UtilityEventHandler(baseDataMap, baseNetwork, baseVehicles, modeParams.keySet());
 			EventsManager baseManager = EventsUtils.createEventsManager();
 			baseManager.addHandler(baseHandler);
-			baseManager.addHandler( new ActivityDetectionHandler( baseDataMap ) );
-			baseManager.addHandler( new ModeDetectionHandler( baseDataMap ) );
+//			baseManager.addHandler( new ActivityDetectionHandler( baseDataMap ) );
+//			baseManager.addHandler( new ModeDetectionHandler( baseDataMap ) );
 			baseManager.initProcessing();
 
 			MatsimEventsReader baseReader = new MatsimEventsReader(baseManager);
@@ -193,17 +201,17 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 		Network network = NetworkUtils.readNetwork(networkFile);
 		Vehicles vehicles = VehicleUtils.createVehiclesContainer();
 		new MatsimVehicleReader(vehicles).readFile(vehiclesFile);
-		Population population = PopulationUtils.readPopulation(populationFile);
-		cleanPopulation( population );
+//		Population population = PopulationUtils.readPopulation(populationFile);
+//		cleanPopulation( population );
 
 		Map<Id<Person>, SimulationData> policyDataMap = new HashMap<>();
 
-		memorizeScoresFromPlans( population, policyDataMap );
+//		memorizeScoresFromPlans( population, policyDataMap );
 
 		EventsManager manager = EventsUtils.createEventsManager();
 		manager.addHandler(new UtilityEventHandler(policyDataMap, network, vehicles, modeParams.keySet()));
-		manager.addHandler( new ModeDetectionHandler(policyDataMap) );
-		manager.addHandler( new ActivityDetectionHandler( policyDataMap ) );
+//		manager.addHandler( new ModeDetectionHandler(policyDataMap) );
+//		manager.addHandler( new ActivityDetectionHandler( policyDataMap ) );
 		MatsimEventsReader policyReader = new MatsimEventsReader(manager);
 		policyReader.readFile(eventsFile);
 		manager.finishProcessing();
@@ -354,7 +362,7 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 				SimulationData baseData = entry.getValue().get(BASE);
 				SimulationData policyData = entry.getValue().get(POLICY);
 
-				double scoreFromPlansDelta = policyData.scoreFromPlan - baseData.scoreFromPlan;
+//				double scoreFromPlansDelta = policyData.scoreFromPlan - baseData.scoreFromPlan;
 
 				double subtotalFareBase = baseData.dailyFareCost + baseData.dailyFareRefund;
 				double subtotalFarePolicy = policyData.dailyFareCost + policyData.dailyFareRefund;
@@ -493,14 +501,14 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 //								   );
 
 				if ( isTestPerson( entry.getKey() ) ) {
-					log.warn("personId={}; scoreFromPlansDelta={}", entry.getKey(), scoreFromPlansDelta );
+//					log.warn("personId={}; scoreFromPlansDelta={}", entry.getKey(), scoreFromPlansDelta );
 					log.warn( "baseActivities={}", baseActivities );
 					log.warn( "policyActivites={}", policyActivities );
 					log.warn( "baseModes={}", baseModes );
 					log.warn( "policyModes={}", policyModes );
 //					log.warn("carCostDelta={}; rideCostDelta={}; fareDelta={}; refundDelta={}", carCostDelta, rideCostDelta, fareDelta, refundDelta );
-					log.warn("about to exit ...");
-					System.exit(-1);
+//					log.warn("about to exit ...");
+//					System.exit(-1);
 				}
 
 //				subtotalFareCostBaseAggr += subtotalFareBase;
@@ -738,6 +746,7 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 				String mode = event.getMode();
 
 				double travelTime = event.getTime() - personDepartures.get(personId);
+//				log.info(personId);
 
 				dataMap.put(personId, dataMap.get(personId)
 					.updateDailyModeDistance(mode, event.getDistance())
@@ -819,19 +828,19 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 		}
 
 		private SimulationData updateDailyModeDistance(String mode, double distance) {
-			dailyModeDistances.putIfAbsent( mode, 0. );
+//			dailyModeDistances.putIfAbsent( mode, 0. );
 			this.dailyModeDistances.put(mode, dailyModeDistances.get(mode) + distance);
 			return this;
 		}
 
 		private SimulationData updateDailyModeTravelTime(String mode, double travelTime) {
-			dailyModeTravelTimes.putIfAbsent( mode, 0. );
+//			dailyModeTravelTimes.putIfAbsent( mode, 0. );
 			this.dailyModeTravelTimes.put(mode, dailyModeTravelTimes.get(mode) + travelTime);
 			return this;
 		}
 
 		private SimulationData updateDailyModeLegCount(String mode) {
-			dailyModeLegCount.putIfAbsent( mode, 0 );
+//			dailyModeLegCount.putIfAbsent( mode, 0 );
 			this.dailyModeLegCount.put(mode, dailyModeLegCount.get(mode) + 1);
 			return this;
 		}

@@ -127,11 +127,8 @@ public class DrtAndIntermodalityOptions {
 		ScoringConfigGroup scoringConfigGroup = ConfigUtils.addOrGetModule(config, ScoringConfigGroup.class);
 
 		if (!scoringConfigGroup.getModes().containsKey(TransportMode.drt)) {
-//			ASC drt = ASC pt as discussed in PHD seminar24
-//			add mode params for drt if missing and set ASC + marg utility of traveling = 0
-			scoringConfigGroup.addModeParams(new ScoringConfigGroup.ModeParams(TransportMode.drt)
-				.setConstant(scoringConfigGroup.getModes().get(TransportMode.pt).getConstant())
-				.setMarginalUtilityOfTraveling(-0.));
+//			add mode params for drt if missing and set ASC = pt + marg utility of traveling = 0
+			addDrtModeParamsBasedOnPtModeParams(scoringConfigGroup);
 		}
 
 //		creates a drt staging activity and adds it to the scoring params
@@ -171,6 +168,13 @@ public class DrtAndIntermodalityOptions {
 		modes.add(TransportMode.drt);
 
 		config.subtourModeChoice().setModes(modes.toArray(new String[0]));
+	}
+
+	public void addDrtModeParamsBasedOnPtModeParams(ScoringConfigGroup scoringConfigGroup) {
+//		ASC drt = ASC pt as discussed in PHD seminar24
+		scoringConfigGroup.addModeParams(new ScoringConfigGroup.ModeParams(TransportMode.drt)
+			.setConstant(scoringConfigGroup.getModes().get(TransportMode.pt).getConstant())
+			.setMarginalUtilityOfTraveling(-0.));
 	}
 
 	/**
