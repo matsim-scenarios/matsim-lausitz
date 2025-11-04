@@ -159,6 +159,9 @@ public class LausitzScenario extends MATSimApplication {
 		config.qsim().setUsePersonIdForMissingVehicleId(false);
 		config.routing().setAccessEgressType(RoutingConfigGroup.AccessEgressType.accessEgressModeToLink);
 
+//		mutation should not affect act duration because otherwise short acts can end up with max_dur=0s.
+		config.timeAllocationMutator().setAffectingDuration(false);
+
 		prepareCommercialTrafficConfig(config);
 
 //		set pt fare calc model to fareZoneBased = fare of vvo tarifzone 20 is paid for trips within fare zone
