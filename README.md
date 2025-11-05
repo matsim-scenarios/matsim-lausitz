@@ -3,7 +3,7 @@
 [![build](https://github.com/matsim-scenarios/matsim-lausitz/actions/workflows/build.yaml/badge.svg)](https://github.com/matsim-scenarios/matsim-lausitz/actions/workflows/build.yaml)
 ![license](https://img.shields.io/github/license/matsim-scenarios/matsim-lausitz.svg)
 ![JDK](https://img.shields.io/badge/JDK-17+-green.svg)
-[![DOI (v2024.2)](https://zenodo.org/badge/DOI/10.5281/zenodo.13983108.svg)](https://doi.org/10.5281/zenodo.13983108)
+[![DOI (v2.0)](https://zenodo.org/badge/DOI/10.5281/zenodo.16760407.svg)](https://doi.org/10.5281/zenodo.16760407)
 
 
 ![MATSim network and agents](visualization.png "MATSim network and agents")
