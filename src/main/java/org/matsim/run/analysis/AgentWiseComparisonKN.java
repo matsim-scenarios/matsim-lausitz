@@ -26,7 +26,6 @@ import picocli.CommandLine;
 import tech.tablesaw.api.DoubleColumn;
 import tech.tablesaw.api.StringColumn;
 import tech.tablesaw.api.Table;
-import tech.tablesaw.selection.Selection;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -84,8 +83,8 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 			handleEventsfile( baseCasePath, pattern, baseTable );
 		}
 
-		Table ptTable = baseTable.where( baseTable.stringColumn( HeadersKN.modeSeq ).containsString( "pt" ) );
-		System.out.println( ptTable );
+		Table ptTable = baseTable.where( baseTable.stringColumn( HeadersKN.MODE_SEQ).containsString( "pt" ) );
+		log.info( ptTable );
 
 		if (eventsFiles.size() == 1) {
 			String pattern = eventsFiles.getFirst();
@@ -116,22 +115,22 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		cleanPopulation( basePopulation );
 		log.warn( "popSize={}",basePopulation.getPersons().size());
 
-		Table table = Table.create( StringColumn.create( HeadersKN.personId )
-				, DoubleColumn.create( HeadersKN.income )
-				, DoubleColumn.create( HeadersKN.score )
-				, DoubleColumn.create( HeadersKN.ttime )
-				, DoubleColumn.create( HeadersKN.money )
-				, DoubleColumn.create( HeadersKN.ascs )
-				, StringColumn.create( HeadersKN.modeSeq )
-				, StringColumn.create( HeadersKN.actSeq )
+		Table table = Table.create( StringColumn.create( HeadersKN.PERSON_ID)
+				, DoubleColumn.create( HeadersKN.INCOME)
+				, DoubleColumn.create( HeadersKN.SCORE)
+				, DoubleColumn.create( HeadersKN.TTIME)
+				, DoubleColumn.create( HeadersKN.MONEY)
+				, DoubleColumn.create( HeadersKN.ASCS)
+				, StringColumn.create( HeadersKN.MODE_SEQ)
+				, StringColumn.create( HeadersKN.ACT_SEQ)
 								  );
 		for( Person person : basePopulation.getPersons().values() ){
-			table.stringColumn( HeadersKN.personId ).append( person.getId().toString() );
-			table.doubleColumn( HeadersKN.income ).append( PersonUtils.getIncome( person ) );
+			table.stringColumn( HeadersKN.PERSON_ID).append( person.getId().toString() );
+			table.doubleColumn( HeadersKN.INCOME).append( PersonUtils.getIncome( person ) );
 		}
-		double avIncome = table.doubleColumn( HeadersKN.income ).mean();
-		table.addColumns( table.doubleColumn( HeadersKN.income )
-							   .multiply( config.scoring().getMarginalUtilityOfMoney() / avIncome ).setName( HeadersKN.utlOfMoney ) );
+		double avIncome = table.doubleColumn( HeadersKN.INCOME).mean();
+		table.addColumns( table.doubleColumn( HeadersKN.INCOME)
+							   .multiply( config.scoring().getMarginalUtilityOfMoney() / avIncome ).setName( HeadersKN.UTL_OF_MONEY) );
 
 		log.info("##############################################################################################################################");
 		log.info("Mean monthly income of person agents: {}€", avIncome);
@@ -141,50 +140,47 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		MainModeIdentifier mainModeIdentifier = new DefaultAnalysisMainModeIdentifier();
 		for( Person person : basePopulation.getPersons().values() ){
 
-			// yyyyyy the following is very slow; presumably, we better to full column operations and add the monetized columns!!
+			// the following is very slow; presumably, we better to full column operations and add the monetized columns!!
 //			int row = table.stringColumn( HeadersKN.personId ).isEqualTo( person.getId().toString() ).iterator().nextInt();
 //			double margUtlOfMoney = table.doubleColumn( HeadersKN.utlOfMoney ).get( row );
 
-			table.doubleColumn( HeadersKN.score ).append( person.getSelectedPlan().getScore() );
-			{
-				double sumTtime = 0.;
-				double sumMoney = 0.;
-				double dailyCarMoney = 0.;
-				double sumAscs = 0.;
-				for( Leg leg : TripStructureUtils.getLegs( person.getSelectedPlan() ) ){
-					sumTtime += leg.getTravelTime().seconds();
-					if ( "car".equals( leg.getMode() ) ) {
-						sumMoney += leg.getRoute().getDistance() * config.scoring().getModes().get( "car" ).getMonetaryDistanceRate();
-						dailyCarMoney = config.scoring().getModes().get( "car").getDailyMonetaryConstant();
-					}
-					final ScoringConfigGroup.ModeParams modeParams = config.scoring().getModes().get( leg.getMode() );
-					if ( modeParams==null ) {
-						log.warn("modeParams=null for mode={}", leg.getMode() );
-					}
-					sumAscs += modeParams.getConstant() ;
+			table.doubleColumn( HeadersKN.SCORE).append( person.getSelectedPlan().getScore() );
+
+			double sumTtime = 0.;
+			double sumMoney = 0.;
+			double dailyCarMoney = 0.;
+			double sumAscs = 0.;
+			for( Leg leg : TripStructureUtils.getLegs( person.getSelectedPlan() ) ){
+				sumTtime += leg.getTravelTime().seconds();
+				if ( "car".equals( leg.getMode() ) ) {
+					sumMoney += leg.getRoute().getDistance() * config.scoring().getModes().get( "car" ).getMonetaryDistanceRate();
+					dailyCarMoney = config.scoring().getModes().get( "car").getDailyMonetaryConstant();
 				}
-				table.doubleColumn( HeadersKN.ttime ).append( sumTtime/3600*6  );
-				table.doubleColumn( HeadersKN.money ).append( sumMoney + dailyCarMoney );
-				table.doubleColumn( HeadersKN.ascs ).append( sumAscs );
-			}
-			{
-				List<String> modes = new ArrayList<>();
-				for( TripStructureUtils.Trip trip : TripStructureUtils.getTrips( person.getSelectedPlan() ) ){
-					mainModeIdentifier.identifyMainMode( trip.getTripElements() );
-					modes.add( mainModeIdentifier.identifyMainMode( trip.getTripElements() ) );
+				final ScoringConfigGroup.ModeParams modeParams = config.scoring().getModes().get( leg.getMode() );
+				if ( modeParams==null ) {
+					log.warn("modeParams=null for mode={}", leg.getMode() );
 				}
-				table.stringColumn( HeadersKN.modeSeq ).append( String.join( "--", modes ) ) ;
+				sumAscs += modeParams.getConstant() ;
 			}
-			{
-				List<String> acts = new ArrayList<>();
-				for( Activity activity : TripStructureUtils.getActivities( person.getSelectedPlan(), ExcludeStageActivities ) ){
-					acts.add( activity.getType().substring( 0,4 ) );
-				}
-				table.stringColumn( HeadersKN.actSeq ).append( String.join( "|", acts ) );
+			table.doubleColumn( HeadersKN.TTIME).append( sumTtime/3600*6 );
+			table.doubleColumn( HeadersKN.MONEY).append( sumMoney + dailyCarMoney );
+			table.doubleColumn( HeadersKN.ASCS).append( sumAscs );
+
+			List<String> modes = new ArrayList<>();
+			for( TripStructureUtils.Trip trip : TripStructureUtils.getTrips( person.getSelectedPlan() ) ){
+				mainModeIdentifier.identifyMainMode( trip.getTripElements() );
+				modes.add( mainModeIdentifier.identifyMainMode( trip.getTripElements() ) );
 			}
+			table.stringColumn( HeadersKN.MODE_SEQ).append( String.join( "--", modes ) ) ;
+
+			List<String> acts = new ArrayList<>();
+			for( Activity activity : TripStructureUtils.getActivities( person.getSelectedPlan(), ExcludeStageActivities ) ){
+				acts.add( activity.getType().substring( 0,4 ) );
+			}
+			table.stringColumn( HeadersKN.ACT_SEQ).append( String.join( "|", acts ) );
 		}
 
-		System.out.println( table );
+		log.info( table );
 
 		return table;
 	}
@@ -205,57 +201,57 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		Set<String> leftCols = new HashSet<>(tableBase.columnNames());
 		Set<String> rightCols = new HashSet<>(tablePolicy.columnNames());
 
-		leftCols.remove( HeadersKN.personId );
-		rightCols.remove( HeadersKN.personId );
+		leftCols.remove( HeadersKN.PERSON_ID);
+		rightCols.remove( HeadersKN.PERSON_ID);
 
 		Set<String> duplicates = new HashSet<>(leftCols);
 		duplicates.retainAll(rightCols);
 
 		// Rename duplicates in right-hand table
 		for (String dup : duplicates) {
-			tablePolicy.column( dup ).setName( keyTwoOf(  dup ) );
+			tablePolicy.column( dup ).setName( keyTwoOf( dup ) );
 		}
 
-		Table filteredTable = tablePolicy.where( tablePolicy.stringColumn( keyTwoOf(HeadersKN.modeSeq) ).containsString( "drt" ) );
+		Table filteredTable = tablePolicy.where( tablePolicy.stringColumn( keyTwoOf(HeadersKN.MODE_SEQ) ).containsString( "drt" ) );
 //		Table filteredTable = tablePolicy;
 
-		Table joinedTable = tableBase.joinOn( HeadersKN.personId ).inner( filteredTable );
+		Table joinedTable = tableBase.joinOn( HeadersKN.PERSON_ID).inner( filteredTable );
 
-		Table deltaTable = Table.create( joinedTable.column( HeadersKN.personId )
-				,joinedTable.column( HeadersKN.utlOfMoney )
+		Table deltaTable = Table.create( joinedTable.column( HeadersKN.PERSON_ID)
+				,joinedTable.column( HeadersKN.UTL_OF_MONEY)
 //				, joinedTable.column( HeadersKN.score )
-				, deltaColumn( joinedTable, HeadersKN.score )
+				, deltaColumn( joinedTable, HeadersKN.SCORE)
 //				, joinedTable.column( HeadersKN.ttime )
-				, deltaColumn( joinedTable, HeadersKN.ttime )
+				, deltaColumn( joinedTable, HeadersKN.TTIME)
 //				, joinedTable.column( HeadersKN.money )
-				, deltaColumn( joinedTable, HeadersKN.money )
+				, deltaColumn( joinedTable, HeadersKN.MONEY)
 //				, joinedTable.column( HeadersKN.ascs )
-				, deltaColumn( joinedTable, HeadersKN.ascs )
-				, joinedTable.column( HeadersKN.modeSeq )
-				, joinedTable.column( keyTwoOf( HeadersKN.modeSeq ) )
+				, deltaColumn( joinedTable, HeadersKN.ASCS)
+				, joinedTable.column( HeadersKN.MODE_SEQ)
+				, joinedTable.column( keyTwoOf( HeadersKN.MODE_SEQ) )
 //				, joinedTable.column( HeadersKN.actSeq )
 //				, joinedTable.column( keyTwoOf( HeadersKN.actSeq ) )
 									   );
 
 		log.warn("d_score_mean={}, d_score_ttime_mean={}, d_money_mean={}, d_asc_mean={}"
-				, deltaTable.doubleColumn( deltaOf( HeadersKN.score )).mean()
-				, deltaTable.doubleColumn( deltaOf( HeadersKN.ttime ) ).mean() / 3600 * 6
-				, deltaTable.doubleColumn( deltaOf( HeadersKN.money ) ).mean()
-				, deltaTable.doubleColumn( deltaOf( HeadersKN.ascs) ).mean()
+				, deltaTable.doubleColumn( deltaOf( HeadersKN.SCORE)).mean()
+				, deltaTable.doubleColumn( deltaOf( HeadersKN.TTIME) ).mean() / 3600 * 6
+				, deltaTable.doubleColumn( deltaOf( HeadersKN.MONEY) ).mean()
+				, deltaTable.doubleColumn( deltaOf( HeadersKN.ASCS) ).mean()
 				);
 
-		Table sortedTable = deltaTable.sortOn( deltaOf( HeadersKN.score ) );
+		Table sortedTable = deltaTable.sortOn( deltaOf( HeadersKN.SCORE) );
 
 		NumberFormat format = NumberFormat.getNumberInstance( Locale.GERMANY);
 		format.setMaximumFractionDigits(2);
 		format.setMinimumFractionDigits( 2 );
 //		sortedTable.numberColumn(HeadersKN.score ).setPrintFormatter(format, "n/a");
 //		sortedTable.numberColumn(HeadersKN.money ).setPrintFormatter(format, "n/a");
-		sortedTable.numberColumn( deltaOf(HeadersKN.score) ).setPrintFormatter(format, "n/a");
-		sortedTable.numberColumn( deltaOf(HeadersKN.money) ).setPrintFormatter(format, "n/a");
+		sortedTable.numberColumn( deltaOf(HeadersKN.SCORE) ).setPrintFormatter(format, "n/a");
+		sortedTable.numberColumn( deltaOf(HeadersKN.MONEY) ).setPrintFormatter(format, "n/a");
 
-		System.out.println( sortedTable );
-		System.exit(-1);
+		log.info( sortedTable );
+		throw new RuntimeException("We do not want to continue here, aborting!");
 
 	}
 	private static DoubleColumn deltaColumn( Table joinedTable, String key ){
@@ -270,7 +266,7 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		List<Id<Person>> personsToRemove = new ArrayList<>();
 		for( Person person : basePopulation.getPersons().values() ){
 			Id<Person> personId = person.getId();
-			if ( personId.toString().contains("goods") || personId.toString().contains("commercial") || personId.toString().contains("freight")  ) {
+			if ( personId.toString().contains("goods") || personId.toString().contains("commercial") || personId.toString().contains("freight") ) {
 				personsToRemove.add( person.getId() );
 			}
 		}
@@ -281,12 +277,12 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 
 	private static class MyMoneyEventHandler implements PersonMoneyEventHandler{
 		private final Table table;
-		public MyMoneyEventHandler( Table table ){
+		MyMoneyEventHandler( Table table ){
 			this.table = table;
 		}
 		@Override public void handleEvent( PersonMoneyEvent event ){
-			int row = table.stringColumn( HeadersKN.personId ).isEqualTo( event.getPersonId().toString() ).iterator().nextInt();
-			final DoubleColumn moneyColumn = table.doubleColumn( HeadersKN.money );
+			int row = table.stringColumn( HeadersKN.PERSON_ID).isEqualTo( event.getPersonId().toString() ).iterator().nextInt();
+			final DoubleColumn moneyColumn = table.doubleColumn( HeadersKN.MONEY);
 			double prevAmount = moneyColumn.get( row );
 			moneyColumn.set( row, prevAmount + event.getAmount() );
 		}

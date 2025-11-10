@@ -628,7 +628,7 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 	// you can put everything into one event handler.  or you have different ones. kai
 	private static final class ModeDetectionHandler implements PersonDepartureEventHandler {
 		private final Map<Id<Person>, SimulationData> dataMap;
-		public ModeDetectionHandler( Map<Id<Person>, SimulationData> simulationData ){
+		ModeDetectionHandler( Map<Id<Person>, SimulationData> simulationData ){
 			this.dataMap = simulationData;
 		}
 		@Override public void handleEvent( PersonDepartureEvent event ){
@@ -644,7 +644,7 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 	private static final class ActivityDetectionHandler implements ActivityStartEventHandler {
 
 		private final Map<Id<Person>, SimulationData> dataMap;
-		public ActivityDetectionHandler( Map<Id<Person>, SimulationData> dataMap ){
+		ActivityDetectionHandler( Map<Id<Person>, SimulationData> dataMap ){
 			this.dataMap = dataMap;
 		}
 		@Override public void handleEvent( ActivityStartEvent event ){
@@ -785,7 +785,7 @@ public class AgentWiseUtilityComparison implements MATSimAppCommand {
 //		purposes are the fare purposes, e.g. "pt fare" or "pt or drt fare". we do not really need them. -sm1025
 
 		private final Id<Person> personId;
-		public Double scoreFromPlan;
+		private Double scoreFromPlan;
 		private double dailyFareCost;
 		private List<String> purposes = new ArrayList<>();
 		private List<String> fareTypes = new ArrayList<>();
