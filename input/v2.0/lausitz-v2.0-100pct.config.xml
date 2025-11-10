@@ -8,10 +8,10 @@
 	</module>
 
 	<module name="controller">
-		<param name="lastIteration" value="500"/>
+		<param name="lastIteration" value="400"/>
 		<param name="overwriteFiles" value="failIfDirectoryExists"/>
-		<param name="runId" value="lausitz-10pct"/>
-		<param name="outputDirectory" value="./output/output-lausitz-10pct"/>
+		<param name="runId" value="lausitz-100pct"/>
+		<param name="outputDirectory" value="./output/output-lausitz-100pct"/>
 		<param name="writeEventsInterval" value="100"/>
 		<param name="writePlansInterval" value="100"/>
 		<param name="enableLinkToLinkRouting" value="false"/>
@@ -32,7 +32,7 @@
 
 	<module name="plans">
 		<param name="inputPlansFile"
-			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v2.0/output/10pct/003.output_plans.xml.gz"/>
+			   value="https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/lausitz/lausitz-v2.0/output/100pct/010.output_plans.xml.gz"/>
 		<param name="removingUnnecessaryPlanAttributes" value="true"/>
 	</module>
 
@@ -63,8 +63,8 @@
 
 	<module name="qsim">
 		<param name="endTime" value="36:00:00"/>
-		<param name="flowCapacityFactor" value="0.1"/>
-		<param name="storageCapacityFactor" value="0.1"/>
+		<param name="flowCapacityFactor" value="1"/>
+		<param name="storageCapacityFactor" value="1"/>
 		<param name="mainMode" value="car,bike,longDistanceFreight"/>
 		<param name="numberOfThreads" value="12"/>
 		<param name="startTime" value="00:00:00"/>
@@ -179,7 +179,7 @@
 		<param name="fractionOfIterationsToStartScoreMSA" value="0.9"/>
 		<parameterset type="scoringParameters">
 			<parameterset type="modeParams">
-				<param name="constant" value="0.29066953938829737"/>
+				<param name="constant" value="0.5230931179422762"/>
 				<param name="marginalUtilityOfTraveling_util_hr" value="0.0"/>
 				<param name="mode" value="car"/>
 				<param name="monetaryDistanceRate" value="-0.00025"/>
@@ -187,7 +187,7 @@
 				<param name="dailyMonetaryConstant" value="-13.22"/>
 			</parameterset>
 			<parameterset type="modeParams">
-				<param name="constant" value="-0.3899210734374805"/>
+				<param name="constant" value="-0.5115101324733888"/>
 				<param name="mode" value="ride"/>
 <!--				the following are set in code, see run class -->
 <!--				<param name="marginalUtilityOfTraveling_util_hr" value="-18.0"/>-->
@@ -195,13 +195,13 @@
 <!--				<param name="dailyMonetaryConstant" value="-0.0"/>-->
 			</parameterset>
 			<parameterset type="modeParams">
-				<param name="constant" value="-2.458426826223411"/>
+				<param name="constant" value="-3.0721792923812763"/>
 				<param name="marginalUtilityOfTraveling_util_hr" value="0.0"/>
 				<param name="mode" value="pt"/>
 				<param name="dailyMonetaryConstant" value="0.0"/>
 			</parameterset>
 			<parameterset type="modeParams">
-				<param name="constant" value="-2.2217257149145353"/>
+				<param name="constant" value="-2.4245069148876244"/>
 				<param name="marginalUtilityOfTraveling_util_hr" value="-4.0"/>
 				<param name="mode" value="bike"/>
 			</parameterset>
