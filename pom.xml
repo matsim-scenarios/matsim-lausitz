@@ -14,6 +14,7 @@
 
 <!--		only recommended for "dependency sharing in the IDE": snapshot version:-->
 <!--		<version>2026.0-SNAPSHOT</version>-->
+<!--		the current matsim version is too "new" for lausitz-->
 	</parent>
 
 
