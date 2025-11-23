@@ -19,17 +19,18 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
 import org.matsim.core.events.EventsUtils;
 import org.matsim.core.events.MatsimEventsReader;
-import org.matsim.core.population.PersonUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.router.DefaultAnalysisMainModeIdentifier;
 import org.matsim.core.router.MainModeIdentifier;
 import org.matsim.core.router.TripStructureUtils;
 import picocli.CommandLine;
 import tech.tablesaw.api.DoubleColumn;
+import tech.tablesaw.api.IntColumn;
 import tech.tablesaw.api.StringColumn;
 import tech.tablesaw.api.Table;
 import tech.tablesaw.columns.Column;
 import tech.tablesaw.io.csv.CsvWriteOptions;
+import tech.tablesaw.sorting.Sort;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -40,7 +41,6 @@ import static org.matsim.api.core.v01.TransportMode.*;
 import static org.matsim.application.ApplicationUtils.globFile;
 import static org.matsim.core.config.groups.ScoringConfigGroup.ActivityParams;
 import static org.matsim.core.config.groups.ScoringConfigGroup.ModeParams;
-import static org.matsim.core.router.TripStructureUtils.StageActivityHandling.ExcludeStageActivities;
 import static org.matsim.run.analysis.HeadersKN.*;
 
 @CommandLine.Command(name = "monetary-utility", description = "List and compare fare, dailyRefund and utility values for agents in base and policy case.")
@@ -70,6 +70,7 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 		// yyyyyy we do not read the events from the base case so if there is important info (such as agents stuck in the base case) we ignore it!!
+		// --> das stimmt glaube ich nicht.
 
 		format.setMaximumFractionDigits(2);
 		format.setMinimumFractionDigits( 2 );
@@ -121,15 +122,23 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 			}
 		}
 
-		final Table sortedTable = baseTable.sortDescendingOn( SCORE );
+		log.info( "print unsorted table:");
+		System.out.println( baseTable );
+
+		{
+			final StringColumn columnToAdd = baseTable.stringColumn( PERSON_ID ).concatenate( "-" ).concatenate( baseTable.stringColumn( TRIP_IDX ) );
+			columnToAdd.setName( "abc" );
+			System.out.println( columnToAdd );
+			baseTable.addColumns( columnToAdd );
+		}
+
+
+		final Table sortedTable = baseTable.sortOn( "-"+SCORE, PERSON_ID, TRIP_IDX );
 		log.info("print sortedTable:");
 		System.out.println( sortedTable );
 
-		{
-			Table carTable = baseTable.where( baseTable.stringColumn( MODE_SEQ ).containsString( "car" ) );
-			log.info( "print carTable:");
-			System.out.println( carTable );
-		}
+		// ### next cometh the policy data:
+
 		if (eventsFiles.size() == 1) { // maybe this special case in included in the next?
 			String pattern = eventsFiles.getFirst();
 			for (Path inputPath : inputPaths) {
@@ -142,8 +151,8 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		}
 		return 0;
 	}
-	private static void handleEventsfile( Path baseCasePath, String pattern, Population population ){
-		String baseEventsFile = globFile( baseCasePath, pattern ).toString();
+	private static void handleEventsfile( Path path, String pattern, Population population ){
+		String baseEventsFile = globFile( path, pattern ).toString();
 
 		double popSizeBefore = population.getPersons().size();
 
@@ -157,40 +166,27 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		events.finishProcessing();
 
 		log.warn("popSize before={}; popSize after={}; ", popSizeBefore, population.getPersons().size() );
-
 	}
+
 	@NotNull private static Table generateTableFromPopulation( Population population, Config config ){
 
 		Table table = Table.create( StringColumn.create( PERSON_ID)
-			, DoubleColumn.create( INCOME)
+			, StringColumn.create( HeadersKN.TRIP_IDX ) // trip idx near beginning since otherwise difficult to read
+			// per agent:
+			, DoubleColumn.create( UTL_OF_MONEY)
 			, DoubleColumn.create( SCORE)
-			, DoubleColumn.create( TTIME)
-			, DoubleColumn.create( WEIGHTED_TTIME)
 			, DoubleColumn.create( MONEY)
-//			, DoubleColumn.create( HeadersKN.WEIGHTED_MONEY)
+			// per trip:
+			, DoubleColumn.create( HeadersKN.MUTTS_H )
+			, DoubleColumn.create( TTIME)
 			, DoubleColumn.create( ASCS)
-			, StringColumn.create( MODE_SEQ)
-			, StringColumn.create( ACT_SEQ)
+			, StringColumn.create( MODE )
+			, StringColumn.create( ACT_AT_END)
 								  );
-
-		for( Person person : population.getPersons().values() ){
-			table.stringColumn( PERSON_ID).append( person.getId().toString() );
-			table.doubleColumn( INCOME).append( PersonUtils.getIncome( person ) );
-		}
-		double avIncome = table.doubleColumn( INCOME).mean();
-		log.warn("averageIncome={}", avIncome );
-		table.addColumns( table.doubleColumn( INCOME).reciprocal().multiply( avIncome / config.scoring().getMarginalUtilityOfMoney() ).setName( UTL_OF_MONEY) );
 
 		MainModeIdentifier mainModeIdentifier = new DefaultAnalysisMainModeIdentifier();
 		for( Person person : population.getPersons().values() ){
 
-			// the following two lines are very slow; presumably, we better do full column operations and add the monetized columns separately.
-//			int row = table.stringColumn( HeadersKN.personId ).isEqualTo( person.getId().toString() ).iterator().nextInt();
-//			double margUtlOfMoney = table.doubleColumn( HeadersKN.utlOfMoney ).get( row );
-
-			table.doubleColumn( SCORE).append( person.getSelectedPlan().getScore() );
-
-			double sumTtime = 0.;
 			double sumMoney = 0.;
 			Double moneyFromEvents = (Double) person.getAttributes().getAttribute( KN_MONEY );
 			if ( moneyFromEvents!=null ) {
@@ -198,13 +194,25 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 			};
 			Map<String,Double> dailyMoneyByMode = new TreeMap<>();
 
-			double sumWeightedTtime = 0.;
-			double sumAscs = 0.;
-			for( TripStructureUtils.Trip trip : TripStructureUtils.getTrips( person.getSelectedPlan() ) ){
+//			double sumWeightedTtime = 0.;
+//			double sumAscs = 0.;
+			final List<TripStructureUtils.Trip> trips = TripStructureUtils.getTrips( person.getSelectedPlan() );
+			for( TripStructureUtils.Trip trip : trips ){
+
+				// need to repeat these for every trip:
+				table.stringColumn( PERSON_ID ).append( person.getId().toString() );
+				table.doubleColumn( UTL_OF_MONEY ).append( getMarginalUtilityOfMoney( person ) );
+				table.doubleColumn( SCORE).append( person.getSelectedPlan().getScore() );
+
+				// per trip:
+				table.stringColumn( TRIP_IDX ).append( String.valueOf( trips.indexOf( trip ) ) );
+				table.stringColumn( MODE ).append( shortenModeString( mainModeIdentifier.identifyMainMode( trip.getTripElements() ) ) );
+				table.stringColumn( ACT_AT_END ).append( trip.getDestinationActivity().getType() );
+
 				double tripTtime = 0.;
+				double sumAscs = 0.;
 				for( Leg leg : trip.getLegsOnly() ){
 					// ttime:
-					sumTtime += leg.getTravelTime().seconds();
 					tripTtime += leg.getTravelTime().seconds();
 
 					// money:
@@ -216,67 +224,33 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 
 					// ascs:
 					sumAscs += modeParams.getConstant() ;
+					// yyyy need to look up of pt ASCs are really added multiple times for multi-stage trips.  I think that this is deducted later.
 				}
+				table.doubleColumn( TTIME ).append( tripTtime/3600. );
+
 				Double mutts_h = getMUTTS_h( trip.getDestinationActivity() );
 				if ( mutts_h != null ) {
-					sumWeightedTtime += mutts_h * tripTtime / 3600.;
+					table.doubleColumn( MUTTS_H ).append( mutts_h );
 				} else {
 					throw new RuntimeException("find default value");
 				}
+
+				table.doubleColumn( ASCS ).append( sumAscs );
 			}
 
-
-			// ttime:
-			table.doubleColumn( TTIME ).append( sumTtime/3600  );
-			table.doubleColumn( HeadersKN.WEIGHTED_TTIME ).append( -sumWeightedTtime );
-
 			// money:
+			// (could try to do this per trip; dailyConstant paid when using mode for first time; refund in last trip, or one extra "pseudo" trip)
 			double dailyMoney = 0.;
 			for( Double value : dailyMoneyByMode.values() ){
 				dailyMoney += value;
 			}
-			table.doubleColumn( MONEY).append( sumMoney + dailyMoney );
+			for( TripStructureUtils.Trip trip : trips ){
+				// (we have the money only at the end)
+				table.doubleColumn( MONEY ).append( sumMoney + dailyMoney );
+			}
 
-			// ascs:
-			table.doubleColumn( ASCS).append( sumAscs );
-
-			List<String> modes = new ArrayList<>();
-			for( TripStructureUtils.Trip trip : TripStructureUtils.getTrips( person.getSelectedPlan() ) ){
-				mainModeIdentifier.identifyMainMode( trip.getTripElements() );
-				modes.add( shortenModeString( mainModeIdentifier.identifyMainMode( trip.getTripElements() ) ) );
-			}
-			final String modeString = String.join( "--", modes );
-			table.stringColumn( MODE_SEQ).append( modeString ) ;
-			if ( isTestPerson( person.getId() ) ) {
-				log.warn("personId={}, modes={}", person.getId(), modeString );
-			}
-			List<String> acts = new ArrayList<>();
-			double lastActEndTime = 0.;
-			for( Activity activity : TripStructureUtils.getActivities( person.getSelectedPlan(), ExcludeStageActivities ) ){
-					acts.add( activity.getType().substring( 0, Math.min( 4, activity.getType().length()) ) );
-					if ( isTestPerson( person.getId() ) ) {
-						// (note that the first act typically has no start time and the last no end time.)
-						if ( activity.getStartTime().isUndefined() ) {
-							lastActEndTime = activity.getEndTime().seconds();
-							log.warn("===");
-							log.warn( "personId={}; activity type={}; actStartTime={}; actEndTime={}", person.getId(), activity.getType(), activity.getStartTime(), activity.getEndTime().seconds() );
-						} else if ( activity.getEndTime().isUndefined() ) {
-							log.warn( "personId={}; activity type={}; duration={}", person.getId(), activity.getType(), (lastActEndTime - activity.getStartTime().seconds()) + 24*3600 );
-						} else {
-							log.warn( "personId={}; activity type={}; " +
-//											  "actStartTime={}; actEndTime={};" +
-											  " duration={}", person.getId(), activity.getType()
-//									, activity.getStartTime().seconds()/3600., activity.getEndTime().seconds()/3600
-									, (activity.getEndTime().seconds() - activity.getStartTime().seconds()));
-						}
-					}
-			}
-			table.stringColumn( ACT_SEQ).append( String.join( "|", acts ) );
+			// end person loop:
 		}
-
-		table.addColumns( table.doubleColumn( SCORE ).divide( table.doubleColumn( UTL_OF_MONEY ) ).setName( BENEFIT ) ) ;
-
-		table.addColumns( table.doubleColumn( MONEY ).multiply( table.doubleColumn( UTL_OF_MONEY ) ).setName( WEIGHTED_MONEY ) );
 
 		return table;
 	}
@@ -301,12 +275,19 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		log.info("print unsorted policy table:");
 		System.out.println( tablePolicy );
 
+		{
+			final StringColumn columnToAdd = tablePolicy.stringColumn( PERSON_ID ).concatenate( "-" ).concatenate( tablePolicy.stringColumn( TRIP_IDX ) ).setName( "abc" );
+			tablePolicy.addColumns( columnToAdd );
+		}
+
 		// Compute overlapping columns (excluding join keys)
 		Set<String> leftCols = new HashSet<>(tableBase.columnNames());
 		Set<String> rightCols = new HashSet<>(tablePolicy.columnNames());
 
-		leftCols.remove( PERSON_ID);
-		rightCols.remove( PERSON_ID);
+//		leftCols.remove( PERSON_ID);
+//		leftCols.remove( TRIP_IDX);
+//		rightCols.remove( PERSON_ID);
+//		rightCols.remove( TRIP_IDX);
 
 		Set<String> duplicates = new HashSet<>(leftCols);
 		duplicates.retainAll(rightCols);
@@ -315,6 +296,7 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		for (String dup : duplicates) {
 			tablePolicy.column( dup ).setName( keyTwoOf(  dup ) );
 		}
+
 //		Table filteredTableBase = tableBase.where( tableBase.stringColumn( MODE_SEQ ).containsString("car").andNot( tableBase.stringColumn( MODE_SEQ ).containsString( "eCar" ) ) );
 		Table filteredTableBase = tableBase;
 
@@ -322,26 +304,40 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 //		Table filteredTablePolicy = tablePolicy.where( tablePolicy.stringColumn( HeadersKN.keyTwoOf(HeadersKN.MODE_SEQ ) ).containsString( "eCar" ) );
 		Table filteredTablePolicy = tablePolicy;
 
-		Table joinedTable = filteredTableBase.joinOn( PERSON_ID).inner( filteredTablePolicy );
+		System.out.println( filteredTableBase.summary() );
+		System.out.println( filteredTablePolicy.summary() );
 
-		Table deltaTable = Table.create( joinedTable.column( PERSON_ID)
+		Table joinedTable = filteredTableBase.joinOn( "abc" ).inner( filteredTablePolicy, "abc_r");
+
+		joinedTable.addColumns( deltaColumn( joinedTable, TTIME ) );
+		{
+			final DoubleColumn newColumn = joinedTable.doubleColumn( deltaOf( TTIME ) ).multiply( joinedTable.doubleColumn( MUTTS_H ) ).multiply( -1 ).setName( deltaOf(  WEIGHTED_TTIME ) );
+			joinedTable.addColumns( newColumn );
+		}
+		joinedTable.addColumns( deltaColumn( joinedTable, MONEY ) );
+		{
+			final DoubleColumn newColumn = joinedTable.doubleColumn( deltaOf( MONEY ) ).multiply( joinedTable.doubleColumn( UTL_OF_MONEY ) ).setName( deltaOf( WEIGHTED_MONEY) );
+			joinedTable.addColumns( newColumn );
+		}
+
+
+		Table deltaTable = Table.create( joinedTable.column( PERSON_ID), joinedTable.column( TRIP_IDX )
 			, joinedTable.column( UTL_OF_MONEY)
 			, joinedTable.column( SCORE )
-			, joinedTable.column( keyTwoOf( SCORE ) )
+//			, joinedTable.column( keyTwoOf( SCORE ) )
 			, joinedTable.column( TTIME )
-			, deltaColumn( joinedTable, TTIME)
-			, joinedTable.column( WEIGHTED_TTIME )
-			, joinedTable.column( WEIGHTED_MONEY )
+			, joinedTable.column( deltaOf( TTIME ) )
+			, joinedTable.column( deltaOf( MONEY ) )
 			, joinedTable.column( ASCS )
+			, joinedTable.column( MUTTS_H )
+			//
 			, deltaColumn( joinedTable, SCORE)
-			, deltaColumn( joinedTable, WEIGHTED_TTIME )
-			, deltaColumn( joinedTable, WEIGHTED_MONEY)
+			, joinedTable.column( deltaOf( WEIGHTED_TTIME ) )
+			, joinedTable.column( deltaOf( WEIGHTED_MONEY ) )
 			, deltaColumn( joinedTable, ASCS)
-			, joinedTable.column( MODE_SEQ)
-			, joinedTable.column( keyTwoOf( MODE_SEQ) )
-//				, joinedTable.column( HeadersKN.actSeq )
-//				, joinedTable.column( keyTwoOf( HeadersKN.actSeq ) )
-//				, joinedTable.column( HeadersKN.STUCK )
+			//
+			, joinedTable.column( MODE )
+			, joinedTable.column( keyTwoOf( MODE ) )
 									   );
 
 		deltaTable.write().usingOptions( CsvWriteOptions.builder( "deltaTable.tsv" ).separator( '\t' ).build() );
@@ -349,14 +345,14 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		log.warn("###");
 		log.warn(
 			"D_SCORE_MEAN=" + deltaTable.doubleColumn( deltaOf( SCORE ) ).mean()
-				+"; d_w_ttime_mean=" + deltaTable.doubleColumn( deltaOf( WEIGHTED_TTIME ) ).mean()
-				+ "; d_w_money=" + deltaTable.doubleColumn( deltaOf( WEIGHTED_MONEY) ).mean()
+//				+"; d_w_ttime_mean=" + deltaTable.doubleColumn( deltaOf( WEIGHTED_TTIME ) ).mean()
+//				+ "; d_w_money=" + deltaTable.doubleColumn( deltaOf( WEIGHTED_MONEY) ).mean()
 				+ "; d_w_ascs=" + deltaTable.doubleColumn( deltaOf( ASCS ) ).mean()
 				+ "; d_ttime_mean=" + deltaTable.doubleColumn( deltaOf( TTIME) ).mean() / 3600 * 6
 				);
 		log.warn("###");
 
-		Table sortedTable = deltaTable.sortOn( deltaOf( SCORE) );
+		Table sortedTable = deltaTable.sortOn( deltaOf( SCORE), TRIP_IDX );
 
 		// I can set the format to columns that already exist at this stage:
 		for( Column<?> column : sortedTable.columns() ){
@@ -432,24 +428,26 @@ public class AgentWiseComparisonKN implements MATSimAppCommand {
 		}
 	}
 
-	// yyyyyy cannot use matsim head since lausitz is too old
-	private static final String VTTS_H = "VTTS_h (incoming trip)";
-	private static final String MUTTS_H = "mUTTS_h (incoming trip)";
-
-	public static void setMUTTS_h( Activity activity, double mUTTSh ){
-		activity.getAttributes().putAttribute( MUTTS_H, mUTTSh );
-	}
+	//	public static void setMUTTS_h( Activity activity, double mUTTSh ){
+//		activity.getAttributes().putAttribute( MUTTS_H, mUTTSh );
+//	}
 	public static Double getMUTTS_h( Activity activity ) {
-		return (Double) activity.getAttributes().getAttribute( MUTTS_H );
+		return (Double) activity.getAttributes().getAttribute( "mUTTS_h (incoming trip)" );
 	}
 
-	public static void setVTTS_h( Activity activity, double vttSh ){
-		activity.getAttributes().putAttribute( VTTS_H, vttSh );
-	}
+	//	public static void setVTTS_h( Activity activity, double vttSh ){
+//		activity.getAttributes().putAttribute( VTTS_H, vttSh );
+//	}
 	public static Double getVTTS_h( Activity activity ) {
-		return (Double) activity.getAttributes().getAttribute( VTTS_H );
+		return (Double) activity.getAttributes().getAttribute( "VTTS_h (incoming trip)" );
 	}
 
+	public static Double getMarginalUtilityOfMoney( Person person ) {
+		return (Double) person.getAttributes().getAttribute( "marginalUtilityOfMoney" );
+	}
+//	public static void setMarginalUtilityOfMoney( Person person, double marginalUtilityOfMoney ) {
+//		person.getAttributes().putAttribute( MARGINAL_UTILITY_OF_MONEY, marginalUtilityOfMoney );
+//	}
 
 
 }
