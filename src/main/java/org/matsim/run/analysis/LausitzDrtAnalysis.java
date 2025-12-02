@@ -71,16 +71,16 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 
 	private static final String INCOME_GROUP = "incomeGroup";
 	static final String PERSON = "person";
-	private static final String SHARE = "share";
+	static final String SHARE = "share";
 	private static final String SCORE = "executed_score";
 	private static final String INCOME = "income";
 	static final String TRAV_TIME = "trav_time";
 	static final String TRAV_DIST = "traveled_distance";
-	private static final String EUCL_DIST = "euclidean_distance";
+	static final String EUCL_DIST = "euclidean_distance";
 	static final String MAIN_MODE = "main_mode";
 	static final String TRIP_ID = "trip_id";
 	private static final String BASE_SUFFIX = "_base";
-	private static final String DIST_GROUP = "dist_group";
+	static final String DIST_GROUP = "dist_group";
 	private static final String DEPARTURE_H = "departureHour";
 	private static final String DEPARTURE_TIME = "departureTime";
 	private static final String PERSON_ID = "personId";
@@ -593,7 +593,7 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		return legsOrTrips;
 	}
 
-	private void calcAndWriteModalShares(Table drtServiceAreaTrips) {
+	void calcAndWriteModalShares(Table drtServiceAreaTrips) {
 //		write all trips in drt service area to csv
 		drtServiceAreaTrips.write().csv(output.getPath("trips_in_drt_service_area.csv.gz").toFile());
 
@@ -632,7 +632,7 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		aggr.write().csv(output.getPath("mode_share_per_dist.csv").toFile());
 	}
 
-	private static String cut(double dist, List<Double> distGroups, List<String> labels) {
+	static String cut(double dist, List<Double> distGroups, List<String> labels) {
 
 		int idx = Collections.binarySearch(distGroups, dist);
 
