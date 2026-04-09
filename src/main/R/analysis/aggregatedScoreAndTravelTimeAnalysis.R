@@ -8,15 +8,17 @@ option_list <- list(
   make_option(c("-r", "--runDir"), type="character", default=NULL,
               help="Path to run directory. Avoid using '\', use '/' instead.", metavar="character"),
   make_option(c("-b", "--baseDir"), type="character", default=NULL,
-              help="Path to run directory. Avoid using '\', use '/' instead.", metavar="character")
+              help="Path to run directory. Avoid using '\', use '/' instead.", metavar="character"),
+  make_option(c("-c", "--case"), type="character", default=NULL,
+              help="Either drt or pt for handling of different policy cases.", metavar="character")
               )
 
 opt_parser <- OptionParser(option_list=option_list)
 opt <- parse_args(opt_parser)
 
-if (is.null(opt$runDir) || is.null(opt$baseDir)) {
+if (is.null(opt$runDir) || is.null(opt$baseDir) || is.null(opt$case)) {
   print_help(opt_parser)
-  stop("Error: --runDir and --baseDir are required", call.=FALSE)
+  stop("Error: --runDir, --baseDir and --case are required", call.=FALSE)
 }
 
 run_dir <- opt$runDir
@@ -26,8 +28,9 @@ base_dir_fixed <- gsub("////", "/", base_dir)
 
 # if you do not want to use opt_parse, comment out the above lines starting from option_list <- ...
 # you have to define run_dir_fixed yourself
-# run_dir_fixed <- "Y:/net/ils/matsim-lausitz/caseStudies/v2.0/drt-case-study/no-pooling-0-fare/output-1-ruhland-bhf_full_plans/"
+# run_dir_fixed <- "Y:/net/ils/matsim-lausitz/caseStudies/v2.0/pt-case-study/output-lausitz-pt-case_full_plans/"
 # base_dir_fixed <- "Y:/net/ils/matsim-lausitz/caseStudies/v2.0/output-lausitz-v2.0-10pct-base-case-ctd_full_plans/"
+# case <- "pt"
 
 setwd(run_dir_fixed)
 print(paste("Running analysis on run dir", getwd()))
@@ -68,40 +71,76 @@ aggregated_score_util_base <- sum(persons_base_reduced$executed_score)
 aggregated_tt_h_policy <- sum(trips_policy_reduced$trav_time_s) / 3600
 aggregated_tt_h_base <- sum(trips_base_reduced$trav_time_s) / 3600
 
-# filter for drt users only
-# first filter for drt trips only (drt as main mode and as access/egress to/from pt)
-trips_drt_policy <- trips_policy_reduced %>%
-  filter(str_detect(modes, "drt")) %>%
-  separate(trip_id, into=c("person_from_trip_id", "trip_number"), sep="_")
-trips_drt_users_policy <- trips_policy_reduced %>%
-  filter(person %in% trips_drt_policy$person_from_trip_id)
-# get all respective trips of drt users in base case
-trips_drt_users_base <- trips_base_reduced %>%
-  filter(person %in% trips_drt_users_policy$person)
-drt_users_policy <- persons_policy_reduced %>%
-  filter(person %in% trips_drt_users_policy$person)
-drt_users_base <- persons_base_reduced %>%
-  filter(person %in% trips_drt_users_base$person)
 
-if (length(trips_drt_users_policy) != length(trips_drt_users_base) ||
-    length(drt_users_policy) != length(drt_users_base)) {
-  stop("Number of trips of drt users and number of trips of their respective trips in the base case are not the same OR
-       number of drt users and the respective agents in the base case are not the same! Aborting!")
+if (case == "drt") {
+  # filter for drt users only
+  # first filter for drt trips only (drt as main mode and as access/egress to/from pt)
+  trips_drt_policy <- trips_policy_reduced %>%
+    filter(str_detect(modes, "drt")) %>%
+    separate(trip_id, into=c("person_from_trip_id", "trip_number"), sep="_")
+  trips_drt_users_policy <- trips_policy_reduced %>%
+    filter(person %in% trips_drt_policy$person_from_trip_id)
+  # get all respective trips of drt users in base case
+  trips_drt_users_base <- trips_base_reduced %>%
+    filter(person %in% trips_drt_users_policy$person)
+  drt_users_policy <- persons_policy_reduced %>%
+    filter(person %in% trips_drt_users_policy$person)
+  drt_users_base <- persons_base_reduced %>%
+    filter(person %in% trips_drt_users_base$person)
+
+  if (length(trips_drt_users_policy) != length(trips_drt_users_base) ||
+      length(drt_users_policy) != length(drt_users_base)) {
+    stop("Number of trips of drt users and number of trips of their respective trips in the base case are not the same OR
+         number of drt users and the respective agents in the base case are not the same! Aborting!")
+  }
+
+  # calc aggregated drt user scores and tt
+  aggregated_score_util_drt_users_policy <- sum(drt_users_policy$executed_score)
+  aggregated_score_util_drt_users_base <- sum(drt_users_base$executed_score)
+  aggregated_tt_h_drt_users_policy <- sum(trips_drt_users_policy$trav_time_s) / 3600
+  aggregated_tt_h_drt_users_base <- sum(trips_drt_users_base$trav_time_s) / 3600
+
+  aggregated <- data.frame(
+    case=c("base","policy","diff_policy_minus_base"),
+    all_aggr_score_util=c(aggregated_score_util_base,aggregated_score_util_policy,aggregated_score_util_policy-aggregated_score_util_base),
+    drt_users_aggr_score_util=c(aggregated_score_util_drt_users_base,aggregated_score_util_drt_users_policy,aggregated_score_util_drt_users_policy-aggregated_score_util_drt_users_base),
+    all_aggr_tt_h=c(aggregated_tt_h_base,aggregated_tt_h_policy,aggregated_tt_h_policy-aggregated_tt_h_base),
+    drt_users_aggr_tt_h=c(aggregated_tt_h_drt_users_base,aggregated_tt_h_drt_users_policy,aggregated_tt_h_drt_users_policy-aggregated_tt_h_drt_users_base)
+  )
+} else if (case == "pt") {
+#   filter for pt line agents from file
+  pt_line_agents_path <- list.files(path=paste0(run_dir_fixed, "analysis/analysis/"), pattern="*pt_persons.csv", full.names = TRUE)
+  pt_line_agents <- read.csv(file=pt_line_agents_path)
+  
+  pt_line_users_policy <- persons_policy_reduced %>%
+    filter(person %in% pt_line_agents$person)
+  pt_line_users_base <- persons_base_reduced %>%
+    filter(person %in% pt_line_agents$person)
+  trips_pt_line_users_policy <- trips_policy_reduced %>%
+    filter(person %in% pt_line_agents$person)
+  trips_pt_line_users_base <- trips_base_reduced %>%
+    filter(person %in% pt_line_agents$person)
+  
+  if (length(trips_pt_line_users_policy) != length(trips_pt_line_users_base) ||
+      length(pt_line_users_policy) != length(pt_line_users_base)) {
+    stop("Number of trips of pt line users and number of trips of their respective trips in the base case are not the same OR
+         number of pt line users and the respective agents in the base case are not the same! Aborting!")
+  }
+  
+  # calc aggregated pt line user scores and tt
+  aggregated_score_util_pt_line_users_policy <- sum(pt_line_users_policy$executed_score)
+  aggregated_score_util_pt_line_users_base <- sum(pt_line_users_base$executed_score)
+  aggregated_tt_h_pt_line_users_policy <- sum(trips_pt_line_users_policy$trav_time_s) / 3600
+  aggregated_tt_h_pt_line_users_base <- sum(trips_pt_line_users_base$trav_time_s) / 3600
+  
+  aggregated <- data.frame(
+    case=c("base","policy","diff_policy_minus_base"),
+    all_aggr_score_util=c(aggregated_score_util_base,aggregated_score_util_policy,aggregated_score_util_policy-aggregated_score_util_base),
+    pt_line_users_aggr_score_util=c(aggregated_score_util_pt_line_users_base,aggregated_score_util_pt_line_users_policy,aggregated_score_util_pt_line_users_policy-aggregated_score_util_pt_line_users_base),
+    all_aggr_tt_h=c(aggregated_tt_h_base,aggregated_tt_h_policy,aggregated_tt_h_policy-aggregated_tt_h_base),
+    pt_line_users_aggr_tt_h=c(aggregated_tt_h_pt_line_users_base,aggregated_tt_h_pt_line_users_policy,aggregated_tt_h_pt_line_users_policy-aggregated_tt_h_pt_line_users_base)
+  )
 }
-
-# calc aggregated drt user scores and tt
-aggregated_score_util_drt_users_policy <- sum(drt_users_policy$executed_score)
-aggregated_score_util_drt_users_base <- sum(drt_users_base$executed_score)
-aggregated_tt_h_drt_users_policy <- sum(trips_drt_users_policy$trav_time_s) / 3600
-aggregated_tt_h_drt_users_base <- sum(trips_drt_users_base$trav_time_s) / 3600
-
-aggregated <- data.frame(
-  case=c("base","policy","diff_policy_minus_base"),
-  all_aggr_score_util=c(aggregated_score_util_base,aggregated_score_util_policy,aggregated_score_util_policy-aggregated_score_util_base),
-  drt_users_aggr_score_util=c(aggregated_score_util_drt_users_base,aggregated_score_util_drt_users_policy,aggregated_score_util_drt_users_policy-aggregated_score_util_drt_users_base),
-  all_aggr_tt_h=c(aggregated_tt_h_base,aggregated_tt_h_policy,aggregated_tt_h_policy-aggregated_tt_h_base),
-  drt_users_aggr_tt_h=c(aggregated_tt_h_drt_users_base,aggregated_tt_h_drt_users_policy,aggregated_tt_h_drt_users_policy-aggregated_tt_h_drt_users_base)
-)
 
 file_name <- "score_and_tt_aggr_042026.csv"
 write_csv(aggregated, file=file_name)
