@@ -147,6 +147,7 @@ public class LausitzScenario extends MATSimApplication {
 		scoringConfigGroup.setPerforming_utils_hr(performing);
 		scoringConfigGroup.setWriteExperiencedPlans(true);
 		scoringConfigGroup.setPathSizeLogitBeta(0.);
+		scoringConfigGroup.setExplainScores(true);
 
 //		set ride scoring params dependent from car params
 //		2.0 + 1.0 = alpha + 1
