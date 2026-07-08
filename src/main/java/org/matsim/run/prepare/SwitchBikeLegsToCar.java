@@ -11,6 +11,8 @@ import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.prepare.population.CleanPopulation;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.population.PopulationUtils;
+import org.matsim.core.population.algorithms.TripsToLegsAlgorithm;
+import org.matsim.core.router.RoutingModeMainModeIdentifier;
 import org.matsim.core.router.TripStructureUtils;
 import picocli.CommandLine;
 
@@ -22,6 +24,7 @@ import java.nio.file.Path;
 )
 public class SwitchBikeLegsToCar implements MATSimAppCommand {
 	private static final Logger log = LogManager.getLogger(SwitchBikeLegsToCar.class);
+	private final TripsToLegsAlgorithm trips2Legs = new TripsToLegsAlgorithm(new RoutingModeMainModeIdentifier());
 
 	@CommandLine.Parameters(arity = "1", paramLabel = "INPUT", description = "Path to input population")
 	private Path input;
@@ -53,10 +56,14 @@ public class SwitchBikeLegsToCar implements MATSimAppCommand {
 		int legCount = 0;
 		for (Person p : bikeUsers.getPersons().values()) {
 			for (Plan pl : p.getPlans()) {
+//				we need to get rid of access/egress legs and interaction acts
+				trips2Legs.run(pl);
+
 				for (Leg l : TripStructureUtils.getLegs(pl)) {
 					if (l.getMode().equals(TransportMode.bike)) {
 						CleanPopulation.removeRouteFromLeg(l);
 						l.setMode(TransportMode.car);
+						l.setRoutingMode(TransportMode.car);
 						legCount++;
 					}
 				}
