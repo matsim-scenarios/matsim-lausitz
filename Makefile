@@ -104,7 +104,10 @@ input/plans-longHaulFreight.xml.gz: input/$V/$N-$V-network.xml.gz
 	 --cut-on-boundary\
 	 --LegMode "longDistanceFreight"\
 	 --output $@
+
 # create facilities for commercial traffic
+# the following 2 steps are typically run on the math cluster by Ricardo Ewert. the steps are here for documentation.
+# the necessary small scale commercial traffic plans file is copied from the cluster into the local directory for further use.
 input/commercialFacilities.xml.gz:
 	$(sc) prepare create-data-distribution-of-structure-data\
 	 --outputFacilityFile $@\
