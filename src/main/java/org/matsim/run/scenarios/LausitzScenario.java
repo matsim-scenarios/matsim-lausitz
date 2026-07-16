@@ -37,6 +37,7 @@ import org.matsim.core.scoring.functions.ScoringParametersForPerson;
 import org.matsim.run.analysis.CommunityFilter;
 import org.matsim.run.analysis.CommuterAnalysis;
 import org.matsim.run.analysis.DistanceMatrix;
+import org.matsim.run.prepare.LausitzSnzActivities;
 import org.matsim.run.prepare.PrepareDrtScenarioAgents;
 import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.prepare.PreparePopulation;
@@ -98,6 +99,10 @@ public class LausitzScenario extends MATSimApplication {
 	@CommandLine.Option(names = "--explicit-walk-intermodality", defaultValue = "ENABLED", description = "Define if explicit walk intermodality parameter to/from pt should be set or not (use default).")
 	static FunctionalityHandling explicitWalkIntermodality;
 
+	@CommandLine.Option(names = "--activities-handling", description = "Define if wrap-around activities should be split at midnight and no opening times for act" +
+		"OR if extended act opening times should be used OR none of the previous." )
+	private ActivitiesHandling activitiesHandling = ActivitiesHandling.none;
+
 	public LausitzScenario(@Nullable Config config) {
 		super(config);
 	}
@@ -122,7 +127,18 @@ public class LausitzScenario extends MATSimApplication {
 	//	method copied from matsim-dresden class DresdenModel
 	protected void addScoringParams( Config config ) {
 		// yyyy need to find a way to remove the existing scoring params; then this can be programmed without inheritance
-		SnzActivities.addScoringParams(config);
+
+		switch ( activitiesHandling ) {
+			case none ->
+				SnzActivities.addScoringParams( config );
+			case splitAndRemoveOpeningTimes ->
+				//		add scoring params for split act types for _morning and _evening. See method prepareScenario.
+				LausitzMorningEveningNoOpeningTimesActivitiesScenario.addMorningEveningScoringParams( config );
+			case extendOpeningTimes ->
+				//		use class LausitzSnzActivities for extended opening times based on v2.0 base case ctd act arrivals.
+				LausitzSnzActivities.addScoringParams(config);
+			default -> throw new IllegalStateException("Unexpected value: " + activitiesHandling);
+		}
 	}
 
 	@Nullable
@@ -212,6 +228,19 @@ public class LausitzScenario extends MATSimApplication {
 //		set hbefa input files for emission analysis
 			setEmissionsConfigs(config);
 		}
+
+		switch ( activitiesHandling ) {
+			case none -> {
+//				no changes needed
+			}
+			case splitAndRemoveOpeningTimes, extendOpeningTimes -> {
+				config.timeAllocationMutator().setLatestActivityEndTime(String.valueOf(config.qsim().getEndTime().seconds()));
+				config.timeAllocationMutator().setMutateAroundInitialEndTimeOnly(false);
+				config.timeAllocationMutator().setAffectingDuration(false);
+			}
+			default -> throw new IllegalStateException("Unexpected value: " + activitiesHandling);
+		}
+
 		return config;
 	}
 
@@ -240,6 +269,15 @@ public class LausitzScenario extends MATSimApplication {
 			PrepareNetwork.prepareEmissionsAttributes(scenario.getNetwork());
 //			prepare vehicle types for emission analysis
 			prepareVehicleTypesForEmissionAnalysis(scenario);
+		}
+
+		switch ( activitiesHandling ) {
+			case none, extendOpeningTimes -> {
+//				no changes needed
+			}
+			case splitAndRemoveOpeningTimes ->
+				LausitzMorningEveningNoOpeningTimesActivitiesScenario.changeWrapAroundActsIntoMorningAndEveningActs(scenario);
+			default -> throw new IllegalStateException("Unexpected value: " + activitiesHandling);
 		}
 	}
 
@@ -379,4 +417,6 @@ public class LausitzScenario extends MATSimApplication {
 	 * Helper enum to enable/disable functionalities.
 	 */
 	public enum FunctionalityHandling {ENABLED, DISABLED}
+
+	enum ActivitiesHandling {none, splitAndRemoveOpeningTimes, extendOpeningTimes}
 }

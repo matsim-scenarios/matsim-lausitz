@@ -22,7 +22,7 @@ import java.util.Set;
  * All necessary configs will be made in this class.
  */
 public class LausitzMorningEveningNoOpeningTimesActivitiesScenario extends LausitzScenario {
-	Logger log = LogManager.getLogger(LausitzMorningEveningNoOpeningTimesActivitiesScenario.class);
+	private static final Logger log = LogManager.getLogger(LausitzMorningEveningNoOpeningTimesActivitiesScenario.class);
 
 	public LausitzMorningEveningNoOpeningTimesActivitiesScenario(@Nullable Config config) {
 		super(config);
@@ -75,7 +75,7 @@ public class LausitzMorningEveningNoOpeningTimesActivitiesScenario extends Lausi
 	 * to keep comparability to matsim-lausitz v2.0.
 	 * Disable wrap-around scoring of first and last act of the day by setting them to different subtypes "_morning" and "_evening".
 	 */
-	private void changeWrapAroundActsIntoMorningAndEveningActs(Scenario scenario) {
+	protected static void changeWrapAroundActsIntoMorningAndEveningActs(Scenario scenario) {
 		Set<String> firstActTypes = new HashSet<>();
 		Set<String> lastActTypes = new HashSet<>();
 
@@ -142,7 +142,7 @@ public class LausitzMorningEveningNoOpeningTimesActivitiesScenario extends Lausi
 		log.info("Activity types of first activity in plans: {}", firstActTypes );
 		log.info("Activity types of last activity in plans: {}", lastActTypes );
 	}
-	private int getDurationBin( Double duration ) {
+	private static int getDurationBin(Double duration) {
 		final int maxCategories = 86400 / 600;
 
 		int durationCategoryNr = (int) Math.round(duration / 600);
@@ -162,7 +162,7 @@ public class LausitzMorningEveningNoOpeningTimesActivitiesScenario extends Lausi
 	 * 	 * to keep comparability to matsim-lausitz v2.0.
 	 * Add activity params for the scenario config.
 	 */
-	private void addMorningEveningScoringParams(Config config) {
+	protected static void addMorningEveningScoringParams(Config config) {
 		// doing the activities without value.apply means it does not apply the opening times
 
 		for (SnzActivities value : SnzActivities.values()) {
@@ -174,10 +174,10 @@ public class LausitzMorningEveningNoOpeningTimesActivitiesScenario extends Lausi
 		}
 	}
 
-	public static String createMorningActivityType(String baseActType) {
+	private static String createMorningActivityType(String baseActType) {
 		return baseActType + "_morning";
 	}
-	public static String createEveningActivityType(String baseActType) {
+	private static String createEveningActivityType(String baseActType) {
 		return baseActType + "_evening";
 	}
 }
