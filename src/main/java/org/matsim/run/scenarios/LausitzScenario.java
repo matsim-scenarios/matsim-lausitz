@@ -119,12 +119,18 @@ public class LausitzScenario extends MATSimApplication {
 		MATSimApplication.run(LausitzScenario.class, args);
 	}
 
+	//	method copied from matsim-dresden class DresdenModel
+	protected void addScoringParams( Config config ) {
+		// yyyy need to find a way to remove the existing scoring params; then this can be programmed without inheritance
+		SnzActivities.addScoringParams(config);
+	}
+
 	@Nullable
 	@Override
 	public Config prepareConfig(Config config) {
 
 		// Add all activity types with time bins
-		SnzActivities.addScoringParams(config);
+		this.addScoringParams(config);
 
 //		add simwrapper config module
 		SimWrapperConfigGroup simWrapper = ConfigUtils.addOrGetModule(config, SimWrapperConfigGroup.class);
@@ -147,6 +153,7 @@ public class LausitzScenario extends MATSimApplication {
 		scoringConfigGroup.setPerforming_utils_hr(performing);
 		scoringConfigGroup.setWriteExperiencedPlans(true);
 		scoringConfigGroup.setPathSizeLogitBeta(0.);
+		scoringConfigGroup.setExplainScores(true);
 
 //		set ride scoring params dependent from car params
 //		2.0 + 1.0 = alpha + 1
