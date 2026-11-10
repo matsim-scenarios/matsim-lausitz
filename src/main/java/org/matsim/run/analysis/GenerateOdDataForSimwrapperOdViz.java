@@ -64,7 +64,7 @@ public class GenerateOdDataForSimwrapperOdViz implements MATSimAppCommand {
 		DoubleColumn depTimeS = DoubleColumn.create(DEP_TIME_S, new Double[tripsWithoutFreight.rowCount()]);
 		tripsWithoutFreight.addColumns(depTimeS);
 
-		PtLineAnalysis ptLineAnalysis = new PtLineAnalysis(null, null, null);
+		PtLineAnalysis ptLineAnalysis = new PtLineAnalysis(null, null);
 
 		for (int i = 0; i < tripsWithoutFreight.rowCount(); i++) {
 			Row row = tripsWithoutFreight.row(i);

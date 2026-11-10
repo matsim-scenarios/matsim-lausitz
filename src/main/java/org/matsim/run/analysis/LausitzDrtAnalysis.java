@@ -2,12 +2,13 @@ package org.matsim.run.analysis;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
-import org.apache.commons.lang3.Range;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.geotools.api.feature.simple.SimpleFeature;
 import org.jetbrains.annotations.NotNull;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.index.strtree.STRtree;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.application.CommandSpec;
@@ -60,8 +61,6 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 	private final InputOptions input = InputOptions.ofCommand(LausitzDrtAnalysis.class);
 	@CommandLine.Mixin
 	private OutputOptions output = OutputOptions.ofCommand(LausitzDrtAnalysis.class);
-	@CommandLine.Option(names = "--income-groups", split = ",", description = "List of income for binning", defaultValue = "0,500,900,1500,2000,3000,4000,5000,6000,7000")
-	private List<Integer> incomeGroups;
 	@CommandLine.Option(names = "--age-groups", split = ",", description = "List of age for binning", defaultValue = "0,18,30,50,70")
 	private List<Integer> ageGroups;
 	@CommandLine.Option(names = "--base-path", description = "Path to run directory of base case.", required = true)
@@ -69,7 +68,9 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 	@CommandLine.Option(names = "--dist-groups", split = ",", description = "List of distances for binning", defaultValue = "0,1000,2000,5000,10000,20000")
 	private List<Double> distGroups;
 
-	private static final String INCOME_GROUP = "incomeGroup";
+	@CommandLine.Mixin
+	private ShpOptions drtServiceArea = new ShpOptions();
+
 	static final String PERSON = "person";
 	static final String SHARE = "share";
 	private static final String SCORE = "executed_score";
@@ -95,7 +96,7 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 //		create pt line analysis object to use handy methods
-		PtLineAnalysis ptLineAnalysis = new PtLineAnalysis(incomeGroups, ageGroups, output);
+		PtLineAnalysis ptLineAnalysis = new PtLineAnalysis(ageGroups, output);
 
 //		all necessary file input paths are defined here
 		String personsPath = globFile(input.getRunDirectory(), "*output_persons.csv.gz").toString();
@@ -112,10 +113,6 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 
 //		########################################################### person specific analysis ##################################################################
 
-		Map<String, Range<Integer>> incomeLabels = ptLineAnalysis.getLabels(incomeGroups);
-		incomeLabels.put(incomeGroups.getLast() + "+", Range.of(incomeGroups.getLast(), 9999999));
-		incomeGroups.add(Integer.MAX_VALUE);
-
 //		filter for real agents only, no freight agents!
 		Table freightPersons = fullPersons.where(fullPersons.textColumn(PERSON).containsString("commercialPersonTraffic")
 			.or(fullPersons.textColumn(PERSON).containsString("freight"))
@@ -123,7 +120,9 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		fullPersons = fullPersons.where(fullPersons.textColumn(PERSON).isNotIn(freightPersons.textColumn(PERSON)));
 
 		//		add income group column to persons table for further analysis
-		fullPersons = ptLineAnalysis.addIncomeGroupColumnToTable(fullPersons, incomeLabels);
+		addIncomeDecileColumn(fullPersons, INCOME_DECILE);
+		addIncomeDecileLabelColumn(fullPersons, INCOME_DECILE, INCOME_DECILE_LABEL);
+		Map<String, String> labelByDecile = getIncomeDecileLabelMap(fullPersons, INCOME_DECILE, INCOME_DECILE_LABEL);
 
 		//		get general marg ut of money + beta performing from cfg
 		Config config = ConfigUtils.loadConfig(configPath);
@@ -135,7 +134,8 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		double meanIncome = incomeColumn.mean();
 
 //		write general income and age distr
-		ptLineAnalysis.writeIncomeDistr(fullPersons, incomeLabels, "all_persons_income_groups.csv", null);
+		ptLineAnalysis.writeIncomeDecileDistr(fullPersons, labelByDecile, "all_persons_income_groups.csv", null,
+			INCOME_DECILE, INCOME_DECILE_LABEL);
 		ptLineAnalysis.writeAgeDistr(fullPersons, "all_persons_age_groups.csv", null);
 
 		//		read base persons
@@ -157,8 +157,6 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		fullPersons = ptLineAnalysis.addPersonSpecificMarginalUtilityOfMoneyColumnAndScoreDiffColumnToTable(fullPersons, basePersonsWithoutFreight, generalBetaMoney,
 			meanIncome, betaPerforming);
 
-		fullPersons.write().csv(output.getPath("persons_processed.csv.gz").toFile());
-
 		//		calc and write sum of scores, mean score etc. for all agents to csv
 		ptLineAnalysis.calcAndWritePersonAggregatedStats(fullPersons, basePersonsWithoutFreight,"all_persons_", meanIncome);
 
@@ -175,12 +173,13 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 //		filter for persons, which used the new drt service only
 		TextColumn personColumn = fullPersons.textColumn(PERSON);
 		Table persons = fullPersons.where(personColumn.isIn(drtLegs.textColumn(PERSON_ID)));
+		fullPersons.write().csv(output.getPath("persons_processed.csv.gz").toFile());
 
 //		filter base persons for drt users in policy case
 		TextColumn basePersonColumn = basePersons.textColumn(PERSON);
 		basePersons = basePersons.where(basePersonColumn.isIn(drtLegs.textColumn(PERSON_ID)));
 
-		//		calc meanIncome for pt line users
+		//		calc meanIncome for drt users
 		DoubleColumn incomeDrtUsersColumn = persons.doubleColumn(INCOME);
 		double meanIncomeDrtUsers = incomeDrtUsersColumn.mean();
 
@@ -193,7 +192,8 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		ptLineAnalysis.writeHomeLocations(persons, DRT_PREFIX);
 
 //		write income distr of drt agents
-		ptLineAnalysis.writeIncomeDistr(persons, incomeLabels, null, DRT_PREFIX);
+		ptLineAnalysis.writeIncomeDecileDistr(persons, labelByDecile, null, DRT_PREFIX,
+			INCOME_DECILE, INCOME_DECILE_LABEL);
 
 //		write age distr of drt agents
 		ptLineAnalysis.writeAgeDistr(persons, null, DRT_PREFIX);
@@ -204,14 +204,15 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 				column.setName(column.name() + BASE_SUFFIX);
 			}
 		}
-		Table basePersonsIncomeGroup = basePersons.joinOn(PERSON).inner(persons).retainColumns(PERSON, INCOME_GROUP, SCORE + BASE_SUFFIX);
+		Table basePersonsIncomeGroup = basePersons.joinOn(PERSON).inner(persons).retainColumns(PERSON, INCOME_DECILE_LABEL, SCORE + BASE_SUFFIX);
 
 //		calc mean score for every income group in base and policy and save to table
-		Table scoresPerIncomeGroup = persons.summarize(SCORE, mean).by(INCOME_GROUP)
-			.joinOn(INCOME_GROUP).inner(basePersonsIncomeGroup.summarize(SCORE + BASE_SUFFIX, mean).by(INCOME_GROUP));
+		Table scoresPerIncomeGroup = persons.summarize(SCORE, mean).by(INCOME_DECILE_LABEL)
+			.joinOn(INCOME_DECILE_LABEL).inner(basePersonsIncomeGroup.summarize(SCORE + BASE_SUFFIX, mean).by(INCOME_DECILE_LABEL));
 
 //		write scores per income group
-		ptLineAnalysis.writeScorePerIncomeGroupDistr(scoresPerIncomeGroup, incomeLabels, DRT_PREFIX);
+		ptLineAnalysis.writeScorePerIncomeDecileDistr(scoresPerIncomeGroup,
+			getDecileLabels(fullPersons, INCOME_DECILE, INCOME_DECILE_LABEL), DRT_PREFIX, INCOME_DECILE_LABEL);
 
 //		########################################################### trip specific analysis ##################################################################
 
@@ -253,10 +254,10 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 //		calc and write sums and diffs of tt for all trips to csv
 		ptLineAnalysis.calcAndWriteTripAggregatedStats(tripsWithoutFreight, baseTripsWithoutFreight, "all_trips_");
 
-		ShpOptions drtServiceArea = getAndWriteDrtServiceArea(config);
+		ShpOptions serviceArea = getAndWriteDrtServiceArea(config);
 
 		List<String> drtServiceAreaTripIds = new ArrayList<>();
-		Geometry geometry = drtServiceArea.getGeometry();
+		Geometry geometry = serviceArea.getGeometry();
 
 //		filter for trips which start or end in service area
 		for (int i = 0; i < tripsWithoutFreight.rowCount(); i++) {
@@ -277,7 +278,7 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 		calcAndWriteModalShares(drtServiceAreaTrips);
 
 //		aggregate and write OD-relations for drt service sub-area(s)
-		aggregateAndWriteDrtODRelations(drtLegs, drtServiceArea, output, "drt_legs_zones_od.csv",
+		aggregateAndWriteDrtODRelations(drtLegs, serviceArea, output, "drt_legs_zones_od.csv",
 			"fromX", "fromY", "toX", "toY", DEPARTURE_TIME);
 
 //		filter for trips with drt only
@@ -321,11 +322,13 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 
 	private @NotNull ShpOptions getAndWriteDrtServiceArea(Config config) throws IOException {
 		//		get shp of drt service area
-		ShpOptions drtServiceArea = null;
-		for (DrtConfigGroup drtCfg : ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class).getModalElements()) {
-			if (drtCfg.getMode().equals(TransportMode.drt)) {
-				drtServiceArea = new ShpOptions(Path.of(new DrtAndIntermodalityOptions().getDrtServiceAreaShpPathFromConfig(config)), null, null);
-				break;
+//		if drtServiceAreaNotProvided, try to get it from config
+		if (!drtServiceArea.isDefined()) {
+			for (DrtConfigGroup drtCfg : ConfigUtils.addOrGetModule(config, MultiModeDrtConfigGroup.class).getModalElements()) {
+				if (drtCfg.getMode().equals(TransportMode.drt)) {
+					drtServiceArea = new ShpOptions(Path.of(new DrtAndIntermodalityOptions().getDrtServiceAreaShpPathFromConfig(config)), null, null);
+					break;
+				}
 			}
 		}
 
@@ -370,20 +373,32 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 
 		StringColumn tripIdColumn = trips.stringColumn(TRIP_ID);
 		StringColumn baseTripIdColumn = baseTrips.stringColumn(TRIP_ID);
+		Map<String, Integer> baseTripCountById = new HashMap<>(baseTrips.rowCount());
+		for (int i = 0; i < baseTripIdColumn.size(); i++) {
+			baseTripCountById.merge(baseTripIdColumn.get(i), 1, Integer::sum);
+		}
 
 		log.info("start filtering base case trips table for trip ids in policy case trips table.");
 
+		int missingBaseTrips = 0;
+		int duplicateBaseTrips = 0;
 		for (int i = 0; i < trips.rowCount(); i++) {
 			String id = tripIdColumn.get(i);
 
-			if (baseTrips.where(baseTripIdColumn.isEqualTo(id)).rowCount() == 0) {
-				log.info("Trip with id {} is present in policy trips table, but not in base trips table. Most probably the agent stucks in the base case. " +
-					"Trip {} will be ignored for this analysis.", id, id);
-			} else if (baseTrips.where(baseTripIdColumn.isEqualTo(id)).rowCount() > 1) {
-				log.fatal("There are {} trips with id {} in the base case. Duplicate ids should never exist! Aborting.", baseTrips.where(baseTripIdColumn.isEqualTo(id)).rowCount(), id);
+			int matchCount = baseTripCountById.getOrDefault(id, 0);
+			if (matchCount == 0) {
+				missingBaseTrips++;
+			} else if (matchCount > 1) {
+				duplicateBaseTrips++;
 			} else {
 				idx.add(i);
 			}
+		}
+		if (missingBaseTrips > 0) {
+			log.info("Ignored {} policy trips without a matching base trip.", missingBaseTrips);
+		}
+		if (duplicateBaseTrips > 0) {
+			log.fatal("{} policy trips have duplicate ids in the base case; duplicate trip ids should never exist.", duplicateBaseTrips);
 		}
 		trips = trips.where(Selection.with(idx.toIntArray()));
 		log.info("finished filtering base case trips table for trip ids in policy case trips table.");
@@ -391,26 +406,42 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 	}
 
 	private Table filterTripsWithDrt(Table trips, Table drtLegs, PtLineAnalysis ptLineAnalysis) {
+		Map<String, List<Double>> departuresByPerson = new HashMap<>();
+		TextColumn drtPersonIds = drtLegs.textColumn(PERSON_ID);
+		DoubleColumn drtDepartureTimes = drtLegs.doubleColumn(DEPARTURE_TIME);
+		for (int i = 0; i < drtLegs.rowCount(); i++) {
+			departuresByPerson.computeIfAbsent(drtPersonIds.get(i), key -> new ArrayList<>()).add(drtDepartureTimes.get(i));
+		}
+		Map<String, double[]> sortedDeparturesByPerson = new HashMap<>(departuresByPerson.size());
+		for (Map.Entry<String, List<Double>> entry : departuresByPerson.entrySet()) {
+			List<Double> times = entry.getValue();
+			times.sort(Double::compareTo);
+			double[] sortedTimes = new double[times.size()];
+			for (int i = 0; i < times.size(); i++) {
+				sortedTimes[i] = times.get(i);
+			}
+			sortedDeparturesByPerson.put(entry.getKey(), sortedTimes);
+		}
+
 		TextColumn personTripsColumn = trips.textColumn(PERSON);
-		trips = trips.where(personTripsColumn.isIn(drtLegs.textColumn(PERSON_ID)));
+		trips = trips.where(personTripsColumn.isIn(drtPersonIds));
 
 		IntList idx = new IntArrayList();
+		TextColumn tripPersonIds = trips.textColumn(PERSON);
+		StringColumn departureTimes = trips.stringColumn("dep_time");
+		StringColumn travelTimes = trips.stringColumn(TRAV_TIME);
 
 		for (int i = 0; i < trips.rowCount(); i++) {
-			Row row = trips.row(i);
-
-			Double tripStart = ptLineAnalysis.parseTimeManually(row.getString("dep_time"));
+			Double tripStart = ptLineAnalysis.parseTimeManually(departureTimes.get(i));
 //			waiting time already included in travel time
-			Double travelTime = ptLineAnalysis.parseTimeManually(row.getString(TRAV_TIME));
-
-			Table filtered = drtLegs.where(drtLegs.textColumn(PERSON_ID).containsString(row.getString(PERSON)));
-
-			for (int j = 0; j < filtered.rowCount(); j++) {
-				Row filteredRow = filtered.row(j);
-				if (Range.of(tripStart, tripStart + travelTime).contains(filteredRow.getDouble(DEPARTURE_TIME))) {
-					idx.add(i);
-					break;
-				}
+			Double travelTime = ptLineAnalysis.parseTimeManually(travelTimes.get(i));
+			double[] departures = sortedDeparturesByPerson.get(tripPersonIds.get(i));
+			int departureIndex = Arrays.binarySearch(departures, tripStart);
+			if (departureIndex < 0) {
+				departureIndex = -departureIndex - 1;
+			}
+			if (departureIndex < departures.length && departures[departureIndex] <= tripStart + travelTime) {
+				idx.add(i);
 			}
 		}
 		return trips.where(Selection.with(idx.toIntArray()));
@@ -506,7 +537,7 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 			aggregatedAreas.addColumns(col);
 		}
 
-		Set<String> seenKeys = new HashSet<>();
+		Map<String, Integer> rowIndexByOriginDest = new HashMap<>();
 		for (Row row : completeSummary) {
 			String origin = row.getString(ORIG_ZONE_ID);
 			String dest = row.getString(DEST_ZONE_ID);
@@ -515,8 +546,8 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 
 			String key = origin + "|" + dest;
 
-			int rowIndex;
-			if (!seenKeys.contains(key)) {
+			if (!rowIndexByOriginDest.containsKey(key)) {
+				int rowIndex = rowIndexByOriginDest.size();
 				newOrigin.append(origin);
 				newDest.append(dest);
 				origDest.append(key);
@@ -524,10 +555,9 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 				for (Integer h : uniqueHours) {
 					hourColumns.get(h).append(h.equals(hour) ? count : 0);
 				}
-				seenKeys.add(key);
+				rowIndexByOriginDest.put(key, rowIndex);
 			} else {
-				// Find the index of this row in the pivot table
-				rowIndex = aggregatedAreas.stringColumn("origDest").indexOf(key);
+				int rowIndex = rowIndexByOriginDest.get(key);
 				IntColumn col = hourColumns.get(hour);
 				col.set(rowIndex, count);
 			}
@@ -539,6 +569,12 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 	private static Table addOriginAndDestinationZoneIds(Table legsOrTrips, ShpOptions drtServiceArea, String fromColNameX, String fromColNameY, String toColNameX, String toColNameY) {
 		StringColumn originZoneId = StringColumn.create(ORIG_ZONE_ID, new String[legsOrTrips.rowCount()]);
 		StringColumn destinationZoneId = StringColumn.create(DEST_ZONE_ID, new String[legsOrTrips.rowCount()]);
+		STRtree zoneIndex = new STRtree();
+		for (SimpleFeature feature : drtServiceArea.readFeatures()) {
+			Geometry geometry = (Geometry) feature.getDefaultGeometry();
+			zoneIndex.insert(geometry.getEnvelopeInternal(), feature);
+		}
+		zoneIndex.build();
 
 //		add from and to zone id to drt legs
 		for (int i = 0; i < legsOrTrips.rowCount(); i++) {
@@ -546,51 +582,25 @@ public class LausitzDrtAnalysis implements MATSimAppCommand {
 
 			Coord from = new Coord(row.getDouble(fromColNameX), row.getDouble(fromColNameY));
 			Coord to = new Coord(row.getDouble(toColNameX), row.getDouble(toColNameY));
-
-			double origSurface = 0.;
-			double destSurface = 0.;
-			for (SimpleFeature feature : drtServiceArea.readFeatures()) {
-				if (origSurface == 0.) {
-					if (MGC.coord2Point(from).within((Geometry) feature.getDefaultGeometry())) {
-						String id = feature.getAttribute("id").toString();
-						originZoneId.set(i, id);
-						origSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
-					}
-				} else {
-//					approximation: if sqm of area is smaller than the matching area before:
-//					this is probably the more accurate zone as the bigger ones typically enclose the smaller ones completely
-					double area = ((Geometry) feature.getDefaultGeometry()).getArea();
-
-					if (MGC.coord2Point(from).within((Geometry) feature.getDefaultGeometry()) &&
-						area < origSurface) {
-//						overwrite originZoneId
-						String id = feature.getAttribute("id").toString();
-						originZoneId.set(i, id);
-						origSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
-					}
-				}
-
-				if (destSurface == 0.) {
-					if (MGC.coord2Point(to).within((Geometry) feature.getDefaultGeometry())) {
-						String id = feature.getAttribute("id").toString();
-						destinationZoneId.set(i, id);
-						destSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
-					}
-				} else {
-//					approximation: if sqm of area is smaller than the matching area before:
-//					this is probably the more accurate zone as the bigger ones typically enclose the smaller ones completely
-					if (MGC.coord2Point(to).within((Geometry) feature.getDefaultGeometry()) &&
-						((Geometry) feature.getDefaultGeometry()).getArea() < destSurface) {
-//						overwrite destinationZoneId
-						String id = feature.getAttribute("id").toString();
-						destinationZoneId.set(i, id);
-						destSurface = ((Geometry) feature.getDefaultGeometry()).getArea();
-					}
-				}
-			}
+			originZoneId.set(i, getSmallestContainingZoneId(MGC.coord2Point(from), zoneIndex));
+			destinationZoneId.set(i, getSmallestContainingZoneId(MGC.coord2Point(to), zoneIndex));
 		}
 		legsOrTrips.addColumns(originZoneId, destinationZoneId);
 		return legsOrTrips;
+	}
+
+	private static String getSmallestContainingZoneId(Point point, STRtree zoneIndex) {
+		SimpleFeature smallestZone = null;
+		double smallestArea = Double.POSITIVE_INFINITY;
+		for (Object candidate : zoneIndex.query(point.getEnvelopeInternal())) {
+			SimpleFeature feature = (SimpleFeature) candidate;
+			Geometry geometry = (Geometry) feature.getDefaultGeometry();
+			if (geometry.getArea() < smallestArea && point.within(geometry)) {
+				smallestZone = feature;
+				smallestArea = geometry.getArea();
+			}
+		}
+		return smallestZone == null ? null : smallestZone.getAttribute("id").toString();
 	}
 
 	void calcAndWriteModalShares(Table drtServiceAreaTrips) {

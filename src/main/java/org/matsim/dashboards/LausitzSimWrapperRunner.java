@@ -158,8 +158,12 @@ public final class LausitzSimWrapperRunner implements MATSimAppCommand {
 			}
 
 			if (drt) {
-				new DrtDashboardProvider().getDashboards(config, sw).forEach(sw::addDashboard);
-				sw.addDashboard(new LausitzDrtDashboard(baseRunDir, config.global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
+//				new DrtDashboardProvider().getDashboards(config, sw).forEach(sw::addDashboard);
+				if (shp.isDefined()){
+					sw.addDashboard(new LausitzDrtDashboard(baseRunDir, config.global().getCoordinateSystem(), sw.getConfigGroup().sampleSize, shp));
+				} else {
+					sw.addDashboard(new LausitzDrtDashboard(baseRunDir, config.global().getCoordinateSystem(), sw.getConfigGroup().sampleSize));
+				}
 			}
 
 			if (ptLine) {

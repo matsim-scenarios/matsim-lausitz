@@ -58,8 +58,6 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	private final InputOptions input = InputOptions.ofCommand(PtLineAnalysis.class);
 	@CommandLine.Mixin
 	private OutputOptions output = OutputOptions.ofCommand(PtLineAnalysis.class);
-	@CommandLine.Option(names = "--income-groups", split = ",", description = "List of income for binning", defaultValue = "0,500,900,1500,2000,3000,4000,5000,6000,7000")
-	private List<Integer> incomeGroups;
 	@CommandLine.Option(names = "--age-groups", split = ",", description = "List of age for binning", defaultValue = "0,18,30,50,70")
 	private List<Integer> ageGroups;
 	@CommandLine.Option(names = "--base-path", description = "Path to run directory of base case.", required = true)
@@ -67,7 +65,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 
 	private final Map<String, List<Double>> ptPersons = new HashMap<>();
 
-	private static final String INCOME_GROUP = "incomeGroup";
+	public static final String INCOME_DECILE = "incomeDecile";
+	public static final String INCOME_DECILE_LABEL = "incomeDecileLabel";
 	private static final String PERSON = "person";
 	private static final String SHARE = "share";
 	private static final String AGE_GROUP = "ageGroup";
@@ -96,8 +95,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	static final String POLICY = "policy";
 	static final String BASE = "base";
 
-	PtLineAnalysis(List<Integer> incomeGroups, List<Integer> ageGroups, OutputOptions output) {
-		this.incomeGroups = incomeGroups;
+	PtLineAnalysis(List<Integer> ageGroups, OutputOptions output) {
 		this.ageGroups = ageGroups;
 		this.output = output;
 	}
@@ -139,9 +137,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 
 //		########################################################### person specific analysis ##################################################################
 
-		Map<String, Range<Integer>> incomeLabels = getLabels(incomeGroups);
-		incomeLabels.put(incomeGroups.getLast() + "+", Range.of(incomeGroups.getLast(), 9999999));
-		incomeGroups.add(Integer.MAX_VALUE);
+		Map<String, String> labelByDecile;
 
 //		filter for person agents only, no freight agents!
 		Table freightPersons = fullPersons.where(fullPersons.textColumn(PERSON).containsString("commercialPersonTraffic")
@@ -150,7 +146,9 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		fullPersons = fullPersons.where(fullPersons.textColumn(PERSON).isNotIn(freightPersons.textColumn(PERSON)));
 
 		//		add income group column to persons table for further analysis
-		fullPersons = addIncomeGroupColumnToTable(fullPersons, incomeLabels);
+		addIncomeDecileColumn(fullPersons, INCOME_DECILE);
+		addIncomeDecileLabelColumn(fullPersons, INCOME_DECILE, INCOME_DECILE_LABEL);
+		labelByDecile = getIncomeDecileLabelMap(fullPersons, INCOME_DECILE, INCOME_DECILE_LABEL);
 
 		//		get general marg ut of money + beta performing from cfg
 		Config config = ConfigUtils.loadConfig(configPath);
@@ -162,7 +160,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		double meanIncome = incomeColumn.mean();
 
 //		write general income and age distr
-		writeIncomeDistr(fullPersons, incomeLabels, "all_persons_income_groups.csv", null);
+		writeIncomeDecileDistr(fullPersons, labelByDecile, "all_persons_income_groups.csv", null,
+			INCOME_DECILE, INCOME_DECILE_LABEL);
 		writeAgeDistr(fullPersons, "all_persons_age_groups.csv", null);
 
 		//		read base persons
@@ -221,7 +220,8 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		writeHomeLocations(persons, PT_PERSONS_PREFIX);
 
 //		write income distr of new pt line agents
-		writeIncomeDistr(persons, incomeLabels, null, PT_PERSONS_PREFIX);
+		writeIncomeDecileDistr(persons, labelByDecile, null, PT_PERSONS_PREFIX,
+			INCOME_DECILE, INCOME_DECILE_LABEL);
 
 //		write age distr of new pt line agents
 		writeAgeDistr(persons, null, PT_PERSONS_PREFIX);
@@ -232,14 +232,15 @@ public class PtLineAnalysis implements MATSimAppCommand {
 				column.setName(column.name() + BASE_SUFFIX);
 			}
 		}
-		Table basePersonsIncomeGroup = basePersons.joinOn(PERSON).inner(persons).retainColumns(PERSON, INCOME_GROUP, SCORE + BASE_SUFFIX);
+		Table basePersonsIncomeGroup = basePersons.joinOn(PERSON).inner(persons).retainColumns(PERSON, INCOME_DECILE_LABEL, SCORE + BASE_SUFFIX);
 
 //		calc mean score for every income group in base and policy and save to table
-		Table scoresPerIncomeGroup = persons.summarize(SCORE, mean).by(INCOME_GROUP)
-			.joinOn(INCOME_GROUP).inner(basePersonsIncomeGroup.summarize(SCORE + BASE_SUFFIX, mean).by(INCOME_GROUP));
+		Table scoresPerIncomeGroup = persons.summarize(SCORE, mean).by(INCOME_DECILE_LABEL)
+			.joinOn(INCOME_DECILE_LABEL).inner(basePersonsIncomeGroup.summarize(SCORE + BASE_SUFFIX, mean).by(INCOME_DECILE_LABEL));
 
 //		write scores per income group
-		writeScorePerIncomeGroupDistr(scoresPerIncomeGroup, incomeLabels, PT_PERSONS_PREFIX);
+		writeScorePerIncomeDecileDistr(scoresPerIncomeGroup,
+			getDecileLabels(fullPersons, INCOME_DECILE, INCOME_DECILE_LABEL), PT_PERSONS_PREFIX, INCOME_DECILE_LABEL);
 
 //		########################################################### trip specific analysis ##################################################################
 
@@ -359,6 +360,18 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			}
 		}
 		log.info("start adding diffs between base and policy case for {}, {} and {} to policy trips table.", TRAV_DIST_DIFF, TRAV_TIME_DIFF, TRAV_VEL_DIFF);
+		Table baseTable = tripsTables.get(BASE);
+		StringColumn baseTripIds = baseTable.stringColumn(TRIP_ID);
+		Map<String, Integer> baseTripIndexById = new HashMap<>(baseTable.rowCount());
+		for (int i = 0; i < baseTable.rowCount(); i++) {
+			String tripId = baseTripIds.get(i);
+			if (baseTripIndexById.putIfAbsent(tripId, i) != null) {
+				throw new IllegalArgumentException("Duplicate trip " + tripId + " in base trips table");
+			}
+		}
+		StringColumn baseTravelTimes = baseTable.stringColumn(TRAV_TIME);
+		DoubleColumn baseTravelDistances = baseTable.doubleColumn(TRAV_DIST);
+		DoubleColumn baseTravelVelocities = baseTable.doubleColumn(TRAV_VEL);
 
 //		add diffs to base case for each policy trip
 		for (Map.Entry<String, Table> e : tripsTables.entrySet()) {
@@ -375,19 +388,15 @@ public class PtLineAnalysis implements MATSimAppCommand {
 					double travelDist = row.getDouble(TRAV_DIST);
 					double travelVel = row.getDouble(TRAV_VEL);
 
-					Table baseTable = tripsTables.get(BASE);
-
-					baseTable = baseTable.where(baseTable.stringColumn(TRIP_ID).isEqualTo(tripId));
-
-					if (baseTable.rowCount() != 1) {
-						log.fatal("When trying to filter for policy trip with id {} in base trips {}  were trips filtered" +
-							", but 1 trips is expected.", tripId, baseTable.rowCount());
+					Integer baseTripIndex = baseTripIndexById.get(tripId);
+					if (baseTripIndex == null) {
+						log.fatal("No base trip with id {} was found.", tripId);
 						throw new IllegalArgumentException();
 					}
 
-					String travelTimeBase = baseTable.stringColumn(TRAV_TIME).get(0);
-					double travelDistBase = baseTable.doubleColumn(TRAV_DIST).get(0);
-					double travelVelBase = baseTable.doubleColumn(TRAV_VEL).get(0);
+					String travelTimeBase = baseTravelTimes.get(baseTripIndex);
+					double travelDistBase = baseTravelDistances.get(baseTripIndex);
+					double travelVelBase = baseTravelVelocities.get(baseTripIndex);
 
 					row.setDouble(TRAV_DIST_DIFF, travelDist - travelDistBase);
 					row.setDouble(TRAV_TIME_DIFF, parseTimeManually(travelTime) - parseTimeManually(travelTimeBase));
@@ -400,6 +409,15 @@ public class PtLineAnalysis implements MATSimAppCommand {
 
 	Table addPersonSpecificMarginalUtilityOfMoneyColumnAndScoreDiffColumnToTable(Table persons, Table basePersons, double generalBetaMoney, double meanIncome, double betaPerforming) {
 		persons.addColumns(DoubleColumn.create(INCOME_DEP_BETA_MONEY), DoubleColumn.create(SCORE_DIFF), DoubleColumn.create(WILL_PAY), DoubleColumn.create(MON_SCORE));
+		Map<String, Double> baseScoreByPerson = new HashMap<>(basePersons.rowCount());
+		TextColumn basePersonIds = basePersons.textColumn(PERSON);
+		DoubleColumn baseScores = basePersons.doubleColumn(SCORE);
+		for (int i = 0; i < basePersons.rowCount(); i++) {
+			String person = basePersonIds.get(i);
+			if (baseScoreByPerson.putIfAbsent(person, baseScores.get(i)) != null) {
+				throw new IllegalArgumentException("Duplicate person " + person + " in base persons table");
+			}
+		}
 
 		for (int i = 0; i < persons.rowCount(); i++) {
 			Row row = persons.row(i);
@@ -407,14 +425,12 @@ public class PtLineAnalysis implements MATSimAppCommand {
 			String person = row.getText(PERSON);
 			double scorePolicy = row.getDouble(SCORE);
 
-			Table basePersonsFiltered = basePersons.where(basePersons.textColumn(PERSON).isEqualTo(person));
-
-			if (basePersonsFiltered.rowCount() != 1) {
-				log.fatal("When trying to filter for policy person with id {} in base persons {} persons were filtered" +
-					", but 1 person is expected.", person, basePersonsFiltered.rowCount());
+			Double scoreBaseValue = baseScoreByPerson.get(person);
+			if (scoreBaseValue == null) {
+				log.fatal("No base person with id {} was found.", person);
 				throw new IllegalArgumentException();
 			}
-			double scoreBase = basePersonsFiltered.doubleColumn(SCORE).get(0);
+			double scoreBase = scoreBaseValue;
 			double scoreDiff = scorePolicy - scoreBase;
 
 			double income = row.getDouble(INCOME);
@@ -561,9 +577,12 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	}
 
 	void writeScorePerIncomeGroupDistr(Table scoresPerIncomeGroup, Map<String, Range<Integer>> labels, String prefix) {
+		writeScorePerIncomeDecileDistr(scoresPerIncomeGroup, labels, prefix, INCOME_DECILE);
+	}
 
+	void writeScorePerIncomeDecileDistr(Table scoresPerIncomeGroup, Map<String, Range<Integer>> labels, String prefix, String groupColumn) {
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(prefix + "mean_score_per_income_group.csv").toString()), getCsvFormat())) {
-			printer.printRecord(INCOME_GROUP, "mean_score_base", "mean_score_policy");
+			printer.printRecord(groupColumn, "mean_score_base", "mean_score_policy");
 
 			List<String> distr = new ArrayList<>();
 
@@ -571,7 +590,7 @@ public class PtLineAnalysis implements MATSimAppCommand {
 				boolean labelFound = false;
 				for (int i = 0; i < scoresPerIncomeGroup.rowCount(); i++) {
 					Row row = scoresPerIncomeGroup.row(i);
-					if (row.getString(INCOME_GROUP).equals(k)) {
+					if (row.getString(groupColumn).equals(k)) {
 						distr.add(k + "," + row.getDouble(2) + "," + row.getDouble(1));
 						labelFound = true;
 						break;
@@ -630,18 +649,45 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	}
 
 	void writeIncomeDistr(Table persons, Map<String, Range<Integer>> labels, String outputString, String prefix) {
-		List<String> incomeDistr = getDistr(persons, INCOME_GROUP, labels);
+		writeIncomeDistr(persons, labels, outputString, prefix, INCOME_DECILE);
+	}
+
+	void writeIncomeDistr(Table persons, Map<String, Range<Integer>> labels, String outputString, String prefix, String groupColumn) {
+		List<String> incomeDistr = getDistr(persons, groupColumn, labels);
 
 		String file = (outputString != null) ? outputString : prefix + "income_groups.csv";
 
 //		print income distr
 		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(file).toString()), getCsvFormat())) {
-			printer.printRecord(INCOME_GROUP, COUNT_PERSON, SHARE);
+			printer.printRecord(groupColumn, COUNT_PERSON, SHARE);
 			for (String s : incomeDistr) {
 				printer.printRecord(s);
 			}
 		} catch (IOException e) {
 			throw new IllegalArgumentException();
+		}
+	}
+
+	void writeIncomeDecileDistr(Table persons, Map<String, String> labelByDecile, String outputString, String prefix,
+								String decileColumn, String labelColumn) {
+		Table aggr = persons.summarize(PERSON, count).by(decileColumn);
+		Map<String, Double> countByDecile = new HashMap<>();
+		for (int i = 0; i < aggr.rowCount(); i++) {
+			countByDecile.put(aggr.stringColumn(decileColumn).get(i), aggr.row(i).getDouble(COUNT_PERSON));
+		}
+
+		List<String> deciles = new ArrayList<>(labelByDecile.keySet());
+		deciles.sort(Comparator.comparingInt(PtLineAnalysis::getLowerBound));
+		String file = outputString != null ? outputString : prefix + "income_groups.csv";
+		try (CSVPrinter printer = new CSVPrinter(new FileWriter(output.getPath(file).toString()), getCsvFormat())) {
+			printer.printRecord(decileColumn, labelColumn, COUNT_PERSON, SHARE);
+			for (String decile : deciles) {
+				double personCount = countByDecile.getOrDefault(decile, 0.0);
+				double share = persons.rowCount() == 0 ? 0 : personCount / persons.rowCount();
+				printer.printRecord(decile, labelByDecile.get(decile), personCount, share);
+			}
+		} catch (IOException e) {
+			throw new IllegalArgumentException(e);
 		}
 	}
 
@@ -711,29 +757,86 @@ public class PtLineAnalysis implements MATSimAppCommand {
 		return total / column.size();
 	}
 
-	Table addIncomeGroupColumnToTable(Table persons, Map<String, Range<Integer>> incomeLabels) {
-		persons.addColumns(StringColumn.create(INCOME_GROUP));
-
+	static Map<String, Range<Integer>> getDecileLabels(Table persons, String decileColumn, String labelColumn) {
+		Map<Integer, String> labelByDecile = new TreeMap<>();
+		StringColumn deciles = persons.stringColumn(decileColumn);
+		StringColumn labels = persons.stringColumn(labelColumn);
 		for (int i = 0; i < persons.rowCount(); i++) {
-			Row row = persons.row(i);
-
-			int income = (int) Math.round(row.getDouble(INCOME));
-			String p = row.getText(PERSON);
-
-			if (income < 0) {
-				log.error("income {} of person {} is negative. This should not happen!", income, p);
-				throw new IllegalArgumentException();
-			}
-
-			for (Map.Entry<String, Range<Integer>> e : incomeLabels.entrySet()) {
-				Range<Integer> range = e.getValue();
-				if (range.contains(income)) {
-					row.setString(INCOME_GROUP, e.getKey());
-					break;
-				}
-			}
+			labelByDecile.putIfAbsent(getLowerBound(deciles.get(i)), labels.get(i));
 		}
-		return persons;
+
+		Map<String, Range<Integer>> orderedLabels = new LinkedHashMap<>();
+		for (String label : labelByDecile.values()) {
+			String[] bounds = label.split(" - ", 2);
+			int lower = Integer.parseInt(bounds[0]);
+			int upper = Integer.parseInt(bounds[1]);
+			orderedLabels.putIfAbsent(label, Range.of(lower, upper));
+		}
+		return orderedLabels;
+	}
+
+	static void addIncomeDecileColumn(Table persons, String columnName) {
+		if (persons.columnNames().contains(columnName)) {
+			persons.removeColumns(columnName);
+		}
+		List<Integer> sortedRows = new ArrayList<>(persons.rowCount());
+		for (int i = 0; i < persons.rowCount(); i++) {
+			sortedRows.add(i);
+		}
+		DoubleColumn incomes = persons.doubleColumn(INCOME);
+		TextColumn personIds = persons.textColumn(PERSON);
+		sortedRows.sort(Comparator
+			.comparingDouble((Integer i) -> incomes.get(i))
+			.thenComparing(i -> personIds.get(i)));
+
+		StringColumn deciles = StringColumn.create(columnName, new String[persons.rowCount()]);
+		for (int rank = 0; rank < sortedRows.size(); rank++) {
+			int decile = (int) ((long) rank * 10 / sortedRows.size()) + 1;
+			deciles.set(sortedRows.get(rank), "Decile " + decile);
+		}
+		persons.addColumns(deciles);
+	}
+
+	static Map<String, Range<Integer>> addIncomeDecileLabelColumn(Table persons, String decileColumn, String decileLabelColumn) {
+		if (persons.columnNames().contains(decileLabelColumn)) {
+			persons.removeColumns(decileLabelColumn);
+		}
+
+		Map<String, int[]> boundsByDecile = new TreeMap<>(Comparator.comparingInt(PtLineAnalysis::getLowerBound));
+		for (int i = 0; i < persons.rowCount(); i++) {
+			String decile = persons.stringColumn(decileColumn).get(i);
+			int income = (int) Math.round(persons.doubleColumn(INCOME).get(i));
+			int[] bounds = boundsByDecile.computeIfAbsent(decile, key -> new int[]{income, income});
+			bounds[0] = Math.min(bounds[0], income);
+			bounds[1] = Math.max(bounds[1], income);
+		}
+
+		Map<String, Range<Integer>> labels = new LinkedHashMap<>();
+		Map<String, String> groupByDecile = new HashMap<>();
+		for (Map.Entry<String, int[]> entry : boundsByDecile.entrySet()) {
+			int lower = entry.getValue()[0];
+			int upper = entry.getValue()[1];
+			String group = lower + " - " + upper;
+			groupByDecile.put(entry.getKey(), group);
+			labels.put(group, Range.of(lower, upper));
+		}
+
+		StringColumn groups = StringColumn.create(decileLabelColumn, new String[persons.rowCount()]);
+		for (int i = 0; i < persons.rowCount(); i++) {
+			groups.set(i, groupByDecile.get(persons.stringColumn(decileColumn).get(i)));
+		}
+		persons.addColumns(groups);
+		return labels;
+	}
+
+	static Map<String, String> getIncomeDecileLabelMap(Table persons, String decileColumn, String labelColumn) {
+		Map<String, String> labels = new LinkedHashMap<>();
+		StringColumn deciles = persons.stringColumn(decileColumn);
+		StringColumn incomeLabels = persons.stringColumn(labelColumn);
+		for (int i = 0; i < persons.rowCount(); i++) {
+			labels.putIfAbsent(deciles.get(i), incomeLabels.get(i));
+		}
+		return labels;
 	}
 
 	Map<String, Range<Integer>> getLabels(List<Integer> groups) {
@@ -782,11 +885,15 @@ public class PtLineAnalysis implements MATSimAppCommand {
 	}
 
 	private static int getLowerBound(String s) {
+		String label = s.split(",", 2)[0];
+		if (label.startsWith("Decile ")) {
+			return Integer.parseInt(label.substring("Decile ".length()));
+		}
 		String regex = " - ";
-		if (s.contains("+")) {
+		if (label.contains("+")) {
 			regex = "\\+";
 		}
-		return Integer.parseInt(s.split(regex)[0]);
+		return Integer.parseInt(label.split(regex)[0]);
 	}
 
 	double parseTimeManually(String time) {
