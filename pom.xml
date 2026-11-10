@@ -5,14 +5,16 @@
 		<groupId>org.matsim</groupId>
 		<artifactId>matsim-all</artifactId>
 		<!-- Define MATSim version here -->
+
 		<!-- release -->
-		<!-- <version>13.0</version> -->
+		<!-- <version>2025.0</version> -->
 
 		<!-- PR-labelled release -->
-		<!--<version>14.0-PR1452</version>-->
-
-		<!-- snapshot == not recommended: rather use PR-labelled release!-->
 		<version>2025.0-PR3552</version>
+
+<!--		only recommended for "dependency sharing in the IDE": snapshot version:-->
+<!--		<version>2026.0-SNAPSHOT</version>-->
+<!--		the current matsim version is too "new" for lausitz-->
 	</parent>
 
 
@@ -111,6 +113,12 @@
 					<artifactId>javafx-graphics</artifactId>
 				</exclusion>
 			</exclusions>
+		</dependency>
+
+		<dependency>
+			<groupId>org.matsim.contrib</groupId>
+			<artifactId>small-scale-traffic-generation</artifactId>
+			<version>${matsim.version}</version>
 		</dependency>
 
 

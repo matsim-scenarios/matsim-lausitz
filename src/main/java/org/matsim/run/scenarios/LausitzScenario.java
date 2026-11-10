@@ -42,6 +42,8 @@ import org.matsim.run.prepare.PrepareNetwork;
 import org.matsim.run.prepare.PreparePopulation;
 import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.simwrapper.SimWrapperModule;
+import org.matsim.smallScaleCommercialTrafficGeneration.GenerateSmallScaleCommercialTrafficDemand;
+import org.matsim.smallScaleCommercialTrafficGeneration.prepare.CreateDataDistributionOfStructureData;
 import org.matsim.vehicles.EngineInformation;
 import org.matsim.vehicles.VehicleType;
 import org.matsim.vehicles.VehicleUtils;
@@ -59,7 +61,7 @@ import java.util.Set;
 		MergePopulations.class, ExtractRelevantFreightTrips.class, DownSamplePopulation.class, ExtractHomeCoordinates.class, CleanNetwork.class,
 		CreateLandUseShp.class, ResolveGridCoordinates.class, FixSubtourModes.class, AdjustActivityToLinkDistances.class, XYToLinks.class,
 		SplitActivityTypesDuration.class, CreateCountsFromBAStData.class, PreparePopulation.class, CleanPopulation.class, PrepareNetwork.class,
-		PrepareDrtScenarioAgents.class
+		PrepareDrtScenarioAgents.class, CreateDataDistributionOfStructureData.class, GenerateSmallScaleCommercialTrafficDemand.class
 })
 @MATSimApplication.Analysis({
 		LinkStats.class, CheckPopulation.class, CommuterAnalysis.class, CommunityFilter.class, DistanceMatrix.class, PublicTransitAnalysis.class

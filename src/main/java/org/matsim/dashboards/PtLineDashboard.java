@@ -11,6 +11,7 @@ import tech.tablesaw.plotly.traces.BarTrace;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.matsim.run.analysis.PtLineAnalysis.INCOME_DECILE_LABEL;
 import static org.matsim.run.scenarios.LausitzScenario.SLASH;
 
 /**
@@ -21,7 +22,6 @@ public class PtLineDashboard implements Dashboard {
 	private final String basePath;
 	private static final String SHARE = "share";
 	private static final String ABSOLUTE = "Count [person]";
-	private static final String INCOME_GROUP = "incomeGroup";
 	private static final String AGE_GROUP = "ageGroup";
 	private static final String DESCRIPTION = "... in base and policy case";
 
@@ -48,40 +48,40 @@ public class PtLineDashboard implements Dashboard {
 
 		layout.row("income")
 			.el(Bar.class, (viz, data) -> {
-				viz.title = "Agents per income group";
+				viz.title = "PT line by whole-population income decile share";
 				viz.stacked = false;
 				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_income_groups.csv", args);
-				viz.x = INCOME_GROUP;
-				viz.xAxisName = INCOME_GROUP;
+				viz.x = INCOME_DECILE_LABEL;
+				viz.xAxisName = "Income decile range [€]";
 				viz.yAxisName = SHARE;
 				viz.columns = List.of(SHARE);
 			})
 			.el(Bar.class, (viz, data) -> {
-				viz.title = "Agents per income group";
+				viz.title = "PT line by whole-population income decile count";
 				viz.stacked = false;
 				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_income_groups.csv", args);
-				viz.x = INCOME_GROUP;
-				viz.xAxisName = INCOME_GROUP;
+				viz.x = INCOME_DECILE_LABEL;
+				viz.xAxisName = "Income decile range [€]";
 				viz.yAxisName = ABSOLUTE;
 				viz.columns = List.of(ABSOLUTE);
 			})
 			.el(Bar.class, (viz, data) -> {
-				viz.title = "General income distribution";
+				viz.title = "Whole-population counts by income decile";
 				viz.stacked = false;
 				viz.dataset = data.compute(PtLineAnalysis.class, "all_persons_income_groups.csv", args);
-				viz.x = INCOME_GROUP;
-				viz.xAxisName = INCOME_GROUP;
+				viz.x = INCOME_DECILE_LABEL;
+				viz.xAxisName = "Income decile range [€]";
 				viz.yAxisName = ABSOLUTE;
 				viz.columns = List.of(ABSOLUTE);
 			});
 		layout.row("score")
 			.el(Bar.class, (viz, data) -> {
-				viz.title = "Mean score per income group";
+				viz.title = "Mean score of pt line users per income decile range";
 				viz.stacked = false;
 				viz.dataset = data.compute(PtLineAnalysis.class, "pt_persons_mean_score_per_income_group.csv", args);
-				viz.x = INCOME_GROUP;
-				viz.xAxisName = INCOME_GROUP;
-				viz.yAxisName = "mean score";
+				viz.x = INCOME_DECILE_LABEL;
+				viz.xAxisName = "Income decile range [€]";
+				viz.yAxisName = "mean score [util]";
 				viz.columns = List.of("mean_score_base", "mean_score_policy");});
 
 		createAgePlots(layout, args);

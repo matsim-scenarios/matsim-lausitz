@@ -115,7 +115,7 @@ public final class LausitzDrtScenario extends LausitzScenario {
 				public void install() {
 					DrtEstimatorModule.bindEstimator(binder(), drtConfigGroup.mode).toInstance(
 						new DirectTripBasedDrtEstimator.Builder()
-//							TODO: for what exactly is the typicalWaitingTIme needed? Don't we set this from the shp file
+//							typical waiting time is set as minimal waiting time. it will only be applied if the typical waiting time of a service area is >= minimal waiting time.
 							.setWaitingTimeEstimator(new ShapeFileBasedWaitingTimeEstimator(network, shp.readFeatures(), drtOpt.getTypicalWaitTime()))
 							.setWaitingTimeDistributionGenerator(new NormalDistributionGenerator(1, drtOpt.getWaitTimeStd()))
 							.setRideDurationEstimator(new ConstantRideDurationEstimator(drtOpt.getRideTimeAlpha(), drtOpt.getRideTimeBeta()))
